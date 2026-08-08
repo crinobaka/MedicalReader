@@ -1,17 +1,60 @@
 import 'package:flutter/material.dart';
 
+import 'package:file_picker/file_picker.dart';
+
+import 'library_controller.dart';
+
+import 'widgets/book_card.dart';
+
+
 
 class LibraryPage extends StatelessWidget {
 
 
 const LibraryPage({super.key});
 
+Future<void> pickBook() async {
+
+final result = await FilePicker.platform.pickFiles(
+
+type: FileType.custom,
+
+allowedExtensions: ["pdf"],
+
+);
+
+if(result==null){
+
+return;
+
+}
+
+final file=result.files.single.path;
+
+print(file);
+
+}
+
+
 
 @override
 Widget build(BuildContext context){
 
 
+final controller=
+
+LibraryController();
+
+
+
+final books=
+
+controller.getBooks();
+
+
+
 return Scaffold(
+
 
 appBar:
 
@@ -19,24 +62,55 @@ AppBar(
 
 title:
 
-const Text("Library"),
+const Text(
+
+"Medical Library"
+
+),
 
 ),
 
 
 body:
 
-const Center(
+ListView.builder(
 
-child:
 
-Text(
+itemCount:
 
-"医学书库"
+books.length,
+
+
+itemBuilder:
+
+(context,index){
+
+
+return BookCard(
+
+book:
+
+books[index],
+
+);
+
+
+},
+
 
 ),
 
+floatingActionButton: 
+FloatingActionButton(
+onPressed: () {
+
+},
+child: 
+const Icon(
+Icons.add
 ),
+),
+
 
 );
 
