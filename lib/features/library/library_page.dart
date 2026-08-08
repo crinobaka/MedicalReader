@@ -102,9 +102,8 @@ books[index],
 
 floatingActionButton: 
 FloatingActionButton(
-onPressed: () {
 
-},
+onPressed: pickBook,
 child: 
 const Icon(
 Icons.add
