@@ -1,55 +1,29 @@
 import 'package:flutter/material.dart';
 
-import 'package:file_picker/file_picker.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../library_controller.dart';
+import '../providers/library_provider.dart';
 
-import '../widgets/book_card.dart';
+import '../../../core/file_manager/providers/file_manager_provider.dart';
 
 
 
-class LibraryPage extends StatelessWidget {
+class LibraryPage extends ConsumerWidget {
 
 
 const LibraryPage({super.key});
 
-Future<void> pickBook() async {
-
-final result = await FilePicker.platform.pickFiles(
-
-type: FileType.custom,
-
-allowedExtensions: ["pdf"],
-
-);
-
-if(result==null){
-
-return;
-
-}
-
-final file=result.files.single.path;
-
-print(file);
-
-}
+onPressed: (){
+    ref.read(documentFilesProvider.notifier,).addFile();
+}, 
 
 
 
 @override
-Widget build(BuildContext context){
+Widget build(BuildContext context, WidgetRef ref){
 
 
-final controller=
-
-LibraryController();
-
-
-
-final books=
-
-controller.getBooks();
+final documents = ref.watch(libraryProvider,);
 
 
 
