@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/file_manager/models/document_file.dart';
+import '../models/library_document.dart';
 
 
 
 class DocumentCard extends StatelessWidget {
 
 
-  final DocumentFile document;
+  final LibraryDocument document;
 
 
   const DocumentCard({
@@ -24,12 +24,12 @@ class DocumentCard extends StatelessWidget {
 
       title:
           Text(
-            document.name,
+            document.title,
           ),
 
       subtitle:
           Text(
-            '${document.size} bytes',
+            '${document.file.size} bytes',
           ),
 
     );
