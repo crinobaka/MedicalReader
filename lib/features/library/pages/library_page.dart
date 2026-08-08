@@ -4,19 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/library_provider.dart';
 
-import '../../../core/file_manager/providers/file_manager_provider.dart';
-
+import '../widgets/document_card.dart';
 
 
 class LibraryPage extends ConsumerWidget {
 
 
 const LibraryPage({super.key});
-
-onPressed: (){
-    ref.read(documentFilesProvider.notifier,).addFile();
-}, 
-
 
 
 @override
@@ -52,7 +46,7 @@ ListView.builder(
 
 itemCount:
 
-books.length,
+documents.length,
 
 
 itemBuilder:
@@ -60,11 +54,11 @@ itemBuilder:
 (context,index){
 
 
-return BookCard(
+return DocumentCard(
 
-book:
+document:
 
-books[index],
+documents[index],
 
 );
 
@@ -77,7 +71,9 @@ books[index],
 floatingActionButton: 
 FloatingActionButton(
 
-onPressed: pickBook,
+onPressed: (){
+    ref.read(libraryProvider.notifier,).addFile();
+},
 child: 
 const Icon(
 Icons.add

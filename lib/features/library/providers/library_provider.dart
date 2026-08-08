@@ -6,10 +6,55 @@ import '../../../core/file_manager/providers/file_manager_provider.dart';
 
 
 final libraryProvider =
-    Provider<List<DocumentFile>>((ref){
+    StateNotifierProvider<
+        LibraryNotifier,
+        List<DocumentFile>
+    >((ref){
 
-  return ref.watch(
-    documentFilesProvider,
+  return LibraryNotifier(
+    ref,
   );
 
 });
+
+
+
+class LibraryNotifier
+    extends StateNotifier<List<DocumentFile>>{
+
+
+  final Ref ref;
+
+
+  LibraryNotifier(
+    this.ref,
+  )
+      :
+        super(
+          ref.read(
+            documentFilesProvider,
+          ),
+        );
+
+
+
+  Future<void> addFile() async {
+
+
+    await ref
+        .read(
+          documentFilesProvider
+              .notifier,
+        )
+        .addFile();
+
+
+    state =
+        ref.read(
+          documentFilesProvider,
+        );
+
+  }
+
+
+}
