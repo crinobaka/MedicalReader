@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 
 import 'package:file_picker/file_picker.dart';
 
-import 'library_controller.dart';
+import '../library_controller.dart';
 
-import 'widgets/book_card.dart';
+import '../widgets/book_card.dart';
 
 
 
