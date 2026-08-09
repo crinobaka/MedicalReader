@@ -22,6 +22,10 @@ final libraryRepositoryProvider =
 
         },
 
+        addFileAction: () async {
+          await ref.read(documentFilesProvider.notifier,).addFile();
+        },
+
       );
 
 

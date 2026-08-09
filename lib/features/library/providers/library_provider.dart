@@ -18,7 +18,7 @@ class LibraryNotifier extends StateNotifier<List<LibraryDocument>> {
       );
 
   Future<void> addFile() async {
-    await ref.read(libraryProvider.notifier).addFile();
+    await ref.read(libraryRepositoryProvider).addFile();
 
     state = ref
         .read(documentFilesProvider)
