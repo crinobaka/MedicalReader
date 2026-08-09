@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:medicalreader/features/library/providers/library_repository_provider.dart';
 
 import '../models/library_document.dart';
 import '../../../core/file_manager/providers/file_manager_provider.dart';
@@ -13,11 +14,11 @@ class LibraryNotifier extends StateNotifier<List<LibraryDocument>> {
 
   LibraryNotifier(this.ref)
     : super(
-        ref.read(documentFilesProvider).map(LibraryDocument.fromFile).toList(),
+        ref.read(libraryRepositoryProvider).getDocuments(),
       );
 
   Future<void> addFile() async {
-    await ref.read(documentFilesProvider.notifier).addFile();
+    await ref.read(libraryProvider.notifier).addFile();
 
     state = ref
         .read(documentFilesProvider)
