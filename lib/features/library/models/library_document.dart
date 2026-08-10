@@ -50,7 +50,7 @@ class LibraryDocument {
       'path': file.path,
       'addedAt': addedAt.toIso8601String(),
       'pages': pages,
-      'matadata': metadata,
+      'metadata': metadata,
     };
   }
 
