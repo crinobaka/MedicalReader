@@ -42,4 +42,30 @@ class LibraryDocument {
       addedAt: DateTime.now(),
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'path': file.path,
+      'addedAt': addedAt.toIso8601String(),
+      'pages': pages,
+      'matadata': metadata,
+    };
+  }
+
+  factory LibraryDocument.fromJson(
+    Map<String,dynamic> json,
+    DocumentFile file,
+  ){
+    return LibraryDocument(
+      id: json['id'],
+      file: file,
+      title: json['title'],
+      pages: json['pages'],
+      metadata: json['metadata'] ?? {},
+      addedAt: DateTime.parse(json['addedAt'],),
+    );
+  }
+
 }
