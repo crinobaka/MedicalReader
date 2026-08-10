@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/library_provider.dart';
-
+import '../../reader/pages/reader_page.dart';
 import '../widgets/document_card.dart';
 
 
@@ -59,6 +58,10 @@ return DocumentCard(
 document:
 
 documents[index],
+
+onTap: () {
+  Navigator.push(context, MaterialPageRoute(builder: (_) => ReaderPage(document: documents[index],),),);
+}
 
 );
 

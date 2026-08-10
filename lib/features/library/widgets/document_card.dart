@@ -5,11 +5,15 @@ import '../models/library_document.dart';
 class DocumentCard extends StatelessWidget {
   final LibraryDocument document;
 
-  const DocumentCard({super.key, required this.document});
+  final VoidCallback? onTap;
+
+  const DocumentCard({super.key, required this.document, this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
+      onTap: onTap,
+
       title: Text(document.title),
 
       subtitle: Column(
@@ -21,4 +25,5 @@ class DocumentCard extends StatelessWidget {
       ),
     );
   }
+
 }
