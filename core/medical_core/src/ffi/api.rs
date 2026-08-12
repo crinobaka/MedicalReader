@@ -1,4 +1,117 @@
+use std::ffi::{CStr, CString};
+use std::os::raw::c_char;
+use std::ptr;
+
+use crate::reader::document::Document;
+
+use super::types::MedicalCorePage;
+
 #[no_mangle]
 pub extern "C" fn medical_core_hello() -> i32 {
     1
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn medical_core_open_book(
+    id: *const c_char,
+    path: *const c_char,
+) -> *mut Document {
+    if id.is_null() || path.is_null() {
+        return ptr::null_mut();
+    }
+
+    let id = match CStr::from_ptr(id).to_str() {
+        Ok(value) => value.to_owned(),
+        Err(_) => return ptr::null_mut(),
+    };
+
+    let path = match CStr::from_ptr(path).to_str() {
+        Ok(value) => value.to_owned(),
+        Err(_) => return ptr::null_mut(),
+    };
+
+    let document = match Document::open(id, path) {
+        Ok(document) => document,
+        Err(_) => return ptr::null_mut(),
+    };
+
+    Box::into_raw(Box::new(document))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn medical_core_close_book(
+    handle: *mut Document,
+) {
+    if handle.is_null() {
+        return;
+    }
+
+    drop(Box::from_raw(handle));
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn medical_core_get_page_count(
+    handle: *const Document,
+    out_page_count: *mut u32,
+) -> i32 {
+    if handle.is_null() || out_page_count.is_null() {
+        return -1;
+    }
+
+    let document = &*handle;
+
+    match document.page_count() {
+        Ok(page_count) => {
+            *out_page_count = page_count;
+            0
+        }
+
+        Err(_) => -1,
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn medical_core_render_page(
+    handle: *const Document,
+    page_index: u32,
+    dpi: u32,
+) -> *mut MedicalCorePage {
+    if handle.is_null() {
+        return ptr::null_mut();
+    }
+
+    let document = &*handle;
+
+    let rendered_page = match document.render_page(page_index, dpi) {
+        Ok(page) => page,
+        Err(_) => return ptr::null_mut(),
+    };
+
+    MedicalCorePage::from_data(
+        rendered_page.width,
+        rendered_page.height,
+        rendered_page.stride,
+        rendered_page.components,
+        rendered_page.data,
+    )
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn medical_core_free_page(
+    page: *mut MedicalCorePage,
+) {
+    if page.is_null() {
+        return;
+    }
+
+    let page = Box::from_raw(page);
+
+    if !page.data.is_null() && page.data_len > 0 {
+        let slice = std::slice::from_raw_parts_mut(
+            page.data,
+            page.data_len,
+        );
+
+        let _ = Box::from_raw(slice);
+    }
 }
