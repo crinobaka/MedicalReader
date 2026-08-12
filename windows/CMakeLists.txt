@@ -6,8 +6,25 @@ project(medicalreader LANGUAGES CXX)
 # the on-disk name of your application.
 set(BINARY_NAME "medicalreader")
 
+# Native Medical Core.
+set(MEDICAL_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../core/medical_core")
+set(MEDICAL_CORE_DLL "${MEDICAL_CORE_DIR}/target/debug/medical_core.dll")
+
+add_custom_command(
+  OUTPUT "${MEDICAL_CORE_DLL}"
+  COMMAND cargo build --manifest-path "${MEDICAL_CORE_DIR}/Cargo.toml"
+  WORKING_DIRECTORY "${MEDICAL_CORE_DIR}"
+  DEPENDS
+    "${MEDICAL_CORE_DIR}/Cargo.toml"
+    "${MEDICAL_CORE_DIR}/src/lib.rs"
+    "${MEDICAL_CORE_DIR}/src/ffi/mod.rs"
+    "${MEDICAL_CORE_DIR}/src/ffi/api.rs"
+)
+
+add_custom_target(medical_core ALL DEPENDS "${MEDICAL_CORE_DLL}")
+
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
-# versions of CMake.
+# versions.
 cmake_policy(VERSION 3.14...3.25)
 
 # Define build configuration option.
@@ -86,6 +103,10 @@ if(PLUGIN_BUNDLED_LIBRARIES)
     DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)
 endif()
+
+install(FILES "${MEDICAL_CORE_DLL}"
+  DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+  COMPONENT Runtime)
 
 # Copy the native assets provided by the build.dart from all packages.
 set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/windows/")
