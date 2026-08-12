@@ -19,6 +19,10 @@ add_custom_command(
     "${MEDICAL_CORE_DIR}/src/lib.rs"
     "${MEDICAL_CORE_DIR}/src/ffi/mod.rs"
     "${MEDICAL_CORE_DIR}/src/ffi/api.rs"
+    "${MEDICAL_CORE_DIR}/src/ffi/types.rs"
+    "${MEDICAL_CORE_DIR}/src/reader/mod.rs"
+    "${MEDICAL_CORE_DIR}/src/reader/document.rs"
+    "${MEDICAL_CORE_DIR}/src/reader/renderer.rs"
 )
 
 add_custom_target(medical_core ALL DEPENDS "${MEDICAL_CORE_DLL}")

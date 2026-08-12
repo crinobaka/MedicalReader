@@ -28,7 +28,15 @@ impl Document {
     }
 
     pub fn page_count(&self) -> Result<u32, Error> {
-        self.inner.page_count()
+        let page_count = self.inner.page_count()?;
+
+        if page_count < 0 {
+            return Err(Error::Generic(
+                "MuPDF returned a negative page count".to_string(),
+            ));
+        }
+
+        Ok(page_count as u32)
     }
 
     pub fn render_page(
