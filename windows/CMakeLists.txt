@@ -22,6 +22,12 @@ add_custom_command(
 )
 
 add_custom_target(medical_core ALL DEPENDS "${MEDICAL_CORE_DLL}")
+add_custom_command(TARGET medical_core
+  POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    "${MEDICAL_CORE_DLL}"
+    "$<TARGET_FILE_DIR:${BINARY_NAME}>/medical_core.dll"
+)
 
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
 # versions.
