@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/file_manager/providers/file_manager_provider.dart';
+import '../../../../core/file_manager/providers/file_manager_provider.dart';
 
 import '../repositories/library_repository.dart';
 

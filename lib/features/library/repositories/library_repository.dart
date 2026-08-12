@@ -1,5 +1,5 @@
 import '../../../core/file_manager/providers/file_manager_provider.dart';
-import '../../../core/file_manager/models/document_file.dart';
+import '../../../../core/file_manager/models/document_file.dart';
 import '../models/library_document.dart';
 
 

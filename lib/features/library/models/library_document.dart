@@ -1,4 +1,4 @@
-import '../../../core/file_manager/models/document_file.dart';
+import '../../../../core/file_manager/models/document_file.dart';
 
 class LibraryDocument {
   final String id;
