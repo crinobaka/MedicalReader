@@ -10,9 +10,24 @@ set(BINARY_NAME "medicalreader")
 set(MEDICAL_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../core/medical_core")
 set(MEDICAL_CORE_DLL "${MEDICAL_CORE_DIR}/target/debug/medical_core.dll")
 
+# Locate Cargo explicitly.
+find_program(
+  CARGO_EXECUTABLE
+  cargo
+  PATHS
+    "$ENV{USERPROFILE}/.cargo/bin"
+)
+
+if(NOT CARGO_EXECUTABLE)
+  message(FATAL_ERROR
+    "Cargo was not found. "
+    "Please install Rust with rustup and make sure cargo.exe is available."
+  )
+endif()
+
 add_custom_command(
   OUTPUT "${MEDICAL_CORE_DLL}"
-  COMMAND cargo build --manifest-path "${MEDICAL_CORE_DIR}/Cargo.toml"
+  COMMAND "${CARGO_EXECUTABLE}" build --manifest-path "${MEDICAL_CORE_DIR}/Cargo.toml"
   WORKING_DIRECTORY "${MEDICAL_CORE_DIR}"
   DEPENDS
     "${MEDICAL_CORE_DIR}/Cargo.toml"
