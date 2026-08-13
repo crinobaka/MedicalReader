@@ -23,17 +23,29 @@ class PageCache {
       return;
     }
 
-    existing?.dispose();
-
     _pages[pageIndex] = image;
 
-    _trim();
+    existing?.dispose();
   }
 
-  void remove(int pageIndex) {
-    final image = _pages.remove(pageIndex);
+  ui.Image? remove(int pageIndex) {
+    return _pages.remove(pageIndex);
+  }
 
-    image?.dispose();
+  List<ui.Image> trim() {
+    final removed = <ui.Image>[];
+
+    while (_pages.length > capacity) {
+      final oldestPageIndex = _pages.keys.first;
+
+      final image = _pages.remove(oldestPageIndex);
+
+      if (image != null) {
+        removed.add(image);
+      }
+    }
+
+    return removed;
   }
 
   void clear() {
@@ -54,15 +66,5 @@ class PageCache {
 
   void dispose() {
     clear();
-  }
-
-  void _trim() {
-    while (_pages.length > capacity) {
-      final oldestPageIndex = _pages.keys.first;
-
-      final image = _pages.remove(oldestPageIndex);
-
-      image?.dispose();
-    }
   }
 }
