@@ -13,11 +13,9 @@ pub fn render_page(
     page_index: u32,
     dpi: u32,
 ) -> Result<RenderedPage, Error> {
-    if dpi == 0 {
-        return Err(Error::Generic(
-            "dpi must be greater than zero".to_string(),
-        ));
-    }
+    let dpi = if dpi == 0 { 72 } else { dpi };
+
+    let page_index = page_index as i32;
 
     let page = document.load_page(page_index)?;
 
@@ -36,19 +34,8 @@ pub fn render_page(
 
     let width = pixmap.width();
     let height = pixmap.height();
-
-    let stride = pixmap.stride();
-
-    if stride < 0 {
-        return Err(Error::Generic(
-            "invalid negative pixmap stride".to_string(),
-        ));
-    }
-
-    let stride = stride as usize;
-
+    let stride = pixmap.stride() as usize;
     let components = pixmap.n();
-
     let data = pixmap.samples().to_vec();
 
     Ok(RenderedPage {
