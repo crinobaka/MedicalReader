@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../../../core/ffi/medical_core.dart';
 import '../../library/models/library_document.dart';
-import '../services/reader_engine_service.dart';
 import '../services/page_preloader.dart';
+import '../services/reader_engine_service.dart';
 
 class ReaderPage extends StatefulWidget {
   final LibraryDocument document;
@@ -23,7 +23,7 @@ class _ReaderPageState extends State<ReaderPage> {
   final ReaderEngineService _readerEngine =
       ReaderEngineService();
 
-  late final PagePreloader _pagePreloader; 
+  late final PagePreloader _pagePreloader;
 
   MedicalCoreDocument? _document;
 
@@ -43,13 +43,15 @@ class _ReaderPageState extends State<ReaderPage> {
   void initState() {
     super.initState();
 
-    _pagePreloader = PagePreloader(readerEngine: _readerEngine,);
+    _pagePreloader = PagePreloader(
+      readerEngine: _readerEngine,
+    );
+
     _openDocument();
   }
 
   Future<void> _openDocument() async {
     MedicalCoreDocument? document;
-    ui.Image? image;
 
     try {
       document = _readerEngine.openDocument(
@@ -68,12 +70,6 @@ class _ReaderPageState extends State<ReaderPage> {
         );
       }
 
-      image = await _readerEngine.renderPage(
-        document: document,
-        pageIndex: 0,
-        dpi: 150,
-      );
-
       if (!mounted) {
         document.close();
         return;
@@ -81,10 +77,26 @@ class _ReaderPageState extends State<ReaderPage> {
 
       setState(() {
         _document = document;
-        _image = image;
         _currentPage = 0;
         _pageCount = pageCount;
         _loading = false;
+        _pageLoading = true;
+        _error = null;
+      });
+
+      final image = await _readerEngine.renderPage(
+        document: document,
+        pageIndex: 0,
+        dpi: 150,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _image = image;
+        _currentPage = 0;
         _pageLoading = false;
         _error = null;
       });
@@ -94,9 +106,6 @@ class _ReaderPageState extends State<ReaderPage> {
         currentPage: 0,
         pageCount: pageCount,
       );
-
-      document = null;
-      image = null;
     } catch (error) {
       document?.close();
 
@@ -185,6 +194,8 @@ class _ReaderPageState extends State<ReaderPage> {
 
   @override
   void dispose() {
+    _pagePreloader.cancel();
+
     _document?.close();
     _readerEngine.dispose();
 
@@ -216,7 +227,7 @@ class _ReaderPageState extends State<ReaderPage> {
 
     if (image == null) {
       return const Center(
-        child: Text('No page available.'),
+        child: CircularProgressIndicator(),
       );
     }
 
@@ -315,9 +326,7 @@ class _ReaderPageState extends State<ReaderPage> {
             ),
             const SizedBox(height: 16),
             FilledButton(
-              onPressed: () {
-                _retryOpenDocument();
-              },
+              onPressed: _retryOpenDocument,
               child: const Text('Retry'),
             ),
           ],
@@ -327,6 +336,7 @@ class _ReaderPageState extends State<ReaderPage> {
   }
 
   void _retryOpenDocument() {
+    _pagePreloader.cancel();
     _readerEngine.clearPageCache();
 
     _document?.close();
