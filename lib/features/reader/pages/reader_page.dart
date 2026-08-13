@@ -71,7 +71,6 @@ class _ReaderPageState extends State<ReaderPage> {
       );
 
       if (!mounted) {
-        image.dispose();
         document.close();
         return;
       }
@@ -89,7 +88,6 @@ class _ReaderPageState extends State<ReaderPage> {
       document = null;
       image = null;
     } catch (error) {
-      image?.dispose();
       document?.close();
 
       if (!mounted) {
@@ -124,35 +122,24 @@ class _ReaderPageState extends State<ReaderPage> {
       _error = null;
     });
 
-    ui.Image? newImage;
-
     try {
-      newImage = await _readerEngine.renderPage(
+      final image = await _readerEngine.renderPage(
         document: document,
         pageIndex: pageIndex,
         dpi: 150,
       );
 
       if (!mounted) {
-        newImage.dispose();
         return;
       }
 
-      final oldImage = _image;
-
       setState(() {
-        _image = newImage;
+        _image = image;
         _currentPage = pageIndex;
         _pageLoading = false;
         _error = null;
       });
-
-      newImage = null;
-
-      oldImage?.dispose();
     } catch (error) {
-      newImage?.dispose();
-
       if (!mounted) {
         return;
       }
@@ -182,8 +169,8 @@ class _ReaderPageState extends State<ReaderPage> {
 
   @override
   void dispose() {
-    _image?.dispose();
     _document?.close();
+    _readerEngine.dispose();
 
     super.dispose();
   }
@@ -313,21 +300,7 @@ class _ReaderPageState extends State<ReaderPage> {
             const SizedBox(height: 16),
             FilledButton(
               onPressed: () {
-                setState(() {
-                  _loading = true;
-                  _pageLoading = false;
-                  _error = null;
-                  _currentPage = 0;
-                  _pageCount = 0;
-                });
-
-                _image?.dispose();
-                _image = null;
-
-                _document?.close();
-                _document = null;
-
-                _openDocument();
+                _retryOpenDocument();
               },
               child: const Text('Retry'),
             ),
@@ -335,5 +308,23 @@ class _ReaderPageState extends State<ReaderPage> {
         ),
       ),
     );
+  }
+
+  void _retryOpenDocument() {
+    _readerEngine.clearPageCache();
+
+    _document?.close();
+    _document = null;
+
+    setState(() {
+      _loading = true;
+      _pageLoading = false;
+      _error = null;
+      _currentPage = 0;
+      _pageCount = 0;
+      _image = null;
+    });
+
+    _openDocument();
   }
 }
