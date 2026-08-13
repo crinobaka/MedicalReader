@@ -10,22 +10,31 @@ class PageCache {
   }) : assert(capacity > 0);
 
   ui.Image? get(int pageIndex) {
-    return _pages[pageIndex];
+    final image = _pages.remove(pageIndex);
+
+    if (image == null) {
+      return null;
+    }
+
+    _pages[pageIndex] = image;
+
+    return image;
   }
 
   void put(
     int pageIndex,
     ui.Image image,
   ) {
-    final existing = _pages[pageIndex];
+    final existing = _pages.remove(pageIndex);
 
     if (identical(existing, image)) {
+      _pages[pageIndex] = image;
       return;
     }
 
-    _pages[pageIndex] = image;
-
     existing?.dispose();
+
+    _pages[pageIndex] = image;
   }
 
   ui.Image? remove(int pageIndex) {
