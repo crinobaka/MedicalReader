@@ -9,20 +9,30 @@ import '../services/reader_engine_service.dart';
 class ReaderPage extends StatefulWidget {
   final LibraryDocument document;
 
-  const ReaderPage({super.key, required this.document});
+  const ReaderPage({
+    super.key,
+    required this.document,
+  });
 
   @override
   State<ReaderPage> createState() => _ReaderPageState();
 }
 
 class _ReaderPageState extends State<ReaderPage> {
-  final ReaderEngineService _readerEngine = ReaderEngineService();
+  final ReaderEngineService _readerEngine =
+      ReaderEngineService();
 
   MedicalCoreDocument? _document;
 
   ui.Image? _image;
 
+  int _currentPage = 0;
+
+  int _pageCount = 0;
+
   bool _loading = true;
+
+  bool _pageLoading = false;
 
   Object? _error;
 
@@ -49,7 +59,9 @@ class _ReaderPageState extends State<ReaderPage> {
         document.close();
         document = null;
 
-        throw StateError('PDF contains no pages.');
+        throw StateError(
+          'PDF contains no pages.',
+        );
       }
 
       image = await _readerEngine.renderPage(
@@ -67,7 +79,10 @@ class _ReaderPageState extends State<ReaderPage> {
       setState(() {
         _document = document;
         _image = image;
+        _currentPage = 0;
+        _pageCount = pageCount;
         _loading = false;
+        _pageLoading = false;
         _error = null;
       });
 
@@ -83,9 +98,86 @@ class _ReaderPageState extends State<ReaderPage> {
 
       setState(() {
         _loading = false;
+        _pageLoading = false;
         _error = error;
       });
     }
+  }
+
+  Future<void> _renderPage(int pageIndex) async {
+    final document = _document;
+
+    if (document == null) {
+      return;
+    }
+
+    if (pageIndex < 0 || pageIndex >= _pageCount) {
+      return;
+    }
+
+    if (_pageLoading) {
+      return;
+    }
+
+    setState(() {
+      _pageLoading = true;
+      _error = null;
+    });
+
+    ui.Image? newImage;
+
+    try {
+      newImage = await _readerEngine.renderPage(
+        document: document,
+        pageIndex: pageIndex,
+        dpi: 150,
+      );
+
+      if (!mounted) {
+        newImage.dispose();
+        return;
+      }
+
+      final oldImage = _image;
+
+      setState(() {
+        _image = newImage;
+        _currentPage = pageIndex;
+        _pageLoading = false;
+        _error = null;
+      });
+
+      newImage = null;
+
+      oldImage?.dispose();
+    } catch (error) {
+      newImage?.dispose();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _pageLoading = false;
+        _error = error;
+      });
+    }
+  }
+
+  Future<void> _previousPage() async {
+    if (_currentPage <= 0) {
+      return;
+    }
+
+    await _renderPage(_currentPage - 1);
+  }
+
+  Future<void> _nextPage() async {
+    if (_currentPage >= _pageCount - 1) {
+      return;
+    }
+
+    await _renderPage(_currentPage + 1);
   }
 
   @override
@@ -99,60 +191,148 @@ class _ReaderPageState extends State<ReaderPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.document.title)),
+      appBar: AppBar(
+        title: Text(widget.document.title),
+      ),
       body: _buildBody(),
     );
   }
 
   Widget _buildBody() {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
     }
 
-    if (_error != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.error_outline, size: 48),
-              const SizedBox(height: 16),
-              const Text(
-                'Failed to open PDF',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Text('$_error', textAlign: TextAlign.center),
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: () {
-                  setState(() {
-                    _loading = true;
-                    _error = null;
-                  });
-
-                  _openDocument();
-                },
-                child: const Text('Retry'),
-              ),
-            ],
-          ),
-        ),
-      );
+    if (_error != null && _image == null) {
+      return _buildError();
     }
 
     final image = _image;
 
     if (image == null) {
-      return const Center(child: Text('No page available.'));
+      return const Center(
+        child: Text('No page available.'),
+      );
     }
 
+    return Column(
+      children: [
+        Expanded(
+          child: Stack(
+            children: [
+              Center(
+                child: InteractiveViewer(
+                  minScale: 0.5,
+                  maxScale: 4.0,
+                  child: RawImage(
+                    image: image,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+              if (_pageLoading)
+                const Positioned.fill(
+                  child: IgnorePointer(
+                    child: Center(
+                      child: CircularProgressIndicator(),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        _buildPageControls(),
+      ],
+    );
+  }
+
+  Widget _buildPageControls() {
+    final canGoPrevious =
+        !_pageLoading && _currentPage > 0;
+
+    final canGoNext =
+        !_pageLoading &&
+        _currentPage < _pageCount - 1;
+
+    return SafeArea(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          IconButton(
+            tooltip: 'Previous page',
+            onPressed:
+                canGoPrevious ? _previousPage : null,
+            icon: const Icon(
+              Icons.chevron_left,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Text(
+            '${_currentPage + 1} / $_pageCount',
+          ),
+          const SizedBox(width: 16),
+          IconButton(
+            tooltip: 'Next page',
+            onPressed:
+                canGoNext ? _nextPage : null,
+            icon: const Icon(
+              Icons.chevron_right,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildError() {
     return Center(
-      child: InteractiveViewer(
-        minScale: 0.5,
-        maxScale: 4.0,
-        child: RawImage(image: image, fit: BoxFit.contain),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.error_outline,
+              size: 48,
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Failed to open PDF',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '$_error',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: () {
+                setState(() {
+                  _loading = true;
+                  _pageLoading = false;
+                  _error = null;
+                  _currentPage = 0;
+                  _pageCount = 0;
+                });
+
+                _image?.dispose();
+                _image = null;
+
+                _document?.close();
+                _document = null;
+
+                _openDocument();
+              },
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
       ),
     );
   }
