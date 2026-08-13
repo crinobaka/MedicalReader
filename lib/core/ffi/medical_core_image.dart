@@ -6,9 +6,7 @@ import 'medical_core.dart';
 class MedicalCoreImage {
   const MedicalCoreImage._();
 
-  static Future<ui.Image> decode(
-    MedicalCorePage page,
-  ) async {
+  static Future<ui.Image> decode(MedicalCorePage page) async {
     if (page.width <= 0 || page.height <= 0) {
       throw StateError(
         'Invalid rendered page size: '
@@ -17,9 +15,7 @@ class MedicalCoreImage {
     }
 
     if (page.stride <= 0) {
-      throw StateError(
-        'Invalid rendered page stride: ${page.stride}',
-      );
+      throw StateError('Invalid rendered page stride: ${page.stride}');
     }
 
     if (page.components != 3 && page.components != 4) {
@@ -29,8 +25,7 @@ class MedicalCoreImage {
       );
     }
 
-    final minimumRowBytes =
-        page.width * page.components;
+    final minimumRowBytes = page.width * page.components;
 
     if (page.stride < minimumRowBytes) {
       throw StateError(
@@ -39,8 +34,7 @@ class MedicalCoreImage {
       );
     }
 
-    final expectedDataLength =
-        page.stride * page.height;
+    final expectedDataLength = page.stride * page.height;
 
     if (page.data.length < expectedDataLength) {
       throw StateError(
@@ -49,56 +43,53 @@ class MedicalCoreImage {
       );
     }
 
-    final rgba = Uint8List(
-      page.width * page.height * 4,
-    );
+    final rgba = Uint8List(page.width * page.height * 4);
 
     for (var y = 0; y < page.height; y++) {
-      final sourceRowStart =
-          y * page.stride;
+      final sourceRowStart = y * page.stride;
 
-      final targetRowStart =
-          y * page.width * 4;
+      final targetRowStart = y * page.width * 4;
 
       for (var x = 0; x < page.width; x++) {
-        final sourcePixel =
-            sourceRowStart +
-            x * page.components;
+        final sourcePixel = sourceRowStart + x * page.components;
 
-        final targetPixel =
-            targetRowStart +
-            x * 4;
+        final targetPixel = targetRowStart + x * 4;
 
-        rgba[targetPixel] =
-            page.data[sourcePixel];
+        rgba[targetPixel] = page.data[sourcePixel];
 
-        rgba[targetPixel + 1] =
-            page.data[sourcePixel + 1];
+        rgba[targetPixel + 1] = page.data[sourcePixel + 1];
 
-        rgba[targetPixel + 2] =
-            page.data[sourcePixel + 2];
+        rgba[targetPixel + 2] = page.data[sourcePixel + 2];
 
-        rgba[targetPixel + 3] =
-            page.components == 4
-                ? page.data[sourcePixel + 3]
-                : 255;
+        rgba[targetPixel + 3] = page.components == 4
+            ? page.data[sourcePixel + 3]
+            : 255;
       }
     }
 
-    final codec =
-        await ui.instantiateImageCodec(
-      rgba,
-      targetWidth: page.width,
-      targetHeight: page.height,
+    final buffer = await ui.ImmutableBuffer.fromUint8List(rgba);
+
+    final descriptor = ui.ImageDescriptor.raw(
+      buffer,
+      width: page.width,
+      height: page.height,
+      rowBytes: page.width * 4,
+      pixelFormat: ui.PixelFormat.rgba8888,
     );
 
     try {
-      final frame =
-          await codec.getNextFrame();
+      final codec = await descriptor.instantiateCodec();
 
-      return frame.image;
+      try {
+        final frame = await codec.getNextFrame();
+
+        return frame.image;
+      } finally {
+        codec.dispose();
+      }
     } finally {
-      codec.dispose();
+      descriptor.dispose();
+      buffer.dispose();
     }
   }
 }
