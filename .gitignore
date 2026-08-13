@@ -43,3 +43,11 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Rust build artifacts
+target/
+**/target/
+
+# Flutter/Dart build artifacts
+.dart_tool/
+build/
