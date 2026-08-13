@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../core/ffi/medical_core.dart';
 import '../../library/models/library_document.dart';
 import '../services/reader_engine_service.dart';
+import '../services/page_preloader.dart';
 
 class ReaderPage extends StatefulWidget {
   final LibraryDocument document;
@@ -21,6 +22,8 @@ class ReaderPage extends StatefulWidget {
 class _ReaderPageState extends State<ReaderPage> {
   final ReaderEngineService _readerEngine =
       ReaderEngineService();
+
+  late final PagePreloader _pagePreloader; 
 
   MedicalCoreDocument? _document;
 
@@ -40,6 +43,7 @@ class _ReaderPageState extends State<ReaderPage> {
   void initState() {
     super.initState();
 
+    _pagePreloader = PagePreloader(readerEngine: _readerEngine,);
     _openDocument();
   }
 
@@ -84,6 +88,12 @@ class _ReaderPageState extends State<ReaderPage> {
         _pageLoading = false;
         _error = null;
       });
+
+      _pagePreloader.preloadAround(
+        document: document,
+        currentPage: 0,
+        pageCount: pageCount,
+      );
 
       document = null;
       image = null;
@@ -139,6 +149,12 @@ class _ReaderPageState extends State<ReaderPage> {
         _pageLoading = false;
         _error = null;
       });
+
+      _pagePreloader.preloadAround(
+        document: document,
+        currentPage: pageIndex,
+        pageCount: _pageCount,
+      );
     } catch (error) {
       if (!mounted) {
         return;

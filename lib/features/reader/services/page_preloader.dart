@@ -1,4 +1,4 @@
-import 'dart:async';
+import 'package:flutter/foundation.dart';
 
 import '../../../core/ffi/medical_core.dart';
 import 'reader_engine_service.dart';
@@ -7,6 +7,8 @@ class PagePreloader {
   final ReaderEngineService _readerEngine;
 
   bool _running = false;
+
+  int _generation = 0;
 
   PagePreloader({
     required ReaderEngineService readerEngine,
@@ -24,6 +26,8 @@ class PagePreloader {
 
     _running = true;
 
+    final generation = ++_generation;
+
     try {
       final pages = <int>[
         currentPage - 1,
@@ -31,6 +35,10 @@ class PagePreloader {
       ];
 
       for (final pageIndex in pages) {
+        if (generation != _generation) {
+          return;
+        }
+
         if (pageIndex < 0 || pageIndex >= pageCount) {
           continue;
         }
@@ -41,12 +49,31 @@ class PagePreloader {
             pageIndex: pageIndex,
             dpi: dpi,
           );
-        } catch (_) {
-          // 预加载失败不能影响当前阅读。
+        } catch (error, stackTrace) {
+          if (generation != _generation) {
+            return;
+          }
+
+          debugPrint(
+            'Page preload failed: '
+            'page=$pageIndex, '
+            'error=$error',
+          );
+
+          debugPrintStack(
+            stackTrace: stackTrace,
+          );
         }
       }
     } finally {
-      _running = false;
+      if (generation == _generation) {
+        _running = false;
+      }
     }
+  }
+
+  void cancel() {
+    _generation++;
+    _running = false;
   }
 }
