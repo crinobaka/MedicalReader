@@ -14,25 +14,18 @@ import '../services/reader_progress_service.dart';
 class ReaderPage extends ConsumerStatefulWidget {
   final LibraryDocument document;
 
-  const ReaderPage({
-    super.key,
-    required this.document,
-  });
+  const ReaderPage({super.key, required this.document});
 
   @override
-  ConsumerState<ReaderPage> createState() =>
-      _ReaderPageState();
+  ConsumerState<ReaderPage> createState() => _ReaderPageState();
 }
 
-class _ReaderPageState
-    extends ConsumerState<ReaderPage> {
-  final ReaderEngineService _readerEngine =
-      ReaderEngineService();
+class _ReaderPageState extends ConsumerState<ReaderPage> {
+  final ReaderEngineService _readerEngine = ReaderEngineService();
 
   late final PagePreloader _pagePreloader;
 
-  late final ReaderProgressService
-      _readerProgressService;
+  late final ReaderProgressService _readerProgressService;
 
   MedicalCoreDocument? _document;
 
@@ -52,15 +45,10 @@ class _ReaderPageState
   void initState() {
     super.initState();
 
-    _pagePreloader = PagePreloader(
-      readerEngine: _readerEngine,
-    );
+    _pagePreloader = PagePreloader(readerEngine: _readerEngine);
 
-    _readerProgressService =
-        ReaderProgressService(
-      libraryRepository: ref.read(
-        libraryRepositoryProvider,
-      ),
+    _readerProgressService = ReaderProgressService(
+      libraryRepository: ref.read(libraryRepositoryProvider),
     );
 
     _openDocument();
@@ -81,18 +69,12 @@ class _ReaderPageState
         document.close();
         document = null;
 
-        throw StateError(
-          'PDF contains no pages.',
-        );
+        throw StateError('PDF contains no pages.');
       }
 
-      final progress =
-          await _readerProgressService.load(
-        widget.document.id,
-      );
+      final progress = await _readerProgressService.load(widget.document.id);
 
-      final restoredPage = progress.lastPage
-          .clamp(0, pageCount - 1);
+      final restoredPage = progress.lastPage.clamp(0, pageCount - 1);
 
       if (!mounted) {
         document.close();
@@ -145,17 +127,14 @@ class _ReaderPageState
     }
   }
 
-  Future<void> _renderPage(
-    int pageIndex,
-  ) async {
+  Future<void> _renderPage(int pageIndex) async {
     final document = _document;
 
     if (document == null) {
       return;
     }
 
-    if (pageIndex < 0 ||
-        pageIndex >= _pageCount) {
+    if (pageIndex < 0 || pageIndex >= _pageCount) {
       return;
     }
 
@@ -186,9 +165,7 @@ class _ReaderPageState
         _error = null;
       });
 
-      await _saveProgress(
-        pageIndex,
-      );
+      await _saveProgress(pageIndex);
 
       if (!mounted) {
         return;
@@ -211,9 +188,7 @@ class _ReaderPageState
     }
   }
 
-  Future<void> _saveProgress(
-    int pageIndex,
-  ) async {
+  Future<void> _saveProgress(int pageIndex) async {
     await _readerProgressService.save(
       documentId: widget.document.id,
       lastPage: pageIndex,
@@ -225,9 +200,7 @@ class _ReaderPageState
       return;
     }
 
-    await _renderPage(
-      _currentPage - 1,
-    );
+    await _renderPage(_currentPage - 1);
   }
 
   Future<void> _nextPage() async {
@@ -235,20 +208,14 @@ class _ReaderPageState
       return;
     }
 
-    await _renderPage(
-      _currentPage + 1,
-    );
+    await _renderPage(_currentPage + 1);
   }
 
   @override
   void dispose() {
     _pagePreloader.cancel();
 
-    unawaited(
-      _saveProgress(
-        _currentPage,
-      ),
-    );
+    unawaited(_saveProgress(_currentPage));
 
     _document?.close();
     _readerEngine.dispose();
@@ -257,37 +224,26 @@ class _ReaderPageState
   }
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          widget.document.title,
-        ),
-      ),
+      appBar: AppBar(title: Text(widget.document.title)),
       body: _buildBody(),
     );
   }
 
   Widget _buildBody() {
     if (_loading) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
 
-    if (_error != null &&
-        _image == null) {
+    if (_error != null && _image == null) {
       return _buildError();
     }
 
     final image = _image;
 
     if (image == null) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
 
     return Column(
@@ -299,19 +255,13 @@ class _ReaderPageState
                 child: InteractiveViewer(
                   minScale: 0.5,
                   maxScale: 4.0,
-                  child: RawImage(
-                    image: image,
-                    fit: BoxFit.contain,
-                  ),
+                  child: RawImage(image: image, fit: BoxFit.contain),
                 ),
               ),
               if (_pageLoading)
                 const Positioned.fill(
                   child: IgnorePointer(
-                    child: Center(
-                      child:
-                          CircularProgressIndicator(),
-                    ),
+                    child: Center(child: CircularProgressIndicator()),
                   ),
                 ),
             ],
@@ -323,41 +273,26 @@ class _ReaderPageState
   }
 
   Widget _buildPageControls() {
-    final canGoPrevious =
-        !_pageLoading &&
-        _currentPage > 0;
+    final canGoPrevious = !_pageLoading && _currentPage > 0;
 
-    final canGoNext =
-        !_pageLoading &&
-        _currentPage < _pageCount - 1;
+    final canGoNext = !_pageLoading && _currentPage < _pageCount - 1;
 
     return SafeArea(
       child: Row(
-        mainAxisAlignment:
-            MainAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           IconButton(
             tooltip: 'Previous page',
-            onPressed: canGoPrevious
-                ? _previousPage
-                : null,
-            icon: const Icon(
-              Icons.chevron_left,
-            ),
+            onPressed: canGoPrevious ? _previousPage : null,
+            icon: const Icon(Icons.chevron_left),
           ),
           const SizedBox(width: 16),
-          Text(
-            '${_currentPage + 1} / $_pageCount',
-          ),
+          Text('${_currentPage + 1} / $_pageCount'),
           const SizedBox(width: 16),
           IconButton(
             tooltip: 'Next page',
-            onPressed: canGoNext
-                ? _nextPage
-                : null,
-            icon: const Icon(
-              Icons.chevron_right,
-            ),
+            onPressed: canGoNext ? _nextPage : null,
+            icon: const Icon(Icons.chevron_right),
           ),
         ],
       ),
@@ -367,38 +302,22 @@ class _ReaderPageState
   Widget _buildError() {
     return Center(
       child: Padding(
-        padding:
-            const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(24),
         child: Column(
-          mainAxisSize:
-              MainAxisSize.min,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
-              Icons.error_outline,
-              size: 48,
-            ),
+            const Icon(Icons.error_outline, size: 48),
             const SizedBox(height: 16),
             const Text(
               'Failed to open PDF',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight:
-                    FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            Text(
-              '$_error',
-              textAlign:
-                  TextAlign.center,
-            ),
+            Text('$_error', textAlign: TextAlign.center),
             const SizedBox(height: 16),
             FilledButton(
-              onPressed:
-                  _retryOpenDocument,
-              child: const Text(
-                'Retry',
-              ),
+              onPressed: _retryOpenDocument,
+              child: const Text('Retry'),
             ),
           ],
         ),
