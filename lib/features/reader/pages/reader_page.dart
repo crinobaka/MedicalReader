@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/gestures.dart';
 
 import '../../../core/ffi/medical_core.dart';
 import '../../library/models/library_document.dart';
@@ -27,6 +29,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   late final ReaderProgressService _readerProgressService;
 
+  late final FocusNode _keyboardFocusNode;
+
   MedicalCoreDocument? _document;
 
   ui.Image? _image;
@@ -50,6 +54,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     _readerProgressService = ReaderProgressService(
       libraryRepository: ref.read(libraryRepositoryProvider),
     );
+
+    _keyboardFocusNode = FocusNode();
 
     _openDocument();
   }
@@ -112,6 +118,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         currentPage: restoredPage,
         pageCount: pageCount,
       );
+
+      _keyboardFocusNode.requestFocus();
     } catch (error) {
       document?.close();
 
@@ -196,7 +204,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   }
 
   Future<void> _previousPage() async {
-    if (_currentPage <= 0) {
+    if (_currentPage <= 0 || _pageLoading) {
       return;
     }
 
@@ -204,11 +212,71 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   }
 
   Future<void> _nextPage() async {
-    if (_currentPage >= _pageCount - 1) {
+    if (_currentPage >= _pageCount - 1 || _pageLoading) {
       return;
     }
 
     await _renderPage(_currentPage + 1);
+  }
+
+  Future<void> _firstPage() async {
+    if (_currentPage == 0 || _pageLoading) {
+      return;
+    }
+
+    await _renderPage(0);
+  }
+
+  Future<void> _lastPage() async {
+    if (_pageCount <= 0 || _currentPage == _pageCount - 1 || _pageLoading) {
+      return;
+    }
+
+    await _renderPage(_pageCount - 1);
+  }
+
+  void _handleKeyEvent(KeyEvent event) {
+    if (event is! KeyDownEvent) {
+      return;
+    }
+
+    switch (event.logicalKey) {
+      case LogicalKeyboardKey.arrowLeft:
+      case LogicalKeyboardKey.pageUp:
+        unawaited(_previousPage());
+        break;
+
+      case LogicalKeyboardKey.arrowRight:
+      case LogicalKeyboardKey.pageDown:
+        unawaited(_nextPage());
+        break;
+
+      case LogicalKeyboardKey.home:
+        unawaited(_firstPage());
+        break;
+
+      case LogicalKeyboardKey.end:
+        unawaited(_lastPage());
+        break;
+    }
+  }
+
+  void _handlePointerSignal(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent) {
+      return;
+    }
+
+    if (_pageLoading) {
+      return;
+    }
+
+    final dy = event.scrollDelta.dy;
+
+    if (dy > 0) {
+      unawaited(_nextPage());
+    } else if (dy < 0) {
+      unawaited(_previousPage());
+    }
   }
 
   @override
@@ -217,7 +285,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
     unawaited(_saveProgress(_currentPage));
 
+    _keyboardFocusNode.dispose();
+
     _document?.close();
+
     _readerEngine.dispose();
 
     super.dispose();
@@ -227,7 +298,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(widget.document.title)),
-      body: _buildBody(),
+      body: KeyboardListener(
+        focusNode: _keyboardFocusNode,
+        onKeyEvent: _handleKeyEvent,
+        child: _buildBody(),
+      ),
     );
   }
 
@@ -249,22 +324,25 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     return Column(
       children: [
         Expanded(
-          child: Stack(
-            children: [
-              Center(
-                child: InteractiveViewer(
-                  minScale: 0.5,
-                  maxScale: 4.0,
-                  child: RawImage(image: image, fit: BoxFit.contain),
-                ),
-              ),
-              if (_pageLoading)
-                const Positioned.fill(
-                  child: IgnorePointer(
-                    child: Center(child: CircularProgressIndicator()),
+          child: Listener(
+            onPointerSignal: _handlePointerSignal,
+            child: Stack(
+              children: [
+                Center(
+                  child: InteractiveViewer(
+                    minScale: 0.5,
+                    maxScale: 4.0,
+                    child: RawImage(image: image, fit: BoxFit.contain),
                   ),
                 ),
-            ],
+                if (_pageLoading)
+                  const Positioned.fill(
+                    child: IgnorePointer(
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
         _buildPageControls(),
@@ -327,9 +405,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   void _retryOpenDocument() {
     _pagePreloader.cancel();
+
     _readerEngine.clearPageCache();
 
     _document?.close();
+
     _document = null;
 
     setState(() {
