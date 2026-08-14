@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:ui' as ui;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/gestures.dart';
 
 import '../../../core/ffi/medical_core.dart';
 import '../../library/models/library_document.dart';
@@ -42,6 +42,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   bool _loading = true;
 
   bool _pageLoading = false;
+
+  bool _cropMargins = false;
 
   Object? _error;
 
@@ -100,6 +102,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         document: document,
         pageIndex: restoredPage,
         dpi: 150,
+        cropMargins: _cropMargins,
       );
 
       if (!mounted) {
@@ -160,6 +163,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         document: document,
         pageIndex: pageIndex,
         dpi: 150,
+        cropMargins: _cropMargins,
       );
 
       if (!mounted) {
@@ -235,6 +239,86 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     await _renderPage(_pageCount - 1);
   }
 
+  Future<void> _showPageJumpDialog() async {
+    if (_pageCount <= 0 || _pageLoading) {
+      return;
+    }
+
+    final page = await showDialog<int>(
+      context: context,
+      builder: (context) {
+        return _PageJumpDialog(
+          currentPage: _currentPage + 1,
+          pageCount: _pageCount,
+        );
+      },
+    );
+
+    if (page == null || !mounted) {
+      return;
+    }
+
+    await _renderPage(page - 1);
+
+    if (mounted) {
+      _keyboardFocusNode.requestFocus();
+    }
+  }
+
+  Future<void> _toggleCropMargins(bool enabled) async {
+    if (_cropMargins == enabled || _pageLoading) {
+      return;
+    }
+
+    final document = _document;
+
+    if (document == null) {
+      return;
+    }
+
+    setState(() {
+      _cropMargins = enabled;
+      _pageLoading = true;
+      _error = null;
+    });
+
+    _readerEngine.clearPageCache(keepImage: _image,);
+
+    try {
+      final image = await _readerEngine.renderPage(
+        document: document,
+        pageIndex: _currentPage,
+        dpi: 150,
+        cropMargins: enabled,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _image = image;
+        _pageLoading = false;
+        _error = null;
+      });
+
+      _pagePreloader.preloadAround(
+        document: document,
+        currentPage: _currentPage,
+        pageCount: _pageCount,
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _pageLoading = false;
+        _error = error;
+      });
+    }
+  }
+
   void _handleKeyEvent(KeyEvent event) {
     if (event is! KeyDownEvent) {
       return;
@@ -257,6 +341,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
       case LogicalKeyboardKey.end:
         unawaited(_lastPage());
+        break;
+
+      case LogicalKeyboardKey.keyG:
+        unawaited(_showPageJumpDialog());
         break;
     }
   }
@@ -297,7 +385,27 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.document.title)),
+      appBar: AppBar(
+        title: Text(widget.document.title),
+        actions: [
+          IconButton(
+            tooltip: '跳转到页码 (G)',
+            onPressed: _pageLoading ? null : _showPageJumpDialog,
+            icon: const Icon(Icons.find_in_page),
+          ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('裁边'),
+              Switch(
+                value: _cropMargins,
+                onChanged: _pageLoading ? null : _toggleCropMargins,
+              ),
+            ],
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
       body: KeyboardListener(
         focusNode: _keyboardFocusNode,
         onKeyEvent: _handleKeyEvent,
@@ -365,7 +473,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             icon: const Icon(Icons.chevron_left),
           ),
           const SizedBox(width: 16),
-          Text('${_currentPage + 1} / $_pageCount'),
+          InkWell(
+            borderRadius: BorderRadius.circular(6),
+            onTap: _pageLoading ? null : _showPageJumpDialog,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              child: Text('${_currentPage + 1} / $_pageCount'),
+            ),
+          ),
           const SizedBox(width: 16),
           IconButton(
             tooltip: 'Next page',
@@ -422,5 +537,72 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     });
 
     _openDocument();
+  }
+}
+
+class _PageJumpDialog extends StatefulWidget {
+  final int currentPage;
+  final int pageCount;
+
+  const _PageJumpDialog({required this.currentPage, required this.pageCount});
+
+  @override
+  State<_PageJumpDialog> createState() => _PageJumpDialogState();
+}
+
+class _PageJumpDialogState extends State<_PageJumpDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _controller = TextEditingController(text: '${widget.currentPage}');
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+
+    super.dispose();
+  }
+
+  void _submit() {
+    final value = int.tryParse(_controller.text);
+
+    if (value == null || value < 1 || value > widget.pageCount) {
+      return;
+    }
+
+    Navigator.of(context).pop(value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('跳转到页码'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        keyboardType: TextInputType.number,
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        decoration: InputDecoration(
+          hintText: '1 - ${widget.pageCount}',
+          suffixText: '/ ${widget.pageCount}',
+        ),
+        onSubmitted: (_) {
+          _submit();
+        },
+      ),
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.of(context).pop();
+          },
+          child: const Text('取消'),
+        ),
+        FilledButton(onPressed: _submit, child: const Text('跳转')),
+      ],
+    );
   }
 }

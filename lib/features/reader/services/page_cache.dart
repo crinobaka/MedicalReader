@@ -37,7 +37,9 @@ class PageCache {
     _pages[pageIndex] = image;
   }
 
-  ui.Image? remove(int pageIndex) {
+  ui.Image? remove(
+    int pageIndex,
+  ) {
     return _pages.remove(pageIndex);
   }
 
@@ -45,9 +47,11 @@ class PageCache {
     final removed = <ui.Image>[];
 
     while (_pages.length > capacity) {
-      final oldestPageIndex = _pages.keys.first;
+      final oldestPageIndex =
+          _pages.keys.first;
 
-      final image = _pages.remove(oldestPageIndex);
+      final image =
+          _pages.remove(oldestPageIndex);
 
       if (image != null) {
         removed.add(image);
@@ -65,13 +69,40 @@ class PageCache {
     _pages.clear();
   }
 
-  bool contains(int pageIndex) {
-    return _pages.containsKey(pageIndex);
+  void clearExcept(
+    ui.Image? keepImage,
+  ) {
+    final entries =
+        _pages.entries.toList();
+
+    _pages.clear();
+
+    for (final entry in entries) {
+      final image = entry.value;
+
+      if (identical(
+        image,
+        keepImage,
+      )) {
+        _pages[entry.key] = image;
+      } else {
+        image.dispose();
+      }
+    }
+  }
+
+  bool contains(
+    int pageIndex,
+  ) {
+    return _pages.containsKey(
+      pageIndex,
+    );
   }
 
   int get length => _pages.length;
 
-  Iterable<int> get pageIndexes => _pages.keys;
+  Iterable<int> get pageIndexes =>
+      _pages.keys;
 
   void dispose() {
     clear();

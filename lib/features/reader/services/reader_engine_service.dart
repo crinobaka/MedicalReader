@@ -64,8 +64,8 @@ class ReaderEngineService {
     return image;
   }
 
-  void clearPageCache() {
-    _pageCache.clear();
+  void clearPageCache({ui.Image? keepImage}) {
+    _pageCache.clearExcept(keepImage);
   }
 
   void dispose() {
