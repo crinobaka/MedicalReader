@@ -12,6 +12,8 @@ import '../../library/providers/library_repository_provider.dart';
 import '../services/page_preloader.dart';
 import '../services/reader_engine_service.dart';
 import '../services/reader_progress_service.dart';
+import '../services/reader_search_service.dart';
+import '../widgets/reader_serch_dialog.dart';
 
 class ReaderPage extends ConsumerStatefulWidget {
   final LibraryDocument document;
@@ -28,6 +30,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   late final PagePreloader _pagePreloader;
 
   late final ReaderProgressService _readerProgressService;
+
+  late final ReaderProgressService _readerSearchService;
 
   late final FocusNode _keyboardFocusNode;
 
@@ -56,6 +60,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     _readerProgressService = ReaderProgressService(
       libraryRepository: ref.read(libraryRepositoryProvider),
     );
+
+    _readerSearchService = const ReaderSearchService();
 
     _keyboardFocusNode = FocusNode();
 
@@ -267,6 +273,41 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     }
   }
 
+  Future<void> _showSearchDialog() async {
+    final document = _document;
+
+    if (document == null || _pageLoading) {
+      return;
+    }
+
+    final result = await showDialog<ReaderSearchResult>(
+      context: context,
+      builder: (context) {
+        return ReaderSearchDialog(
+          searchService: _readerSearchService,
+          documentId: widget.document.file.id,
+          documentPath: widget.document.file.path,
+          currentPage: _currentPage,
+        );
+      },
+    );
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    if (result.pageIndex == _currentPage) {
+      _keyboardFocusNode.requestFocus();
+      return;
+    }
+
+    await _renderPage(result.pageIndex);
+
+    if (mounted) {
+      _keyboardFocusNode.requestFocus();
+    }
+  }
+
   Future<void> _toggleCropMargins(bool enabled) async {
     if (_cropMargins == enabled || _pageLoading) {
       return;
@@ -284,7 +325,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       _error = null;
     });
 
-    _readerEngine.clearPageCache(keepImage: _image,);
+    _readerEngine.clearPageCache(keepImage: _image);
 
     try {
       final image = await _readerEngine.renderPage(
@@ -304,7 +345,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         _error = null;
       });
 
-      await _saveProgress(_currentPage,);
+      await _saveProgress(_currentPage);
 
       _pagePreloader.preloadAround(
         document: document,
@@ -327,7 +368,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     if (event is! KeyDownEvent) {
       return;
     }
-
+    if (
+      event.logicalKey == LogicalKeyboardKey.keyF && HardwareKeyboard.instance.isControlPressed
+    ) {
+      unawaited(_showSearchDialog(),);
+      return;
+    }
     switch (event.logicalKey) {
       case LogicalKeyboardKey.arrowLeft:
       case LogicalKeyboardKey.pageUp:
@@ -392,6 +438,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       appBar: AppBar(
         title: Text(widget.document.title),
         actions: [
+          IconButton(
+            tooltip: '搜索 PDF (Ctrl+F)',
+            onPressed: _pageLoading ? null : _showSearchDialog,
+            icon: const Icon(Icons.search),
+          ),
           IconButton(
             tooltip: '跳转到页码 (G)',
             onPressed: _pageLoading ? null : _showPageJumpDialog,

@@ -53,6 +53,25 @@ typedef _MedicalCoreRenderPageDart =
 
 typedef _MedicalCoreFreePageNative = Void Function(Pointer<_MedicalCorePage>);
 typedef _MedicalCoreFreePageDart = void Function(Pointer<_MedicalCorePage>);
+typedef _MedicalCoreSearchBookNative =
+    Pointer<Utf8> Function(
+      Pointer<_MedicalCoreDocument>,
+      Pointer<Utf8>,
+      Uint32,
+      Uint32,
+    );
+
+typedef _MedicalCoreSearchBookDart =
+    Pointer<Utf8> Function(
+      Pointer<_MedicalCoreDocument>,
+      Pointer<Utf8>,
+      int,
+      int,
+    );
+
+typedef _MedicalCoreFreeStringNative = Void Function(Pointer<Utf8>);
+
+typedef _MedicalCoreFreeStringDart = void Function(Pointer<Utf8>);
 
 class MedicalCorePage {
   final int width;
@@ -106,6 +125,14 @@ class MedicalCoreDocument {
     _core.closeBook(_handle);
     _closed = true;
   }
+
+  String searchBook({required String query, int maxResults = 50}) {
+    if (_closed) {
+      throw StateError('MedicalCoreDocument is already closed.');
+    }
+
+    return _core.searchBook(_handle, query: query, maxResults: maxResults);
+  }
 }
 
 class MedicalCore {
@@ -143,6 +170,17 @@ class MedicalCore {
           'medical_core_free_page',
         )
         .asFunction<_MedicalCoreFreePageDart>();
+    _searchBook = _library
+        .lookup<NativeFunction<_MedicalCoreSearchBookNative>>(
+          'medical_core_search_book',
+        )
+        .asFunction<_MedicalCoreSearchBookDart>();
+
+    _freeString = _library
+        .lookup<NativeFunction<_MedicalCoreFreeStringNative>>(
+          'medical_core_free_string',
+        )
+        .asFunction<_MedicalCoreFreeStringDart>();
   }
 
   static MedicalCore? _instance;
@@ -160,6 +198,10 @@ class MedicalCore {
   late final _MedicalCoreRenderPageDart _renderPage;
 
   late final _MedicalCoreFreePageDart _freePage;
+
+  late final _MedicalCoreSearchBookDart _searchBook;
+
+  late final _MedicalCoreFreeStringDart _freeString;
 
   factory MedicalCore() {
     return _instance ??= MedicalCore._(_openLibrary());
@@ -273,5 +315,47 @@ class MedicalCore {
     }
 
     throw UnsupportedError('MedicalCore is not supported on this platform.');
+  }
+
+  String searchBook(
+    Pointer<_MedicalCoreDocument> handle, {
+    required String query,
+    required int maxResults,
+  }) {
+    if (handle == nullptr) {
+      throw ArgumentError('Document handle cannot be null.');
+    }
+
+    final normalizedQuery = query.trim();
+
+    if (normalizedQuery.isEmpty) {
+      return '';
+    }
+
+    if (maxResults <= 0) {
+      throw ArgumentError.value(
+        maxResults,
+        'maxResults',
+        'Maximum results must be greater than zero.',
+      );
+    }
+
+    final queryPointer = normalizedQuery.toNativeUtf8();
+
+    try {
+      final resultPointer = _searchBook(handle, queryPointer, maxResults, 0);
+
+      if (resultPointer == nullptr) {
+        throw StateError('Failed to search PDF document.');
+      }
+
+      try {
+        return resultPointer.toDartString();
+      } finally {
+        _freeString(resultPointer);
+      }
+    } finally {
+      calloc.free(queryPointer);
+    }
   }
 }

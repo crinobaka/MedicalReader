@@ -1,4 +1,4 @@
-use std::ffi::CStr;
+use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::ptr;
 
@@ -114,4 +114,55 @@ pub unsafe extern "C" fn medical_core_free_page(
 
         let _ = Box::from_raw(slice);
     }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn medical_core_search_book(
+    handle: *const Document,
+    query: *const c_char,
+    max_results: u32,
+) -> *mut c_char {
+    if handle.is_null() || query.is_null() {
+        return ptr::null_mut();
+    }
+
+    let document = &*handle;
+
+    let query = match CStr::from_ptr(query).to_str() {
+        Ok(value) => value,
+        Err(_) => return ptr::null_mut(),
+    };
+
+    let results = match document.search(query, max_results) {
+        Ok(results) => results,
+        Err(_) => return ptr::null_mut(),
+    };
+
+    let payload = results
+        .iter()
+        .map(|result| {
+            format!(
+                "{}:{}",
+                result.page_index,
+                result.hit_count
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(";");
+
+    match CString::new(payload) {
+        Ok(value) => value.into_raw(),
+        Err(_) => ptr::null_mut(),
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn medical_core_free_string(
+    value: *mut c_char,
+) {
+    if value.is_null() {
+        return;
+    }
+
+    drop(CString::from_raw(value));
 }
