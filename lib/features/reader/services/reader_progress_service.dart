@@ -7,10 +7,13 @@ class ReaderProgress {
 
   final String mode;
 
+  final bool cropMargins;
+
   const ReaderProgress({
     required this.lastPage,
     required this.zoom,
     required this.mode,
+    required this.cropMargins,
   });
 
   static const ReaderProgress initial =
@@ -18,6 +21,7 @@ class ReaderProgress {
     lastPage: 0,
     zoom: 1.0,
     mode: 'medical',
+    cropMargins: false,
   );
 }
 
@@ -32,7 +36,8 @@ class ReaderProgressService {
     String documentId,
   ) async {
     final metadata =
-        await libraryRepository.getDocumentMetadata(
+        await libraryRepository
+            .getDocumentMetadata(
       documentId,
     );
 
@@ -42,20 +47,26 @@ class ReaderProgressService {
 
     final lastPage =
         _readInt(
-          metadata['last_page'],
-          0,
-        );
+      metadata['last_page'],
+      0,
+    );
 
     final zoom =
         _readDouble(
-          metadata['zoom'],
-          1.0,
-        );
+      metadata['zoom'],
+      1.0,
+    );
 
     final mode =
         metadata['mode'] is String
             ? metadata['mode'] as String
             : 'medical';
+
+    final cropMargins =
+        metadata['crop_margins'] is bool
+            ? metadata['crop_margins']
+                as bool
+            : false;
 
     return ReaderProgress(
       lastPage: lastPage < 0
@@ -65,6 +76,7 @@ class ReaderProgressService {
           ? zoom
           : 1.0,
       mode: mode,
+      cropMargins: cropMargins,
     );
   }
 
@@ -73,13 +85,16 @@ class ReaderProgressService {
     required int lastPage,
     double zoom = 1.0,
     String mode = 'medical',
+    bool cropMargins = false,
   }) async {
-    await libraryRepository.updateDocumentMetadata(
+    await libraryRepository
+        .updateDocumentMetadata(
       documentId: documentId,
       metadata: {
         'last_page': lastPage,
         'zoom': zoom,
         'mode': mode,
+        'crop_margins': cropMargins,
       },
     );
   }

@@ -93,6 +93,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         _document = document;
         _currentPage = restoredPage;
         _pageCount = pageCount;
+        _cropMargins = progress.cropMargins;
         _loading = false;
         _pageLoading = true;
         _error = null;
@@ -204,6 +205,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     await _readerProgressService.save(
       documentId: widget.document.id,
       lastPage: pageIndex,
+      cropMargins: _cropMargins,
     );
   }
 
@@ -301,6 +303,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         _pageLoading = false;
         _error = null;
       });
+
+      await _saveProgress(_currentPage,);
 
       _pagePreloader.preloadAround(
         document: document,
