@@ -544,20 +544,27 @@ class _PageJumpDialog extends StatefulWidget {
   final int currentPage;
   final int pageCount;
 
-  const _PageJumpDialog({required this.currentPage, required this.pageCount});
+  const _PageJumpDialog({
+    required this.currentPage,
+    required this.pageCount,
+  });
 
   @override
-  State<_PageJumpDialog> createState() => _PageJumpDialogState();
+  State<_PageJumpDialog> createState() =>
+      _PageJumpDialogState();
 }
 
-class _PageJumpDialogState extends State<_PageJumpDialog> {
+class _PageJumpDialogState
+    extends State<_PageJumpDialog> {
   late final TextEditingController _controller;
 
   @override
   void initState() {
     super.initState();
 
-    _controller = TextEditingController(text: '${widget.currentPage}');
+    _controller = TextEditingController(
+      text: '${widget.currentPage}',
+    );
   }
 
   @override
@@ -568,9 +575,13 @@ class _PageJumpDialogState extends State<_PageJumpDialog> {
   }
 
   void _submit() {
-    final value = int.tryParse(_controller.text);
+    final value = int.tryParse(
+      _controller.text,
+    );
 
-    if (value == null || value < 1 || value > widget.pageCount) {
+    if (value == null ||
+        value < 1 ||
+        value > widget.pageCount) {
       return;
     }
 
@@ -580,15 +591,23 @@ class _PageJumpDialogState extends State<_PageJumpDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('跳转到页码'),
+      title: const Text(
+        '跳转到页码',
+      ),
       content: TextField(
         controller: _controller,
         autofocus: true,
-        keyboardType: TextInputType.number,
-        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        keyboardType:
+            TextInputType.number,
+        inputFormatters: [
+          FilteringTextInputFormatter
+              .digitsOnly,
+        ],
         decoration: InputDecoration(
-          hintText: '1 - ${widget.pageCount}',
-          suffixText: '/ ${widget.pageCount}',
+          hintText:
+              '1 - ${widget.pageCount}',
+          suffixText:
+              '/ ${widget.pageCount}',
         ),
         onSubmitted: (_) {
           _submit();
@@ -599,9 +618,16 @@ class _PageJumpDialogState extends State<_PageJumpDialog> {
           onPressed: () {
             Navigator.of(context).pop();
           },
-          child: const Text('取消'),
+          child: const Text(
+            '取消',
+          ),
         ),
-        FilledButton(onPressed: _submit, child: const Text('跳转')),
+        FilledButton(
+          onPressed: _submit,
+          child: const Text(
+            '跳转',
+          ),
+        ),
       ],
     );
   }
