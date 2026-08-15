@@ -2,10 +2,23 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../../library/models/library_document.dart';
+import '../models/book_tree_index.dart';
 import '../models/book_tree_node.dart';
 
 class BookTreeService {
   const BookTreeService();
+
+  Future<BookTreeIndex> loadIndexForDocument(
+    LibraryDocument document, {
+    required int pageCount,
+  }) async {
+    final nodes = await loadForDocument(document);
+
+    return BookTreeIndex(
+      nodes: nodes,
+      pageCount: pageCount,
+    );
+  }
 
   Future<List<BookTreeNode>> loadForDocument(
     LibraryDocument document,

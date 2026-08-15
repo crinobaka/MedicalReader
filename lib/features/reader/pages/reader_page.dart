@@ -16,6 +16,7 @@ import '../services/reader_search_service.dart';
 import '../widgets/reader_serch_dialog.dart';
 import '../services/book_tree_service.dart';
 import '../models/book_tree_node.dart';
+import '../models/book_tree_index.dart';
 import '../widgets/book_tree_panel.dart';
 
 class ReaderPage extends ConsumerStatefulWidget {
@@ -48,7 +49,15 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   int _pageCount = 0;
 
-  List<BookTreeNode> _bookTree = const [];
+  late BookTreeIndex _bookTreeIndex;
+
+  BookTreeNode? get _currentBookTreeNode {
+    if (!_bookTreeIndex.isNotEmpty) {
+      return null;
+    }
+
+    return _bookTreeIndex.findNodeForPage(_currentPage);
+  }
 
   bool _loading = true;
 
@@ -95,7 +104,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
       final progress = await _readerProgressService.load(widget.document.id);
 
-      final bookTree = await _bookTreeService.loadForDocument(widget.document);
+      final bookTreeIndex = await _bookTreeService.loadIndexForDocument(widget.document, pageCount: pageCount,);
 
       final restoredPage = progress.lastPage.clamp(0, pageCount - 1);
 
@@ -108,7 +117,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         _document = document;
         _currentPage = restoredPage;
         _pageCount = pageCount;
-        _bookTree = bookTree;
+        _bookTreeIndex = bookTreeIndex;
         _cropMargins = progress.cropMargins;
         _loading = false;
         _pageLoading = true;
@@ -299,7 +308,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         return SizedBox(
           height: MediaQuery.sizeOf(context).height * 0.85,
           child: BookTreePanel(
-            nodes: _bookTree,
+            nodes: _bookTreeIndex.nodes,
             currentPage: _currentPage,
             onPageSelected: (pageIndex) {
               Navigator.of(context).pop();
@@ -585,7 +594,19 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             onTap: _pageLoading ? null : _showPageJumpDialog,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              child: Text('${_currentPage + 1} / $_pageCount'),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('${_currentPage + 1} / $_pageCount'),
+                  if (_currentBookTreeNode != null)
+                    Text(
+                      _currentBookTreeNode!.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                ],
+              ),
             ),
           ),
           const SizedBox(width: 16),
