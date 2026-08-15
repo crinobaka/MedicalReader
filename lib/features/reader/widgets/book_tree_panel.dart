@@ -242,15 +242,6 @@ class _BookTreeNodeTile extends StatelessWidget {
       onExpansionChanged: (expanded) {
         onExpansionChanged(node, expanded);
       },
-      onTap: () {
-        final pageIndex = node.resolvePdfPageIndex();
-
-        if (pageIndex == null) {
-          return;
-        }
-
-        onPageSelected(pageIndex);
-      },
       children: [
         ...node.children.map(
           (child) => _BookTreeNodeTile(
