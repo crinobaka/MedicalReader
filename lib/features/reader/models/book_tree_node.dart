@@ -3,15 +3,17 @@ class BookTreeNode {
 
   final String name;
 
-  /// 1-based PDF page number.
-  ///
-  /// 例如：
-  /// pageStart = 100
-  /// 表示这个章节从 PDF 第 100 页开始。
+  /// 1-based PDF physical page number.
   final int? pageStart;
 
-  /// 1-based PDF page number.
+  /// 1-based PDF physical page number.
   final int? pageEnd;
+
+  /// 1-based printed page number in the actual book.
+  final int? bookPageStart;
+
+  /// 1-based printed page number in the actual book.
+  final int? bookPageEnd;
 
   final List<BookTreeNode> children;
 
@@ -20,6 +22,8 @@ class BookTreeNode {
     required this.name,
     this.pageStart,
     this.pageEnd,
+    this.bookPageStart,
+    this.bookPageEnd,
     this.children = const [],
   });
 
@@ -31,11 +35,7 @@ class BookTreeNode {
     if (rawChildren is List) {
       for (final child in rawChildren) {
         if (child is Map) {
-          children.add(
-            BookTreeNode.fromJson(
-              Map<String, dynamic>.from(child),
-            ),
-          );
+          children.add(BookTreeNode.fromJson(Map<String, dynamic>.from(child)));
         }
       }
     }
@@ -45,6 +45,8 @@ class BookTreeNode {
       name: json['name']?.toString() ?? '',
       pageStart: _readInt(json['page_start']),
       pageEnd: _readInt(json['page_end']),
+      bookPageStart: _readInt(json['book_page_start']),
+      bookPageEnd: _readInt(json['book_page_end']),
       children: List.unmodifiable(children),
     );
   }
