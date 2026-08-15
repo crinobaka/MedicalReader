@@ -31,7 +31,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   late final ReaderProgressService _readerProgressService;
 
-  late final ReaderProgressService _readerSearchService;
+  late final ReaderSearchService _readerSearchService;
 
   late final FocusNode _keyboardFocusNode;
 

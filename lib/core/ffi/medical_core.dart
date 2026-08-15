@@ -58,14 +58,12 @@ typedef _MedicalCoreSearchBookNative =
       Pointer<_MedicalCoreDocument>,
       Pointer<Utf8>,
       Uint32,
-      Uint32,
     );
 
 typedef _MedicalCoreSearchBookDart =
     Pointer<Utf8> Function(
       Pointer<_MedicalCoreDocument>,
       Pointer<Utf8>,
-      int,
       int,
     );
 
@@ -343,7 +341,7 @@ class MedicalCore {
     final queryPointer = normalizedQuery.toNativeUtf8();
 
     try {
-      final resultPointer = _searchBook(handle, queryPointer, maxResults, 0);
+      final resultPointer = _searchBook(handle, queryPointer, maxResults,);
 
       if (resultPointer == nullptr) {
         throw StateError('Failed to search PDF document.');
