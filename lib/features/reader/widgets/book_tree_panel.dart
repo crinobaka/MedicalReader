@@ -199,11 +199,15 @@ class _BookTreeNodeTile extends StatelessWidget {
         contentPadding: EdgeInsets.only(left: 16.0 + level * 16.0, right: 12),
         title: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis),
         subtitle: pageText == null ? null : Text(pageText),
-        onTap: node.pageStart == null
-            ? null
-            : () {
-                onPageSelected(node.pageStart! - 1);
-              },
+        onTap: () {
+          final pageIndex = node.resolvePdfPageIndex();
+
+          if (pageIndex == null) {
+            return;
+          }
+
+          onPageSelected(pageIndex);
+        },
       );
     }
 
@@ -237,6 +241,15 @@ class _BookTreeNodeTile extends StatelessWidget {
       subtitle: pageText == null ? null : Text(pageText),
       onExpansionChanged: (expanded) {
         onExpansionChanged(node, expanded);
+      },
+      onTap: () {
+        final pageIndex = node.resolvePdfPageIndex();
+
+        if (pageIndex == null) {
+          return;
+        }
+
+        onPageSelected(pageIndex);
       },
       children: [
         ...node.children.map(

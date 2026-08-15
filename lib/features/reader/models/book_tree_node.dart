@@ -92,4 +92,12 @@ class BookTreeNode {
 
     return this;
   }
+
+  int? resolvePdfPageIndex() {
+    if (pageStart == null) {
+      return null;
+    }
+
+    return pageStart! - 1;
+  }
 }

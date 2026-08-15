@@ -106,4 +106,20 @@ class BookTreeIndex {
 
     return null;
   }
+
+  int? resolvePdfPageIndexByNodeId(String id) {
+    final node = findNodeById(id);
+
+    if (node == null) {
+      return null;
+    }
+
+    final pageIndex = node.resolvePdfPageIndex();
+
+    if (pageIndex == null || !isValidPageIndex(pageIndex)) {
+      return null;
+    }
+
+    return pageIndex;
+  }
 }
