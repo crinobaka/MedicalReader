@@ -14,6 +14,9 @@ import '../services/reader_engine_service.dart';
 import '../services/reader_progress_service.dart';
 import '../services/reader_search_service.dart';
 import '../widgets/reader_serch_dialog.dart';
+import '../services/book_tree_service.dart';
+import '../models/book_tree_node.dart';
+import '../widgets/book_tree_panel.dart';
 
 class ReaderPage extends ConsumerStatefulWidget {
   final LibraryDocument document;
@@ -26,6 +29,8 @@ class ReaderPage extends ConsumerStatefulWidget {
 
 class _ReaderPageState extends ConsumerState<ReaderPage> {
   final ReaderEngineService _readerEngine = ReaderEngineService();
+
+  final BookTreeService _bookTreeService = const BookTreeService();
 
   late final PagePreloader _pagePreloader;
 
@@ -42,6 +47,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   int _currentPage = 0;
 
   int _pageCount = 0;
+
+  List<BookTreeNode> _bookTree = const [];
 
   bool _loading = true;
 
@@ -88,6 +95,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
       final progress = await _readerProgressService.load(widget.document.id);
 
+      final bookTree = await _bookTreeService.loadForDocument(widget.document,);
+
       final restoredPage = progress.lastPage.clamp(0, pageCount - 1);
 
       if (!mounted) {
@@ -99,6 +108,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         _document = document;
         _currentPage = restoredPage;
         _pageCount = pageCount;
+        _bookTree = bookTree;
         _cropMargins = progress.cropMargins;
         _loading = false;
         _pageLoading = true;
@@ -273,6 +283,34 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     }
   }
 
+  Future<void> _showBookTree() async {
+    if (!mounted) {
+      return;
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return SizedBox(
+          height: MediaQuery.sizeOf(context).height * 0.85,
+          child: BookTreePanel(
+            nodes: _bookTree,
+            currentPage: _currentPage,
+            onPageSelected: (pageIndex) {
+              Navigator.of(context).pop();
+              unawaited(_renderPage(pageIndex));
+            },
+          ),
+        );
+      },
+    );
+
+    if (mounted) {
+      _keyboardFocusNode.requestFocus();
+    }
+  }
+
   Future<void> _showSearchDialog() async {
     final document = _document;
 
@@ -438,6 +476,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       appBar: AppBar(
         title: Text(widget.document.title),
         actions: [
+          IconButton(
+            tooltip: '目录',
+            onPressed: _pageLoading ? null : _showBookTree,
+            icon: const Icon(Icons.menu_book),
+          ),
           IconButton(
             tooltip: '搜索 PDF (Ctrl+F)',
             onPressed: _pageLoading ? null : _showSearchDialog,
