@@ -56,12 +56,10 @@ class ReaderEngineService {
     final removed = _pageCache.trim();
 
     for (final oldImage in removed) {
-      if (!identical(oldImage, image)) {
-        oldImage.dispose();
-      }
+      oldImage.dispose();
     }
 
-    return image;
+    return image.clone();
   }
 
   void clearPageCache({ui.Image? keepImage}) {

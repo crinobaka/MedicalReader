@@ -18,7 +18,7 @@ class PageCache {
 
     _pages[pageIndex] = image;
 
-    return image;
+    return image.clone();
   }
 
   void put(

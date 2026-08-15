@@ -95,7 +95,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
       final progress = await _readerProgressService.load(widget.document.id);
 
-      final bookTree = await _bookTreeService.loadForDocument(widget.document,);
+      final bookTree = await _bookTreeService.loadForDocument(widget.document);
 
       final restoredPage = progress.lastPage.clamp(0, pageCount - 1);
 
@@ -121,6 +121,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         dpi: 150,
         cropMargins: _cropMargins,
       );
+
+      _replaceImage(image);
 
       if (!mounted) {
         return;
@@ -182,6 +184,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         dpi: 150,
         cropMargins: _cropMargins,
       );
+
+      _replaceImage(image);
 
       if (!mounted) {
         return;
@@ -373,6 +377,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         cropMargins: enabled,
       );
 
+      _replaceImage(image);
+
       if (!mounted) {
         return;
       }
@@ -406,10 +412,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     if (event is! KeyDownEvent) {
       return;
     }
-    if (
-      event.logicalKey == LogicalKeyboardKey.keyF && HardwareKeyboard.instance.isControlPressed
-    ) {
-      unawaited(_showSearchDialog(),);
+    if (event.logicalKey == LogicalKeyboardKey.keyF &&
+        HardwareKeyboard.instance.isControlPressed) {
+      unawaited(_showSearchDialog());
       return;
     }
     switch (event.logicalKey) {
@@ -466,6 +471,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     _document?.close();
 
     _readerEngine.dispose();
+
+    _image?.dispose();
+
+    _image = null;
 
     super.dispose();
   }
@@ -635,6 +644,20 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     });
 
     _openDocument();
+  }
+
+  void _replaceImage(ui.Image image) {
+    final oldImage = _image;
+
+    setState(() {
+      _image = image;
+    });
+
+    if (oldImage != null && !identical(oldImage, image)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        oldImage.dispose();
+      });
+    }
   }
 }
 
