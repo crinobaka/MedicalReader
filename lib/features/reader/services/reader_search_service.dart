@@ -120,6 +120,8 @@ class ReaderSearchService {
 
       final rawHits = item['hits'];
 
+      final rawBookTreePath = item['bookTreePath'];
+
       if (pageIndex is! num || hitCount is! num) {
         continue;
       }
@@ -130,6 +132,16 @@ class ReaderSearchService {
         for (final context in rawContexts) {
           if (context is String && context.trim().isNotEmpty) {
             contexts.add(context);
+          }
+        }
+      }
+
+      final bookTreePath = <String>[];
+
+      if (rawBookTreePath is List) {
+        for (final node in rawBookTreePath) {
+          if (node is String && node.trim().isNotEmpty) {
+            bookTreePath.add(node);
           }
         }
       }
@@ -171,6 +183,7 @@ class ReaderSearchService {
           hitCount: hitCount.toInt(),
           contexts: contexts,
           hits: hits,
+          bookTreePath: bookTreePath,
         ),
       );
     }

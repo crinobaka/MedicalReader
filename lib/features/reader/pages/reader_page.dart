@@ -17,6 +17,7 @@ import '../widgets/reader_serch_dialog.dart';
 import '../services/book_tree_service.dart';
 import '../services/book_template_matcher.dart';
 import '../services/book_template_service.dart';
+import '../services/builtin_book_templates.dart';
 import '../models/book_tree_node.dart';
 import '../models/book_tree_index.dart';
 import '../models/book_page_mapping.dart';
@@ -367,6 +368,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           documentPath: widget.document.file.path,
           currentPage: _currentPage,
           bookTreeIndex: _bookTreeIndex,
+          bookPageMapping: _bookPageMapping,
         );
       },
     );

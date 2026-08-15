@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/reader_search_service.dart';
 import '../models/book_tree_index.dart';
+import '../models/book_page_mapping.dart';
 
 class ReaderSearchDialog extends StatefulWidget {
   final ReaderSearchService searchService;
@@ -14,6 +15,8 @@ class ReaderSearchDialog extends StatefulWidget {
 
   final BookTreeIndex bookTreeIndex;
 
+  final BookPageMapping bookPageMapping;
+
   const ReaderSearchDialog({
     super.key,
     required this.searchService,
@@ -21,6 +24,7 @@ class ReaderSearchDialog extends StatefulWidget {
     required this.documentPath,
     required this.currentPage,
     required this.bookTreeIndex,
+    required this.bookPageMapping,
   });
 
   @override
@@ -153,17 +157,21 @@ class _ReaderSearchDialogState extends State<ReaderSearchDialog> {
 
         final page = result.pageIndex + 1;
 
+        final bookPage = widget.bookPageMapping.bookPageForPdfPage(result.pageIndex);
+
         final isCurrentPage = result.pageIndex == widget.currentPage;
 
         final bookTreePath = widget.bookTreeIndex.findPathForPage(result.pageIndex);
 
         return ListTile(
           leading: const Icon(Icons.description_outlined),
-          title: Text('第 $page 页'),
+          title: Text(
+            bookPage == null ? 'PDF 第 $page 页': '书籍第 $bookPage 页 · PDF 第 $page 页',
+          ),
           subtitle: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (result.bookTreePath.isNotEmpty) ...[
+              if (bookTreePath.isNotEmpty) ...[
                 const SizedBox(height: 4),
                 Text(
                   bookTreePath.map((node) => node.name).join('/'),
