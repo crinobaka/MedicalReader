@@ -8,10 +8,18 @@ pub struct Document {
     inner: MuPdfDocument,
 }
 
+pub struct SearchHit {
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+}
+
 pub struct SearchResult {
     pub page_index: u32,
     pub hit_count: u32,
     pub contexts: Vec<String>,
+    pub hits: Vec<SearchHit>,
 }
 
 impl Document {
@@ -68,6 +76,66 @@ impl Document {
                 continue;
             }
 
+            let page_bounds = page.bounds()?;
+
+            let page_width = page_bounds.width();
+            let page_height = page_bounds.height();
+
+            let search_hits = if page_width > 0.0 && page_height > 0.0 {
+                hits.iter()
+                    .map(|hit| {
+                        let x0 = hit
+                            .ul
+                            .x
+                            .min(hit.ur.x)
+                            .min(hit.ll.x)
+                            .min(hit.lr.x);
+
+                        let y0 = hit
+                            .ul
+                            .y
+                            .min(hit.ur.y)
+                            .min(hit.ll.y)
+                            .min(hit.lr.y);
+
+                        let x1 = hit
+                            .ul
+                            .x
+                            .max(hit.ur.x)
+                            .max(hit.ll.x)
+                            .max(hit.lr.x);
+
+                        let y1 = hit
+                            .ul
+                            .y
+                            .max(hit.ur.y)
+                            .max(hit.ll.y)
+                            .max(hit.lr.y);
+
+                        let x = ((x0 - page_bounds.x0) / page_width)
+                            .clamp(0.0, 1.0);
+
+                        let y = ((y0 - page_bounds.y0) / page_height)
+                            .clamp(0.0, 1.0);
+
+                        let right = ((x1 - page_bounds.x0) / page_width)
+                            .clamp(0.0, 1.0);
+
+                        let bottom = ((y1 - page_bounds.y0) / page_height)
+                            .clamp(0.0, 1.0);
+
+                        SearchHit {
+                            x,
+                            y,
+                            width: (right - x).max(0.0),
+                            height: (bottom - y).max(0.0),
+                        }
+                    })
+                    .collect::<Vec<_>>()
+            } else {
+                Vec::new()
+            };
+
             let text = page
                 .text(mupdf::TextExtractOptions::default())
                 .unwrap_or_default();
@@ -81,6 +149,7 @@ impl Document {
                 page_index,
                 hit_count: hits.len() as u32,
                 contexts,
+                hits: search_hits,
             });
 
             if results.len() >= max_results as usize {

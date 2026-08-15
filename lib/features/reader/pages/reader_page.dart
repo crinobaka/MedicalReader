@@ -59,6 +59,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     return _bookTreeIndex.findNodeForPage(_currentPage);
   }
 
+  List<ReaderSearchHit> _searchHits = const [];
+
   bool _loading = true;
 
   bool _pageLoading = false;
@@ -184,6 +186,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     setState(() {
       _pageLoading = true;
       _error = null;
+      _searchHits = const [];
     });
 
     try {
@@ -348,11 +351,23 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     }
 
     if (result.pageIndex == _currentPage) {
+      setState(() {
+        _searchHits = result.hits;
+      });
+
       _keyboardFocusNode.requestFocus();
       return;
     }
 
     await _renderPage(result.pageIndex);
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _searchHits = result.hits;
+    });
 
     if (mounted) {
       _keyboardFocusNode.requestFocus();
@@ -556,7 +571,24 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                   child: InteractiveViewer(
                     minScale: 0.5,
                     maxScale: 4.0,
-                    child: RawImage(image: image, fit: BoxFit.contain),
+                    child: Stack(
+                      children: [
+                        RawImage(
+                          image: image,
+                          fit: BoxFit.contain,
+                        ),
+                        if (_searchHits.isNotEmpty)
+                          Positioned.fill(
+                            child: IgnorePointer(
+                              child: CustomPaint(
+                                painter: _SearchHitPainter(
+                                  hits: _searchHits,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
                 if (_pageLoading)
@@ -746,5 +778,42 @@ class _PageJumpDialogState extends State<_PageJumpDialog> {
         FilledButton(onPressed: _submit, child: const Text('跳转')),
       ],
     );
+  }
+}
+
+class _SearchHitPainter extends CustomPainter {
+  final List<ReaderSearchHit> hits;
+
+  _SearchHitPainter({
+    required this.hits,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final fillPaint = Paint()
+      ..style = PaintingStyle.fill
+      ..color = const Color(0x66FFEB3B);
+
+    final borderPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..color = const Color(0xFFFFC107);
+
+    for (final hit in hits) {
+      final rect = Rect.fromLTWH(
+        hit.x * size.width,
+        hit.y * size.height,
+        hit.width * size.width,
+        hit.height * size.height,
+      );
+
+      canvas.drawRect(rect, fillPaint);
+      canvas.drawRect(rect, borderPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_SearchHitPainter oldDelegate) {
+    return oldDelegate.hits != hits;
   }
 }

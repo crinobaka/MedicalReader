@@ -145,6 +145,18 @@ pub unsafe extern "C" fn medical_core_search_book(
                 "pageIndex": result.page_index,
                 "hitCount": result.hit_count,
                 "contexts": result.contexts,
+                "hits": result
+                    .hits
+                    .iter()
+                    .map(|hit| {
+                        serde_json::json!({
+                            "x": hit.x,
+                            "y": hit.y,
+                            "width": hit.width,
+                            "height": hit.height,
+                        })
+                    })
+                    .collect::<Vec<_>>(),
             })
         })
         .collect::<Vec<_>>();

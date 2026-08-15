@@ -3,6 +3,20 @@ import 'dart:convert';
 
 import '../../../core/ffi/medical_core.dart';
 
+class ReaderSearchHit {
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+
+  const ReaderSearchHit({
+    required this.x,
+    required this.y,
+    required this.width,
+    required this.height,
+  });
+}
+
 class ReaderSearchResult {
   final int pageIndex;
 
@@ -10,10 +24,13 @@ class ReaderSearchResult {
 
   final List<String> contexts;
 
+  final List<ReaderSearchHit> hits;
+
   const ReaderSearchResult({
     required this.pageIndex,
     required this.hitCount,
     required this.contexts,
+    required this.hits,
   });
 }
 
@@ -86,6 +103,8 @@ class ReaderSearchService {
 
       final rawContexts = item['contexts'];
 
+      final rawHits = item['hits'];
+
       if (pageIndex is! num || hitCount is! num) {
         continue;
       }
@@ -100,11 +119,43 @@ class ReaderSearchService {
         }
       }
 
+      final hits = <ReaderSearchHit>[];
+
+      if (rawHits is List) {
+        for (final item in rawHits) {
+          if (item is! Map) {
+            continue;
+          }
+
+          final x = item['x'];
+          final y = item['y'];
+          final width = item['width'];
+          final height = item['height'];
+
+          if (x is! num ||
+              y is! num ||
+              width is! num ||
+              height is! num) {
+            continue;
+          }
+
+          hits.add(
+            ReaderSearchHit(
+              x: x.toDouble(),
+              y: y.toDouble(),
+              width: width.toDouble(),
+              height: height.toDouble(),
+            ),
+          );
+        }
+      }
+
       results.add(
         ReaderSearchResult(
           pageIndex: pageIndex.toInt(),
           hitCount: hitCount.toInt(),
           contexts: contexts,
+          hits: hits,
         ),
       );
     }
