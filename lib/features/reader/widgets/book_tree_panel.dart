@@ -87,28 +87,26 @@ class _BookTreeNodeTile extends StatelessWidget {
             ? 'P${node.pageStart}'
             : 'P${node.pageStart}-${node.pageEnd}';
 
-    final tile = ListTile(
-      dense: level > 1,
-      selected: isCurrent,
-      contentPadding: EdgeInsets.only(
-        left: 16.0 + level * 16.0,
-        right: 12,
-      ),
-      title: Text(
-        title,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-      ),
-      subtitle: pageText == null ? null : Text(pageText),
-      onTap: node.pageStart == null
-          ? null
-          : () {
-              onPageSelected(node.pageStart! - 1);
-            },
-    );
-
     if (!hasChildren) {
-      return tile;
+      return ListTile(
+        dense: level > 1,
+        selected: isCurrent,
+        contentPadding: EdgeInsets.only(
+          left: 16.0 + level * 16.0,
+          right: 12,
+        ),
+        title: Text(
+          title,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: pageText == null ? null : Text(pageText),
+        onTap: node.pageStart == null
+            ? null
+            : () {
+                onPageSelected(node.pageStart! - 1);
+              },
+      );
     }
 
     return ExpansionTile(
@@ -118,13 +116,33 @@ class _BookTreeNodeTile extends StatelessWidget {
         right: 12,
       ),
       childrenPadding: EdgeInsets.zero,
-      title: Text(
-        title,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
+      title: Container(
+        decoration: isCurrent
+            ? BoxDecoration(
+                color: Theme.of(context)
+                    .colorScheme
+                    .primary
+                    .withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+              )
+            : null,
+        padding: const EdgeInsets.symmetric(
+          horizontal: 8,
+          vertical: 4,
+        ),
+        child: Text(
+          title,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: isCurrent
+              ? TextStyle(
+                  color: Theme.of(context).colorScheme.primary,
+                  fontWeight: FontWeight.w600,
+                )
+              : null,
+        ),
       ),
       subtitle: pageText == null ? null : Text(pageText),
-      selected: isCurrent,
       onExpansionChanged: (_) {},
       children: [
         ...node.children.map(
