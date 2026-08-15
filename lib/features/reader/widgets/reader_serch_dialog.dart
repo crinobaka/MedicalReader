@@ -157,6 +157,16 @@ class _ReaderSearchDialogState extends State<ReaderSearchDialog> {
           subtitle: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (result.bookTreePath.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  result.bookTreePath.join(' / '),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+              const SizedBox(height: 4),
               Text('命中 ${result.hitCount} 次'),
               if (result.contexts.isNotEmpty) ...[
                 const SizedBox(height: 6),
@@ -165,7 +175,7 @@ class _ReaderSearchDialogState extends State<ReaderSearchDialog> {
                     padding: const EdgeInsets.only(bottom: 4),
                     child: Text(
                       context,
-                      maxLines: 2,
+                      maxLines: 3,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),

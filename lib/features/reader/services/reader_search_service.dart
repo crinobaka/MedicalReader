@@ -26,12 +26,27 @@ class ReaderSearchResult {
 
   final List<ReaderSearchHit> hits;
 
+  final List<String> bookTreePath;
+
   const ReaderSearchResult({
     required this.pageIndex,
     required this.hitCount,
     required this.contexts,
     required this.hits,
+    this.bookTreePath = const [],
   });
+
+  ReaderSearchResult copyWith({
+    List<String>? bookTreePath,
+  }) {
+    return ReaderSearchResult(
+      pageIndex: pageIndex,
+      hitCount: hitCount,
+      contexts: contexts,
+      hits: hits,
+      bookTreePath: bookTreePath ?? this.bookTreePath,
+    );
+  }
 }
 
 class ReaderSearchService {
