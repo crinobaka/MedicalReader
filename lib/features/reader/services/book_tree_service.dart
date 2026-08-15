@@ -2,11 +2,21 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../../library/models/library_document.dart';
+import '../models/book_template.dart';
 import '../models/book_tree_index.dart';
 import '../models/book_tree_node.dart';
+import 'book_template_matcher.dart';
+import 'builtin_book_templates.dart';
 
 class BookTreeService {
-  const BookTreeService();
+  final BookTemplateMatcher _templateMatcher;
+
+  BookTreeService({
+    BookTemplateMatcher? templateMatcher,
+  }) : _templateMatcher = templateMatcher ??
+            BookTemplateMatcher(
+              templates: buildBuiltinBookTemplates(),
+            );
 
   Future<BookTreeIndex> loadIndexForDocument(
     LibraryDocument document, {
@@ -20,9 +30,19 @@ class BookTreeService {
     );
   }
 
-  Future<List<BookTreeNode>> loadForDocument(
+Future<List<BookTreeNode>> loadForDocument(
     LibraryDocument document,
   ) async {
+    final template = _templateMatcher.match(document);
+
+    if (template != null) {
+      final templateNodes = await _loadTemplateTree(template);
+
+      if (templateNodes.isNotEmpty) {
+        return templateNodes;
+      }
+    }
+
     final metadataPath = _metadataBookTreePath(document);
 
     if (metadataPath != null) {
@@ -35,9 +55,7 @@ class BookTreeService {
 
     final sidecarPath = _sidecarPath(document.file.path);
 
-    final sidecarNodes = await _loadFile(sidecarPath);
-
-    return sidecarNodes;
+    return _loadFile(sidecarPath);
   }
 
   String? _metadataBookTreePath(LibraryDocument document) {
@@ -58,6 +76,40 @@ class BookTreeService {
 
   String _sidecarPath(String pdfPath) {
     return '$pdfPath.booktree.json';
+  }
+
+  Future<List<BookTreeNode>> _loadTemplateTree(
+    BookTemplate template,
+  ) async {
+    final rawBookTree = template.data['bookTree'];
+
+    if (rawBookTree is List) {
+      return _parseNodeList(rawBookTree);
+    }
+
+    if (rawBookTree is Map) {
+      final map = Map<String, dynamic>.from(rawBookTree);
+
+      final children = map['children'];
+
+      if (children is List) {
+        return _parseNodeList(children);
+      }
+
+      if (_looksLikeNode(map)) {
+        return [
+          BookTreeNode.fromJson(map),
+        ];
+      }
+    }
+
+    final bookTreePath = template.data['bookTreePath'];
+
+    if (bookTreePath is String && bookTreePath.trim().isNotEmpty) {
+      return _loadFile(bookTreePath.trim());
+    }
+
+    return const [];
   }
 
   Future<List<BookTreeNode>> _loadFile(String path) async {

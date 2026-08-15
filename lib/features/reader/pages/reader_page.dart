@@ -15,9 +15,12 @@ import '../services/reader_progress_service.dart';
 import '../services/reader_search_service.dart';
 import '../widgets/reader_serch_dialog.dart';
 import '../services/book_tree_service.dart';
+import '../services/book_template_matcher.dart';
+import '../services/book_template_service.dart';
 import '../models/book_tree_node.dart';
 import '../models/book_tree_index.dart';
 import '../models/book_page_mapping.dart';
+import '../models/book_template.dart';
 import '../widgets/book_tree_panel.dart';
 
 class ReaderPage extends ConsumerStatefulWidget {
@@ -32,7 +35,11 @@ class ReaderPage extends ConsumerStatefulWidget {
 class _ReaderPageState extends ConsumerState<ReaderPage> {
   final ReaderEngineService _readerEngine = ReaderEngineService();
 
-  final BookTreeService _bookTreeService = const BookTreeService();
+  final BookTemplateMatcher _bookTemplateMatcher = BookTemplateMatcher(
+    templates: buildBuiltinBookTemplates(),
+  );
+
+  late final BookTreeService _bookTreeService;
 
   late final PagePreloader _pagePreloader;
 
@@ -64,6 +71,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     return _bookTreeIndex.findNodeForPage(_currentPage);
   }
 
+  BookTemplate? _bookTemplate;
+
   List<ReaderSearchHit> _searchHits = const [];
 
   bool _loading = true;
@@ -79,6 +88,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     super.initState();
 
     _pagePreloader = PagePreloader(readerEngine: _readerEngine);
+
+    _bookTreeService = BookTreeService(templateMatcher: _bookTemplateMatcher,);
 
     _readerProgressService = ReaderProgressService(
       libraryRepository: ref.read(libraryRepositoryProvider),
@@ -113,6 +124,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
       final progress = await _readerProgressService.load(widget.document.id);
 
+      final bookTemplate = _bookTemplateMatcher.match(widget.document,);
+
       final bookTreeIndex = await _bookTreeService.loadIndexForDocument(widget.document, pageCount: pageCount,);
 
       final bookPageMapping = BookPageMapping(index: bookTreeIndex,);
@@ -130,6 +143,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         _pageCount = pageCount;
         _bookTreeIndex = bookTreeIndex;
         _bookPageMapping = bookPageMapping;
+        _bookTemplate = bookTemplate;
         _cropMargins = progress.cropMargins;
         _loading = false;
         _pageLoading = true;

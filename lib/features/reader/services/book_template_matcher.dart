@@ -1,5 +1,4 @@
 import '../models/book_template.dart';
-import '../models/book_tree_index.dart';
 import '../../library/models/library_document.dart';
 
 class BookTemplateMatcher {
