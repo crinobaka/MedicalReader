@@ -211,6 +211,16 @@ class _BookTreeNodeTile extends StatelessWidget {
       );
     }
 
+    void _selectNode() {
+      final pageIndex = node.resolvePdfPageIndex();
+
+      if (pageIndex == null) {
+        return;
+      }
+
+      onPageSelected(pageIndex);
+    }
+
     return ExpansionTile(
       key: PageStorageKey<String>(node.id),
       initiallyExpanded: expandedNodes.contains(node.id),
@@ -242,6 +252,7 @@ class _BookTreeNodeTile extends StatelessWidget {
       onExpansionChanged: (expanded) {
         onExpansionChanged(node, expanded);
       },
+      onTap: _selectNode,
       children: [
         ...node.children.map(
           (child) => _BookTreeNodeTile(
