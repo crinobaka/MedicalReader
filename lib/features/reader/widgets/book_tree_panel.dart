@@ -226,33 +226,36 @@ class _BookTreeNodeTile extends StatelessWidget {
       initiallyExpanded: expandedNodes.contains(node.id),
       tilePadding: EdgeInsets.only(left: 8.0 + level * 16.0, right: 12),
       childrenPadding: EdgeInsets.zero,
-      title: Container(
-        decoration: isCurrent
-            ? BoxDecoration(
-                color: Theme.of(
-                  context,
-                ).colorScheme.primary.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(8),
-              )
-            : null,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        child: Text(
-          title,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: isCurrent
-              ? TextStyle(
-                  color: Theme.of(context).colorScheme.primary,
-                  fontWeight: FontWeight.w600,
+      title: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: _selectNode,
+        child: Container(
+          decoration: isCurrent
+              ? BoxDecoration(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
                 )
               : null,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Text(
+            title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: isCurrent
+                ? TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                  )
+                : null,
+          ),
         ),
       ),
       subtitle: pageText == null ? null : Text(pageText),
       onExpansionChanged: (expanded) {
         onExpansionChanged(node, expanded);
       },
-      onTap: _selectNode,
       children: [
         ...node.children.map(
           (child) => _BookTreeNodeTile(

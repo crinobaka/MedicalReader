@@ -1,0 +1,23 @@
+{
+  "id": "example-medical-book",
+  "name": "示例医学专业书籍",
+  "version": "1.0.0",
+  "author": "MedicalReader",
+  "metadata": {
+    "title": [],
+    "authors": [],
+    "isbn": [],
+    "publisher": [],
+    "edition": []
+  },
+  "aliases": [],
+  "bookTree": [],
+  "pageMapping": {
+    "type": "range"
+  },
+  "search": {
+    "showContext": true,
+    "showChapter": true,
+    "showBookPage": true
+  }
+}
