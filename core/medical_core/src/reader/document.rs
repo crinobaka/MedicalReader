@@ -102,39 +102,77 @@ impl Document {
             return Vec::new();
         }
 
-        let mut contexts = Vec::new();
-
         let lower_text = text.to_lowercase();
         let lower_query = query.to_lowercase();
 
-        let mut search_start = 0;
+        let text_chars: Vec<char> =
+            text.chars().collect();
 
-        while search_start < lower_text.len()
+        let lower_text_chars: Vec<char> =
+            lower_text.chars().collect();
+
+        let lower_query_chars: Vec<char> =
+            lower_query.chars().collect();
+
+        if lower_query_chars.is_empty()
+            || lower_query_chars.len() > lower_text_chars.len()
+        {
+            return Vec::new();
+        }
+
+        let mut contexts = Vec::new();
+
+        let mut search_start = 0usize;
+
+        while search_start < lower_text_chars.len()
             && contexts.len() < MAX_CONTEXTS
         {
-            let Some(relative_index) =
-                lower_text[search_start..].find(&lower_query)
-            else {
+            let mut match_start = None;
+
+            let remaining =
+                &lower_text_chars[search_start..];
+
+            if remaining.len() >= lower_query_chars.len() {
+                for offset in 0..=
+                    remaining.len() - lower_query_chars.len()
+                {
+                    let candidate =
+                        &remaining[
+                            offset
+                                ..offset
+                                    + lower_query_chars.len()
+                        ];
+
+                    if candidate == lower_query_chars.as_slice() {
+                        match_start =
+                            Some(search_start + offset);
+                        break;
+                    }
+                }
+            }
+
+            let Some(match_start) = match_start else {
                 break;
             };
 
-            let match_start =
-                search_start + relative_index;
-
             let match_end =
-                match_start + lower_query.len();
+                match_start + lower_query_chars.len();
 
             let context_start =
                 match_start.saturating_sub(CONTEXT_RADIUS);
 
             let context_end =
                 (match_end + CONTEXT_RADIUS)
-                    .min(text.len());
+                    .min(text_chars.len());
 
             let mut context =
-                text[context_start..context_end]
-                    .replace('\n', " ")
-                    .replace('\r', " ");
+                text_chars[context_start..context_end]
+                    .iter()
+                    .collect::<String>();
+
+            context = context
+                .replace('\n', " ")
+                .replace('\r', " ");
 
             context = context
                 .split_whitespace()
@@ -145,7 +183,7 @@ impl Document {
                 context = format!("…{context}");
             }
 
-            if context_end < text.len() {
+            if context_end < text_chars.len() {
                 context.push('…');
             }
 
@@ -155,5 +193,5 @@ impl Document {
         }
 
         contexts
-    }
+}
 }
