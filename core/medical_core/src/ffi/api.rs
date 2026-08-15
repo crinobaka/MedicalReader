@@ -141,14 +141,18 @@ pub unsafe extern "C" fn medical_core_search_book(
     let payload = results
         .iter()
         .map(|result| {
-            format!(
-                "{}:{}",
-                result.page_index,
-                result.hit_count
-            )
+            serde_json::json!({
+                "pageIndex": result.page_index,
+                "hitCount": result.hit_count,
+                "contexts": result.contexts,
+            })
         })
-        .collect::<Vec<_>>()
-        .join(";");
+        .collect::<Vec<_>>();
+    
+    let payload = match serde_json::to_string(&payload) {
+        Ok(value) => value,
+        Err(_) => return ptr::null_mut(),
+    };
 
     match CString::new(payload) {
         Ok(value) => value.into_raw(),

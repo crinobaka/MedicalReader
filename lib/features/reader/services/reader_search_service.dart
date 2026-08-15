@@ -1,4 +1,5 @@
 import 'dart:isolate';
+import 'dart:convert';
 
 import '../../../core/ffi/medical_core.dart';
 
@@ -7,9 +8,12 @@ class ReaderSearchResult {
 
   final int hitCount;
 
+  final List<String> contexts;
+
   const ReaderSearchResult({
     required this.pageIndex,
     required this.hitCount,
+    required this.contexts,
   });
 }
 
@@ -53,63 +57,54 @@ class ReaderSearchService {
   ) {
     final core = MedicalCore();
 
-    final document = core.openBook(
-      id: documentId,
-      path: documentPath,
-    );
+    final document = core.openBook(id: documentId, path: documentPath);
 
     try {
-      return document.searchBook(
-        query: query,
-        maxResults: maxResults,
-      );
+      return document.searchBook(query: query, maxResults: maxResults);
     } finally {
       document.close();
     }
   }
 
-  List<ReaderSearchResult> _parseResults(
-    String encoded,
-  ) {
+  List<ReaderSearchResult> _parseResults(String encoded) {
+    final decoded = jsonDecode(encoded);
+
+    if (decoded is! List) {
+      return const [];
+    }
+
     final results = <ReaderSearchResult>[];
 
-    for (final item in encoded.split(';')) {
-      if (item.isEmpty) {
+    for (final item in decoded) {
+      if (item is! Map) {
         continue;
       }
 
-      final separator =
-          item.indexOf(':');
+      final pageIndex = item['pageIndex'];
 
-      if (separator <= 0 ||
-          separator >= item.length - 1) {
+      final hitCount = item['hitCount'];
+
+      final rawContexts = item['contexts'];
+
+      if (pageIndex is! num || hitCount is! num) {
         continue;
       }
 
-      final pageIndex =
-          int.tryParse(
-        item.substring(
-          0,
-          separator,
-        ),
-      );
+      final contexts = <String>[];
 
-      final hitCount =
-          int.tryParse(
-        item.substring(
-          separator + 1,
-        ),
-      );
-
-      if (pageIndex == null ||
-          hitCount == null) {
-        continue;
+      if (rawContexts is List) {
+        for (final context in rawContexts) {
+          if (context is String && context.trim().isNotEmpty) {
+            contexts.add(context);
+          }
+        }
       }
 
       results.add(
         ReaderSearchResult(
-          pageIndex: pageIndex,
-          hitCount: hitCount,
+          pageIndex: pageIndex.toInt(),
+          hitCount: hitCount.toInt(),
+          contexts: contexts,
         ),
       );
     }

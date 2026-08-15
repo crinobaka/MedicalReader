@@ -20,16 +20,13 @@ class ReaderSearchDialog extends StatefulWidget {
   });
 
   @override
-  State<ReaderSearchDialog> createState() =>
-      _ReaderSearchDialogState();
+  State<ReaderSearchDialog> createState() => _ReaderSearchDialogState();
 }
 
-class _ReaderSearchDialogState
-    extends State<ReaderSearchDialog> {
+class _ReaderSearchDialogState extends State<ReaderSearchDialog> {
   late final TextEditingController _controller;
 
-  List<ReaderSearchResult> _results =
-      const [];
+  List<ReaderSearchResult> _results = const [];
 
   bool _searching = false;
 
@@ -39,8 +36,7 @@ class _ReaderSearchDialogState
   void initState() {
     super.initState();
 
-    _controller =
-        TextEditingController();
+    _controller = TextEditingController();
   }
 
   @override
@@ -51,11 +47,9 @@ class _ReaderSearchDialogState
   }
 
   Future<void> _search() async {
-    final query =
-        _controller.text.trim();
+    final query = _controller.text.trim();
 
-    if (query.isEmpty ||
-        _searching) {
+    if (query.isEmpty || _searching) {
       return;
     }
 
@@ -66,12 +60,9 @@ class _ReaderSearchDialogState
     });
 
     try {
-      final results =
-          await widget.searchService.search(
-        documentId:
-            widget.documentId,
-        documentPath:
-            widget.documentPath,
+      final results = await widget.searchService.search(
+        documentId: widget.documentId,
+        documentPath: widget.documentPath,
         query: query,
       );
 
@@ -107,27 +98,14 @@ class _ReaderSearchDialogState
             TextField(
               controller: _controller,
               autofocus: true,
-              textInputAction:
-                  TextInputAction.search,
-              decoration:
-                  InputDecoration(
-                hintText:
-                    '输入英文、中文或缩写',
-                prefixIcon:
-                    const Icon(
-                  Icons.search,
-                ),
-                suffixIcon:
-                    IconButton(
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                hintText: '输入英文、中文或缩写',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: IconButton(
                   tooltip: '搜索',
-                  onPressed:
-                      _searching
-                          ? null
-                          : _search,
-                  icon:
-                      const Icon(
-                    Icons.arrow_forward,
-                  ),
+                  onPressed: _searching ? null : _search,
+                  icon: const Icon(Icons.arrow_forward),
                 ),
               ),
               onSubmitted: (_) {
@@ -135,9 +113,7 @@ class _ReaderSearchDialogState
               },
             ),
             const SizedBox(height: 16),
-            Expanded(
-              child: _buildResults(),
-            ),
+            Expanded(child: _buildResults()),
           ],
         ),
       ),
@@ -154,70 +130,54 @@ class _ReaderSearchDialogState
 
   Widget _buildResults() {
     if (_searching) {
-      return const Center(
-        child:
-            CircularProgressIndicator(),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
 
     if (_error != null) {
-      return Center(
-        child: Text(
-          '搜索失败：$_error',
-          textAlign: TextAlign.center,
-        ),
-      );
+      return Center(child: Text('搜索失败：$_error', textAlign: TextAlign.center));
     }
 
     if (_results.isEmpty) {
-      return const Center(
-        child: Text(
-          '输入关键词后开始搜索',
-        ),
-      );
+      return const Center(child: Text('输入关键词后开始搜索'));
     }
 
     return ListView.separated(
       itemCount: _results.length,
-      separatorBuilder: (_, __) =>
-          const Divider(height: 1),
-      itemBuilder: (
-        context,
-        index,
-      ) {
-        final result =
-            _results[index];
+      separatorBuilder: (_, __) => const Divider(height: 1),
+      itemBuilder: (context, index) {
+        final result = _results[index];
 
-        final page =
-            result.pageIndex + 1;
+        final page = result.pageIndex + 1;
 
-        final isCurrentPage =
-            result.pageIndex ==
-                widget.currentPage;
+        final isCurrentPage = result.pageIndex == widget.currentPage;
 
         return ListTile(
-          leading: const Icon(
-            Icons.description_outlined,
-          ),
-          title: Text(
-            '第 $page 页',
-          ),
-          subtitle: Text(
-            '命中 ${result.hitCount} 次',
-          ),
-          trailing:
-              isCurrentPage
-                  ? const Chip(
-                      label:
-                          Text('当前页'),
-                    )
-                  : const Icon(
-                      Icons.chevron_right,
+          leading: const Icon(Icons.description_outlined),
+          title: Text('第 $page 页'),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('命中 ${result.hitCount} 次'),
+              if (result.contexts.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                ...result.contexts.map(
+                  (context) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      context,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          trailing: isCurrentPage
+              ? const Chip(label: Text('当前页'))
+              : const Icon(Icons.chevron_right),
           onTap: () {
-            Navigator.of(
-              context,
-            ).pop(result);
+            Navigator.of(context).pop(result);
           },
         );
       },
