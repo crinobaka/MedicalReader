@@ -17,6 +17,7 @@ import '../widgets/reader_serch_dialog.dart';
 import '../services/book_tree_service.dart';
 import '../models/book_tree_node.dart';
 import '../models/book_tree_index.dart';
+import '../models/book_page_mapping.dart';
 import '../widgets/book_tree_panel.dart';
 
 class ReaderPage extends ConsumerStatefulWidget {
@@ -52,6 +53,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   int _pageCount = 0;
 
   late BookTreeIndex _bookTreeIndex;
+
+  late BookPageMapping _bookPageMapping;
 
   BookTreeNode? get _currentBookTreeNode {
     if (!_bookTreeIndex.isNotEmpty) {
@@ -112,6 +115,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
       final bookTreeIndex = await _bookTreeService.loadIndexForDocument(widget.document, pageCount: pageCount,);
 
+      final bookPageMapping = BookPageMapping(index: bookTreeIndex,);
+
       final restoredPage = progress.lastPage.clamp(0, pageCount - 1);
 
       if (!mounted) {
@@ -124,6 +129,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         _currentPage = restoredPage;
         _pageCount = pageCount;
         _bookTreeIndex = bookTreeIndex;
+        _bookPageMapping = bookPageMapping;
         _cropMargins = progress.cropMargins;
         _loading = false;
         _pageLoading = true;
@@ -659,7 +665,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('${_currentPage + 1} / $_pageCount'),
+                  Text(
+                  _bookPageMapping.bookPageForPdfPage(_currentPage) == null
+                  ? 'PDF P${_currentPage + 1} / $_pageCount'
+                  : '书籍 P${_bookPageMapping.bookPageForPdfPage(_currentPage)} · '
+                  'PDF P${_currentPage + 1} / $_pageCount',
+                  ),
                   if (_currentBookTreeNode != null)
                     Text(
                       _currentBookTreeNode!.name,
