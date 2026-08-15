@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/reader_search_service.dart';
+import '../models/book_tree_index.dart';
 
 class ReaderSearchDialog extends StatefulWidget {
   final ReaderSearchService searchService;
@@ -11,12 +12,15 @@ class ReaderSearchDialog extends StatefulWidget {
 
   final int currentPage;
 
+  final BookTreeIndex bookTreeIndex;
+
   const ReaderSearchDialog({
     super.key,
     required this.searchService,
     required this.documentId,
     required this.documentPath,
     required this.currentPage,
+    required this.bookTreeIndex,
   });
 
   @override
@@ -151,6 +155,8 @@ class _ReaderSearchDialogState extends State<ReaderSearchDialog> {
 
         final isCurrentPage = result.pageIndex == widget.currentPage;
 
+        final bookTreePath = widget.bookTreeIndex.findPathForPage(result.pageIndex);
+
         return ListTile(
           leading: const Icon(Icons.description_outlined),
           title: Text('第 $page 页'),
@@ -160,13 +166,13 @@ class _ReaderSearchDialogState extends State<ReaderSearchDialog> {
               if (result.bookTreePath.isNotEmpty) ...[
                 const SizedBox(height: 4),
                 Text(
-                  result.bookTreePath.join(' / '),
+                  bookTreePath.map((node) => node.name).join('/'),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall,
+                  // style: Theme.of(context).textTheme.bodySmall,
                 ),
+                const SizedBox(height: 4),
               ],
-              const SizedBox(height: 4),
               Text('命中 ${result.hitCount} 次'),
               if (result.contexts.isNotEmpty) ...[
                 const SizedBox(height: 6),

@@ -346,6 +346,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           documentId: widget.document.file.id,
           documentPath: widget.document.file.path,
           currentPage: _currentPage,
+          bookTreeIndex: _bookTreeIndex,
         );
       },
     );
