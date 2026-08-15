@@ -41,6 +41,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   late final FocusNode _keyboardFocusNode;
 
+  late final TransformationController _readerTransformationController;
+
   MedicalCoreDocument? _document;
 
   ui.Image? _image;
@@ -82,6 +84,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     _readerSearchService = const ReaderSearchService();
 
     _keyboardFocusNode = FocusNode();
+
+    _readerTransformationController = TransformationController();
 
     _openDocument();
   }
@@ -467,15 +471,37 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   }
 
   void _handlePointerSignal(PointerSignalEvent event) {
-    if (event is! PointerScrollEvent) {
-      return;
-    }
-
-    if (_pageLoading) {
+    if (event is! PointerScrollEvent || _pageLoading) {
       return;
     }
 
     final dy = event.scrollDelta.dy;
+
+    if (HardwareKeyboard.instance.isControlPressed) {
+      if (dy == 0) {
+        return;
+      }
+
+      final currentScale =
+          _readerTransformationController.value.getMaxScaleOnAxis();
+
+      final zoomFactor = dy > 0 ? 0.9 : 1.1;
+
+      final targetScale =
+          (currentScale * zoomFactor).clamp(0.5, 4.0).toDouble();
+
+      final actualFactor = targetScale / currentScale;
+
+      if (actualFactor == 1.0) {
+        return;
+      }
+
+      final matrix = _readerTransformationController.value.clone()
+        ..scale(actualFactor);
+
+      _readerTransformationController.value = matrix;
+      return;
+    }
 
     if (dy > 0) {
       unawaited(_nextPage());
@@ -491,6 +517,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     unawaited(_saveProgress(_currentPage));
 
     _keyboardFocusNode.dispose();
+
+    _readerTransformationController.dispose();
 
     _document?.close();
 
@@ -569,6 +597,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
               children: [
                 Center(
                   child: InteractiveViewer(
+                    transformationController: _readerTransformationController,
                     minScale: 0.5,
                     maxScale: 4.0,
                     child: Stack(
