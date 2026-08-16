@@ -123,7 +123,7 @@ class _BookTreePanelState extends State<BookTreePanel> {
             node: node,
             level: 0,
             currentPage: widget.currentPage,
-            currentNodeId: currentNodeId,
+            currentNodeId: widget.currentNodeId,
             expandedNodes: _expandedNodes,
             onExpansionChanged: _toggleNode,
             onPageSelected: widget.onPageSelected,
