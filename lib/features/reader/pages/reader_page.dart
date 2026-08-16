@@ -231,7 +231,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         pageCount: pageCount,
       );
 
-      final bookPageMapping = BookPageMapping(index: bookTreeIndex);
+      final bookPageMapping = BookPageMapping.fromTemplate(
+        index: _bookTreeIndex,
+        config: bookTemplate?.bookPageMapping ?? const {},
+      );
 
       final restoredPage = progress.lastPage.clamp(0, pageCount - 1);
 
