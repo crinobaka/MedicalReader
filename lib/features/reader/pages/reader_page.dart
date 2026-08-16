@@ -118,9 +118,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
     final page = _searchResultPage! + 1;
 
-    final bookPage = _bookPageMapping.bookPageForPdfPage(
-      _searchResultPage!,
-    );
+    final bookPage = _bookPageMapping.bookPageForPdfPage(_searchResultPage!);
 
     final path = _searchResultPath;
 
@@ -470,7 +468,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           currentPage: _currentPage,
           bookTreeIndex: _bookTreeIndex,
           bookPageMapping: _bookPageMapping,
-          bookTemplate : _bookTemplate,
+          bookTemplate: _bookTemplate,
         );
       },
     );
@@ -671,10 +669,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              _currentBookLocationLabel,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            ReaderLocationBar(
+              location: _currentBookLocationLabel,
+              searchLocation: _searchLocationLabel,
             ),
             if (_searchLocationLabel != null)
               Text(
