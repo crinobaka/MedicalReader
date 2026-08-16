@@ -4,9 +4,7 @@ import 'book_tree_node.dart';
 class BookPageMapping {
   final BookTreeIndex index;
 
-  const BookPageMapping({
-    required this.index,
-  });
+  const BookPageMapping({required this.index});
 
   int? bookPageForPdfPage(int pageIndex) {
     if (!index.isValidPageIndex(pageIndex)) {
@@ -62,5 +60,64 @@ class BookPageMapping {
 
   BookTreeNode? nodeForPdfPage(int pageIndex) {
     return index.findNodeForPage(pageIndex);
+  }
+
+  int? pdfPageForBookPage(int bookPage) {
+    if (bookPage <= 0) {
+      return null;
+    }
+
+    for (final node in index.nodes) {
+      final result = _findPdfPageForBookPage(node, bookPage);
+
+      if (result != null) {
+        return result;
+      }
+    }
+
+    return null;
+  }
+
+  int? _findPdfPageForBookPage(BookTreeNode node, int bookPage) {
+    final bookStart = node.bookPageStart;
+    final bookEnd = node.bookPageEnd;
+
+    if (bookStart != null &&
+        bookEnd != null &&
+        bookPage >= bookStart &&
+        bookPage <= bookEnd) {
+      final pdfStart = node.pageStart;
+      final pdfEnd = node.pageEnd;
+
+      if (pdfStart != null && pdfEnd != null) {
+        final bookLength = bookEnd - bookStart;
+        final pdfLength = pdfEnd - pdfStart;
+
+        if (bookLength == 0) {
+          return pdfStart - 1;
+        }
+
+        final offset = bookPage - bookStart;
+
+        if (bookLength == pdfLength) {
+          return pdfStart - 1 + offset;
+        }
+
+        final ratio = offset / bookLength;
+        final pdfOffset = (ratio * pdfLength).round();
+
+        return (pdfStart - 1 + pdfOffset).clamp(pdfStart - 1, pdfEnd - 1);
+      }
+    }
+
+    for (final child in node.children) {
+      final result = _findPdfPageForBookPage(child, bookPage);
+
+      if (result != null) {
+        return result;
+      }
+    }
+
+    return null;
   }
 }
