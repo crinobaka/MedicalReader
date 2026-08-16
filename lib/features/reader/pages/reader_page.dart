@@ -427,10 +427,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       setState(() {
         _searchHits = result.hits;
         _searchResultPage = result.pageIndex;
-        _searchResultNode =
-            _bookPageMapping.nodeForPdfPage(result.pageIndex);
-        _searchResultPath =
-            _bookTreeIndex.findPathForPage(result.pageIndex);
+        _searchResultNode = _bookPageMapping.nodeForPdfPage(result.pageIndex);
+        _searchResultPath = _bookTreeIndex.findPathForPage(result.pageIndex);
       });
 
       _keyboardFocusNode.requestFocus();
@@ -446,10 +444,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     setState(() {
       _searchHits = result.hits;
       _searchResultPage = result.pageIndex;
-      _searchResultNode =
-          _bookPageMapping.nodeForPdfPage(result.pageIndex);
-      _searchResultPath =
-          _bookTreeIndex.findPathForPage(result.pageIndex);
+      _searchResultNode = _bookPageMapping.nodeForPdfPage(result.pageIndex);
+      _searchResultPath = _bookTreeIndex.findPathForPage(result.pageIndex);
     });
 
     if (mounted) {
@@ -754,6 +750,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                   if (_currentBookTreeNode != null)
                     Text(
                       _currentBookTreeNode!.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  if (_searchResultPage == _currentPage &&
+                      _searchResultPath.isNotEmpty)
+                    Text(
+                      '搜索命中 · ${_searchResultPath.map((node) => node.name).join(' › ')}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall,
