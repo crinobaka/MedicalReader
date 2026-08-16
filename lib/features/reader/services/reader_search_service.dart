@@ -57,6 +57,8 @@ class ReaderSearchService {
     required String documentPath,
     required String query,
     int maxResults = 50,
+    int contextBefore = 80,
+    int contextAfter = 80,
   }) async {
     final normalizedQuery = query.trim();
 
@@ -70,6 +72,8 @@ class ReaderSearchService {
         documentPath,
         normalizedQuery,
         maxResults,
+        contextBefore,
+        contextAfter,
       ),
       debugName: 'medical_reader_pdf_search',
     );
@@ -86,13 +90,15 @@ class ReaderSearchService {
     String documentPath,
     String query,
     int maxResults,
+    int contextBefore,
+    int contextAfter,
   ) {
     final core = MedicalCore();
 
     final document = core.openBook(id: documentId, path: documentPath);
 
     try {
-      return document.searchBook(query: query, maxResults: maxResults);
+      return document.searchBook(query: query, maxResults: maxResults, contextBefore: contextBefore, contextAfter: contextAfter);
     } finally {
       document.close();
     }

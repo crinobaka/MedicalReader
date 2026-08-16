@@ -121,6 +121,8 @@ pub unsafe extern "C" fn medical_core_search_book(
     handle: *const Document,
     query: *const c_char,
     max_results: u32,
+    context_before: u32,
+    context_after: u32,
 ) -> *mut c_char {
     if handle.is_null() || query.is_null() {
         return ptr::null_mut();
@@ -133,7 +135,7 @@ pub unsafe extern "C" fn medical_core_search_book(
         Err(_) => return ptr::null_mut(),
     };
 
-    let results = match document.search(query, max_results) {
+    let results = match document.search(query, max_results, context_before as usize, context_after as usize,) {
         Ok(results) => results,
         Err(_) => return ptr::null_mut(),
     };

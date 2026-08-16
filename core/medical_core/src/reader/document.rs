@@ -56,6 +56,8 @@ impl Document {
         &self,
         query: &str,
         max_results: u32,
+        context_before: usize,
+        context_after: usize,
     ) -> Result<Vec<SearchResult>, Error> {
         let query = query.trim();
 
@@ -143,6 +145,8 @@ impl Document {
             let contexts = Self::build_search_contexts(
                 &text,
                 query,
+                context_before,
+                context_after,
             );
 
             results.push(SearchResult {
@@ -163,9 +167,10 @@ impl Document {
     fn build_search_contexts(
         text: &str,
         query: &str,
+        context_before: usize,
+        context_after: usize,
     ) -> Vec<String> {
         const MAX_CONTEXTS: usize = 3;
-        const CONTEXT_RADIUS: usize = 80;
 
         if text.is_empty() || query.is_empty() {
             return Vec::new();
@@ -228,10 +233,10 @@ impl Document {
                 match_start + lower_query_chars.len();
 
             let context_start =
-                match_start.saturating_sub(CONTEXT_RADIUS);
+                match_start.saturating_sub(context_before);
 
             let context_end =
-                (match_end + CONTEXT_RADIUS)
+                (match_end + context_after)
                     .min(text_chars.len());
 
             let mut context =

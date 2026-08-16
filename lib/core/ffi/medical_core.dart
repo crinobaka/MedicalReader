@@ -58,12 +58,16 @@ typedef _MedicalCoreSearchBookNative =
       Pointer<_MedicalCoreDocument>,
       Pointer<Utf8>,
       Uint32,
+      Uint32,
+      Uint32,
     );
 
 typedef _MedicalCoreSearchBookDart =
     Pointer<Utf8> Function(
       Pointer<_MedicalCoreDocument>,
       Pointer<Utf8>,
+      int,
+      int,
       int,
     );
 
@@ -124,12 +128,12 @@ class MedicalCoreDocument {
     _closed = true;
   }
 
-  String searchBook({required String query, int maxResults = 50}) {
+  String searchBook({required String query, int maxResults = 50, int contextBefore = 80, int contextAfter = 80,}) {
     if (_closed) {
       throw StateError('MedicalCoreDocument is already closed.');
     }
 
-    return _core.searchBook(_handle, query: query, maxResults: maxResults);
+    return _core.searchBook(_handle, query: query, maxResults: maxResults, contextBefore: contextBefore, contextAfter: contextAfter,);
   }
 }
 
@@ -319,6 +323,8 @@ class MedicalCore {
     Pointer<_MedicalCoreDocument> handle, {
     required String query,
     required int maxResults,
+    int contextBefore = 80,
+    int contextAfter = 80,
   }) {
     if (handle == nullptr) {
       throw ArgumentError('Document handle cannot be null.');
@@ -341,7 +347,7 @@ class MedicalCore {
     final queryPointer = normalizedQuery.toNativeUtf8();
 
     try {
-      final resultPointer = _searchBook(handle, queryPointer, maxResults,);
+      final resultPointer = _searchBook(handle, queryPointer, maxResults, contextBefore, contextAfter);
 
       if (resultPointer == nullptr) {
         throw StateError('Failed to search PDF document.');

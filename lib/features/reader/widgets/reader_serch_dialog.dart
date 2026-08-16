@@ -72,10 +72,21 @@ class _ReaderSearchDialogState extends State<ReaderSearchDialog> {
     });
 
     try {
+
+      final searchContext = widget.bookTemplate?.searchContext ?? const {};
+
+      final contextBefore =
+          (searchContext['contextBefore'] as num?)?.toInt() ?? 80;
+
+      final contextAfter =
+          (searchContext['contextAfter'] as num?)?.toInt() ?? 80;
+
       final results = await widget.searchService.search(
         documentId: widget.documentId,
         documentPath: widget.documentPath,
         query: query,
+        contextBefore: contextBefore,
+        contextAfter : contextAfter,
       );
 
       if (!mounted) {
