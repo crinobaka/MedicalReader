@@ -29,6 +29,20 @@ class BookTemplateService {
     return List.unmodifiable(_templates.values);
   }
 
+  BookTemplate? findByAlias(String value) {
+    final normalized = value.trim().toLowerCase();
+
+    for (final template in _templates.values) {
+      if (template.aliases.any(
+        (alias) => alias.trim().toLowerCase() == normalized,
+      )) {
+        return template;
+      }
+    }
+
+    return null;
+  }
+
   bool contains(String id) {
     return _templates.containsKey(id);
   }

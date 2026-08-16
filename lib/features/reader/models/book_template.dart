@@ -22,10 +22,34 @@ class BookTemplate {
       version: json['version'] as String? ?? '1.0.0',
       description: json['description'] as String?,
       author: json['author'] as String?,
-      data: Map<String, dynamic>.from(
-        json['data'] as Map? ?? const {},
-      ),
+      data: Map<String, dynamic>.from(json['data'] as Map? ?? const {}),
     );
+  }
+
+  Map<String, dynamic> get metadata {
+    return Map<String, dynamic>.from(data['metadata'] as Map? ?? const {});
+  }
+
+  List<String> get aliases {
+    return (data['aliases'] as List?)?.whereType<String>().toList() ?? const [];
+  }
+
+  Map<String, dynamic> get bookPageMapping {
+    return Map<String, dynamic>.from(
+      data['bookPageMapping'] as Map? ?? const {},
+    );
+  }
+
+  Map<String, dynamic> get searchContext {
+    return Map<String, dynamic>.from(data['searchContext'] as Map? ?? const {});
+  }
+
+  List<Map<String, dynamic>> get bookTree {
+    return (data['bookTree'] as List?)
+            ?.whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .toList() ??
+        const [];
   }
 
   Map<String, dynamic> toJson() {
