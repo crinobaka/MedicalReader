@@ -547,6 +547,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       _searchResultPath = _bookTreeIndex.findPathForPage(result.pageIndex);
     });
 
+    if (_searchResultPath.isNotEmpty && mounted) {
+      await _showBookTree(targetPage: result.pageIndex);
+    }
+
     if (mounted) {
       _keyboardFocusNode.requestFocus();
     }
