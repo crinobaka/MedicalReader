@@ -1,4 +1,5 @@
 import 'book_tree_node.dart';
+import 'book_page_mapping.dart';
 
 class BookTreeIndex {
   final List<BookTreeNode> nodes;
@@ -124,9 +125,7 @@ class BookTreeIndex {
   }
 
 int? resolveBookPageForPdfPage(int pageIndex) {
-  final node = findNodeForPage(pageIndex);
-
-  return node?.resolveBookPage();
+  return BookPageMapping(index: this).bookPageForPdfPage(pageIndex);
 }
 
   String? resolveBookPageLabelForPdfPage(int pageIndex) {
