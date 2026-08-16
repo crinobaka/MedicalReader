@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:medicalreader/features/reader/models/book_template.dart';
 
 import '../services/reader_search_service.dart';
 import '../models/book_tree_index.dart';
@@ -17,6 +18,8 @@ class ReaderSearchDialog extends StatefulWidget {
 
   final BookPageMapping bookPageMapping;
 
+  final BookTemplate? bookTemplate;
+
   const ReaderSearchDialog({
     super.key,
     required this.searchService,
@@ -25,6 +28,7 @@ class ReaderSearchDialog extends StatefulWidget {
     required this.currentPage,
     required this.bookTreeIndex,
     required this.bookPageMapping,
+    this.bookTemplate,
   });
 
   @override

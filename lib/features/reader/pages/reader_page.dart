@@ -415,6 +415,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           currentPage: _currentPage,
           bookTreeIndex: _bookTreeIndex,
           bookPageMapping: _bookPageMapping,
+          bookTemplate : _bookTemplate,
         );
       },
     );
