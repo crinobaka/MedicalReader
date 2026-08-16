@@ -72,6 +72,18 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     return _bookTreeIndex.findNodeForPage(_currentPage);
   }
 
+  int? get _currentBookPage {
+    return _bookPageMapping.bookPageForPdfPage(_currentPage);
+  }
+
+  List<BookTreeNode> get _currentBookTreePath {
+    if (!_bookTreeIndex.isNotEmpty) {
+      return const [];
+    }
+
+    return _bookTreeIndex.findPathForPage(_currentPage);
+  }
+
   BookTemplate? _bookTemplate;
 
   List<ReaderSearchHit> _searchHits = const [];
@@ -648,6 +660,18 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             onPointerSignal: _handlePointerSignal,
             child: Stack(
               children: [
+                if (_currentBookTreePath.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+                    child: Text(
+                      _currentBookTreePath
+                          .map((node) => node.name)
+                          .where((name) => name.trim().isNotEmpty)
+                          .join('  ›  '),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 Center(
                   child: InteractiveViewer(
                     transformationController: _readerTransformationController,
