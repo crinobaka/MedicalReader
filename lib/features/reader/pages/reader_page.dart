@@ -370,7 +370,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     }
   }
 
-  Future<void> _showBookTree() async {
+  Future<void> _showBookTree({int? targetPage}) async {
     if (!mounted) {
       return;
     }
@@ -383,7 +383,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           height: MediaQuery.sizeOf(context).height * 0.85,
           child: BookTreePanel(
             nodes: _bookTreeIndex.nodes,
-            currentPage: _currentPage,
+            currentPage: targetPage ?? _currentPage,
             onPageSelected: (pageIndex) {
               Navigator.of(context).pop();
               unawaited(_renderPage(pageIndex));
