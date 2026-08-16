@@ -61,9 +61,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   int _pageCount = 0;
 
-  late BookTreeIndex _bookTreeIndex;
+  BookTreeIndex _bookTreeIndex = const BookTreeIndex(nodes: [], pageCount: 0);
 
-  late BookPageMapping _bookPageMapping;
+  BookPageMapping _bookPageMapping = const BookPageMapping(
+    index: BookTreeIndex(nodes: [], pageCount: 0),
+  );
 
   BookTreeNode? get _currentBookTreeNode {
     if (!_bookTreeIndex.isNotEmpty) {
