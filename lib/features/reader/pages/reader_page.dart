@@ -88,6 +88,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   List<ReaderSearchHit> _searchHits = const [];
 
+  int? _searchResultPage;
+
+  BookTreeNode? _searchResultNode;
+
+  List<BookTreeNode> _searchResultPath = const [];
+
   bool _loading = true;
 
   bool _pageLoading = false;
@@ -252,7 +258,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     setState(() {
       _pageLoading = true;
       _error = null;
-      _searchHits = const [];
     });
 
     try {
@@ -421,6 +426,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     if (result.pageIndex == _currentPage) {
       setState(() {
         _searchHits = result.hits;
+        _searchResultPage = result.pageIndex;
+        _searchResultNode =
+            _bookPageMapping.nodeForPdfPage(result.pageIndex);
+        _searchResultPath =
+            _bookTreeIndex.findPathForPage(result.pageIndex);
       });
 
       _keyboardFocusNode.requestFocus();
@@ -435,6 +445,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
     setState(() {
       _searchHits = result.hits;
+      _searchResultPage = result.pageIndex;
+      _searchResultNode =
+          _bookPageMapping.nodeForPdfPage(result.pageIndex);
+      _searchResultPath =
+          _bookTreeIndex.findPathForPage(result.pageIndex);
     });
 
     if (mounted) {
