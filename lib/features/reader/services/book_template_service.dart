@@ -1,7 +1,15 @@
+import 'package:flutter/foundation.dart';
+
 import '../models/book_template.dart';
+import 'book_template_asset_loader.dart';
 
 class BookTemplateService {
   final Map<String, BookTemplate> _templates = {};
+
+  final BookTemplateAssetLoader _assetLoader;
+  BookTemplateService({
+    BookTemplateAssetLoader assetLoader = const BookTemplateAssetLoader(),
+  }) : _assetLoader = assetLoader;
 
   void register(BookTemplate template) {
     _templates[template.id] = template;
@@ -32,4 +40,10 @@ class BookTemplateService {
   void clear() {
     _templates.clear();
   }
+
+  Future<void> loadAssets(Iterable<String> assetPaths) async {
+    final templates = await _assetLoader.loadAll(assetPaths);
+    registerAll(templates);
+  }
+
 }

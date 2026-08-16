@@ -36,9 +36,9 @@ class ReaderPage extends ConsumerStatefulWidget {
 class _ReaderPageState extends ConsumerState<ReaderPage> {
   final ReaderEngineService _readerEngine = ReaderEngineService();
 
-  final BookTemplateMatcher _bookTemplateMatcher = BookTemplateMatcher(
-    templates: buildBuiltinBookTemplates(),
-  );
+  final BookTemplateService _bookTemplateService = BookTemplateService();
+
+  late BookTemplateMatcher _bookTemplateMatcher;
 
   late final BookTreeService _bookTreeService;
 
@@ -101,6 +101,18 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     _keyboardFocusNode = FocusNode();
 
     _readerTransformationController = TransformationController();
+
+    _bookTemplateMatcher = BookTemplateMatcher(templates: buildBuiltinBookTemplates(),);
+
+    await _bookTemplateService.loadAssets(
+      const [
+        'assets/book_templates/generic_medical_book.json',
+      ],
+    );
+
+    _bookTemplateMatcher = BookTemplateMatcher(
+      templates: _bookTemplateService.templates,
+    );
 
     _openDocument();
   }
