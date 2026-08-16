@@ -122,4 +122,31 @@ class BookTreeIndex {
 
     return pageIndex;
   }
+
+int? resolveBookPageForPdfPage(int pageIndex) {
+  final node = findNodeForPage(pageIndex);
+
+  return node?.resolveBookPage();
+}
+
+  String? resolveBookPageLabelForPdfPage(int pageIndex) {
+    final node = findNodeForPage(pageIndex);
+
+    if (node == null) {
+      return null;
+    }
+
+    final label = node.pageLabel;
+
+    if (label.isEmpty) {
+      return null;
+    }
+
+    return label;
+  }
+
+  List<BookTreeNode> resolvePathForPdfPage(int pageIndex) {
+    return findPathForPage(pageIndex);
+  }
+
 }

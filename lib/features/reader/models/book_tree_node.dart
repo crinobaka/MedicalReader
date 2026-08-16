@@ -108,4 +108,37 @@ class BookTreeNode {
 
     return null;
   }
+
+  int? resolveBookPage() {
+    if (bookPageStart != null) {
+      return bookPageStart;
+    }
+
+    for (final child in children) {
+      final bookPage = child.resolveBookPage();
+
+      if (bookPage != null) {
+        return bookPage;
+      }
+    }
+
+    return null;
+  }
+
+  String get pageLabel {
+    if (bookPageStart != null && bookPageEnd != null) {
+      if (bookPageStart == bookPageEnd) {
+        return '$bookPageStart';
+      }
+
+      return '$bookPageStart-$bookPageEnd';
+    }
+
+    if (bookPageStart != null) {
+      return '$bookPageStart';
+    }
+
+    return '';
+  }
+
 }
