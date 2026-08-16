@@ -423,6 +423,47 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     }
   }
 
+  Future<void> _showBookPageJumpDialog() async {
+    if (_pageCount <= 0 || _pageLoading) {
+      return;
+    }
+
+    final bookPage = await showDialog<int>(
+      context: context,
+      builder: (context) {
+        return _BookPageJumpDialog(
+          currentPage: _currentBookPage,
+        );
+      },
+    );
+
+    if (bookPage == null || !mounted) {
+      return;
+    }
+
+    final pdfPage = _bookPageMapping.pdfPageForBookPage(bookPage);
+
+    if (pdfPage == null) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('找不到书籍第 $bookPage 页对应的 PDF 页面'),
+        ),
+      );
+
+      return;
+    }
+
+    await _renderPage(pdfPage);
+
+    if (mounted) {
+      _keyboardFocusNode.requestFocus();
+    }
+  }
+
   Future<void> _showBookTree({int? targetPage}) async {
     if (!mounted) {
       return;
@@ -595,6 +636,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
       case LogicalKeyboardKey.keyG:
         unawaited(_showPageJumpDialog());
+        break;
+
+      case LogicalKeyboardKey.keyB:
+        unawaited(_showBookPageJumpDialog());
         break;
     }
   }
@@ -970,6 +1015,72 @@ class _PageJumpDialogState extends State<_PageJumpDialog> {
           child: const Text('取消'),
         ),
         FilledButton(onPressed: _submit, child: const Text('跳转')),
+      ],
+    );
+  }
+}
+
+class _BookPageJumpDialog extends StatefulWidget {
+  final int? currentPage;
+
+  const _BookPageJumpDialog({
+    required this.currentPage,
+  });
+
+  @override
+  State<_BookPageJumpDialog> createState() => _BookPageJumpDialogState();
+}
+
+class _BookPageJumpDialogState extends State<_BookPageJumpDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _controller = TextEditingController(
+      text: widget.currentPage?.toString() ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final page = int.tryParse(_controller.text.trim());
+
+    if (page == null || page <= 0) {
+      return;
+    }
+
+    Navigator.of(context).pop(page);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('跳转到书籍页码'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        keyboardType: TextInputType.number,
+        decoration: const InputDecoration(
+          labelText: '书籍页码',
+        ),
+        onSubmitted: (_) => _submit(),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: const Text('跳转'),
+        ),
       ],
     );
   }
