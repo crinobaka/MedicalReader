@@ -11,12 +11,10 @@ import 'builtin_book_templates.dart';
 class BookTreeService {
   final BookTemplateMatcher _templateMatcher;
 
-  BookTreeService({
-    BookTemplateMatcher? templateMatcher,
-  }) : _templateMatcher = templateMatcher ??
-            BookTemplateMatcher(
-              templates: buildBuiltinBookTemplates(),
-            );
+  BookTreeService({BookTemplateMatcher? templateMatcher})
+    : _templateMatcher =
+          templateMatcher ??
+          BookTemplateMatcher(templates: buildBuiltinBookTemplates());
 
   Future<BookTreeIndex> loadIndexForDocument(
     LibraryDocument document, {
@@ -24,15 +22,12 @@ class BookTreeService {
   }) async {
     final nodes = await loadForDocument(document);
 
-    return BookTreeIndex(
-      nodes: nodes,
-      pageCount: pageCount,
-    );
+    final normalizedNodes = _normalizeTree(nodes, pageCount: pageCount);
+
+    return BookTreeIndex(nodes: normalizedNodes, pageCount: pageCount);
   }
 
-Future<List<BookTreeNode>> loadForDocument(
-    LibraryDocument document,
-  ) async {
+  Future<List<BookTreeNode>> loadForDocument(LibraryDocument document) async {
     final template = _templateMatcher.match(document);
 
     if (template != null) {
@@ -78,9 +73,7 @@ Future<List<BookTreeNode>> loadForDocument(
     return '$pdfPath.booktree.json';
   }
 
-  Future<List<BookTreeNode>> _loadTemplateTree(
-    BookTemplate template,
-  ) async {
+  Future<List<BookTreeNode>> _loadTemplateTree(BookTemplate template) async {
     final rawBookTree = template.data['bookTree'];
 
     if (rawBookTree is List) {
@@ -97,9 +90,7 @@ Future<List<BookTreeNode>> loadForDocument(
       }
 
       if (_looksLikeNode(map)) {
-        return [
-          BookTreeNode.fromJson(map),
-        ];
+        return [BookTreeNode.fromJson(map)];
       }
     }
 
@@ -138,9 +129,7 @@ Future<List<BookTreeNode>> loadForDocument(
         }
 
         if (_looksLikeNode(map)) {
-          return [
-            BookTreeNode.fromJson(map),
-          ];
+          return [BookTreeNode.fromJson(map)];
         }
       }
     } catch (_) {
@@ -159,9 +148,7 @@ Future<List<BookTreeNode>> loadForDocument(
         continue;
       }
 
-      final node = BookTreeNode.fromJson(
-        Map<String, dynamic>.from(rawNode),
-      );
+      final node = BookTreeNode.fromJson(Map<String, dynamic>.from(rawNode));
 
       if (node.id.isEmpty && node.name.isEmpty) {
         continue;
@@ -175,5 +162,61 @@ Future<List<BookTreeNode>> loadForDocument(
 
   bool _looksLikeNode(Map<String, dynamic> map) {
     return map.containsKey('id') || map.containsKey('name');
+  }
+
+  List<BookTreeNode> _normalizeTree(
+    List<BookTreeNode> nodes, {
+    required int pageCount,
+  }) {
+    if (nodes.isEmpty || pageCount <= 0) {
+      return const [];
+    }
+
+    final normalized = <BookTreeNode>[];
+
+    for (var index = 0; index < nodes.length; index++) {
+      final node = nodes[index];
+
+      final start = node.pageStart;
+      final nextStart = index + 1 < nodes.length
+          ? nodes[index + 1].pageStart
+          : null;
+
+      var pageStart = start;
+
+      if (pageStart != null) {
+        pageStart = pageStart.clamp(1, pageCount);
+      }
+
+      var pageEnd = node.pageEnd;
+
+      if (pageEnd == null && nextStart != null) {
+        pageEnd = nextStart - 1;
+      }
+
+      if (pageEnd != null) {
+        pageEnd = pageEnd.clamp(1, pageCount);
+      }
+
+      if (pageStart != null && pageEnd != null && pageEnd < pageStart) {
+        pageEnd = pageStart;
+      }
+
+      final children = _normalizeTree(node.children, pageCount: pageCount);
+
+      normalized.add(
+        BookTreeNode(
+          id: node.id,
+          name: node.name,
+          pageStart: pageStart,
+          pageEnd: pageEnd,
+          bookPageStart: node.bookPageStart,
+          bookPageEnd: node.bookPageEnd,
+          children: children,
+        ),
+      );
+    }
+
+    return List.unmodifiable(normalized);
   }
 }

@@ -116,11 +116,11 @@ class BookTreeIndex {
 
     final pageIndex = node.resolvePdfPageIndex();
 
-    if (pageIndex == null || !isValidPageIndex(pageIndex)) {
+    if (pageIndex == null) {
       return null;
     }
 
-    return pageIndex;
+    return isValidPageIndex(pageIndex) ? pageIndex : null;
   }
 
 int? resolveBookPageForPdfPage(int pageIndex) {

@@ -66,15 +66,24 @@ class BookTreeNode {
   bool containsPage(int pageIndex) {
     final page = pageIndex + 1;
 
-    if (pageStart != null && page < pageStart!) {
-      return false;
+    final start = pageStart;
+    final end = pageEnd;
+
+    if (start != null && end != null) {
+      return page >= start && page <= end;
     }
 
-    if (pageEnd != null && page > pageEnd!) {
-      return false;
+    if (start != null) {
+      return page >= start;
     }
 
-    return true;
+    if (end != null) {
+      return page <= end;
+    }
+
+    return children.any(
+      (child) => child.containsPage(pageIndex),
+    );
   }
 
   BookTreeNode? findNodeForPage(int pageIndex) {
