@@ -94,8 +94,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       templates: buildBuiltinBookTemplates(),
     );
 
-    _bookTreeService = BookTreeService(templateMatcher: _bookTemplateMatcher);
-
     _readerProgressService = ReaderProgressService(
       libraryRepository: ref.read(libraryRepositoryProvider),
     );
