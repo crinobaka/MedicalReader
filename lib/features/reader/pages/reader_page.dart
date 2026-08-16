@@ -90,7 +90,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
     _pagePreloader = PagePreloader(readerEngine: _readerEngine);
 
-    _bookTreeService = BookTreeService(templateMatcher: _bookTemplateMatcher,);
+    _bookTemplateMatcher = BookTemplateMatcher(
+      templates: buildBuiltinBookTemplates(),
+    );
+
+    _bookTreeService = BookTreeService(templateMatcher: _bookTemplateMatcher);
 
     _readerProgressService = ReaderProgressService(
       libraryRepository: ref.read(libraryRepositoryProvider),
@@ -102,19 +106,31 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
     _readerTransformationController = TransformationController();
 
-    _bookTemplateMatcher = BookTemplateMatcher(templates: buildBuiltinBookTemplates(),);
+    _initializeBookTemplates();
+  }
 
-    await _bookTemplateService.loadAssets(
-      const [
+  Future<void> _initializeBookTemplates() async {
+    try {
+      await _bookTemplateService.loadAssets(const [
         'assets/book_templates/generic_medical_book.json',
-      ],
-    );
+      ]);
 
-    _bookTemplateMatcher = BookTemplateMatcher(
-      templates: _bookTemplateService.templates,
-    );
+      if (!mounted) {
+        return;
+      }
 
-    _openDocument();
+      _bookTemplateMatcher = BookTemplateMatcher(
+        templates: _bookTemplateService.templates,
+      );
+    } catch (_) {
+      _bookTemplateMatcher = BookTemplateMatcher(
+        templates: buildBuiltinBookTemplates(),
+      );
+    }
+
+    _bookTreeService = BookTreeService(templateMatcher: _bookTemplateMatcher);
+
+    await _openDocument();
   }
 
   Future<void> _openDocument() async {
@@ -137,11 +153,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
       final progress = await _readerProgressService.load(widget.document.id);
 
-      final bookTemplate = _bookTemplateMatcher.match(widget.document,);
+      final bookTemplate = _bookTemplateMatcher.match(widget.document);
 
-      final bookTreeIndex = await _bookTreeService.loadIndexForDocument(widget.document, pageCount: pageCount,);
+      final bookTreeIndex = await _bookTreeService.loadIndexForDocument(
+        widget.document,
+        pageCount: pageCount,
+      );
 
-      final bookPageMapping = BookPageMapping(index: bookTreeIndex,);
+      final bookPageMapping = BookPageMapping(index: bookTreeIndex);
 
       final restoredPage = progress.lastPage.clamp(0, pageCount - 1);
 
@@ -517,13 +536,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         return;
       }
 
-      final currentScale =
-          _readerTransformationController.value.getMaxScaleOnAxis();
+      final currentScale = _readerTransformationController.value
+          .getMaxScaleOnAxis();
 
       final zoomFactor = dy > 0 ? 0.9 : 1.1;
 
-      final targetScale =
-          (currentScale * zoomFactor).clamp(0.5, 4.0).toDouble();
+      final targetScale = (currentScale * zoomFactor)
+          .clamp(0.5, 4.0)
+          .toDouble();
 
       final actualFactor = targetScale / currentScale;
 
@@ -637,17 +657,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                     maxScale: 4.0,
                     child: Stack(
                       children: [
-                        RawImage(
-                          image: image,
-                          fit: BoxFit.contain,
-                        ),
+                        RawImage(image: image, fit: BoxFit.contain),
                         if (_searchHits.isNotEmpty)
                           Positioned.fill(
                             child: IgnorePointer(
                               child: CustomPaint(
-                                painter: _SearchHitPainter(
-                                  hits: _searchHits,
-                                ),
+                                painter: _SearchHitPainter(hits: _searchHits),
                               ),
                             ),
                           ),
@@ -694,10 +709,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                  _bookPageMapping.bookPageForPdfPage(_currentPage) == null
-                  ? 'PDF P${_currentPage + 1} / $_pageCount'
-                  : '书籍 P${_bookPageMapping.bookPageForPdfPage(_currentPage)} · '
-                  'PDF P${_currentPage + 1} / $_pageCount',
+                    _bookPageMapping.bookPageForPdfPage(_currentPage) == null
+                        ? 'PDF P${_currentPage + 1} / $_pageCount'
+                        : '书籍 P${_bookPageMapping.bookPageForPdfPage(_currentPage)} · '
+                              'PDF P${_currentPage + 1} / $_pageCount',
                   ),
                   if (_currentBookTreeNode != null)
                     Text(
@@ -853,9 +868,7 @@ class _PageJumpDialogState extends State<_PageJumpDialog> {
 class _SearchHitPainter extends CustomPainter {
   final List<ReaderSearchHit> hits;
 
-  _SearchHitPainter({
-    required this.hits,
-  });
+  _SearchHitPainter({required this.hits});
 
   @override
   void paint(Canvas canvas, Size size) {
