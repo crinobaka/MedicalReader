@@ -431,9 +431,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     final bookPage = await showDialog<int>(
       context: context,
       builder: (context) {
-        return _BookPageJumpDialog(
-          currentPage: _currentBookPage,
-        );
+        return _BookPageJumpDialog(currentPage: _currentBookPage);
       },
     );
 
@@ -448,11 +446,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('找不到书籍第 $bookPage 页对应的 PDF 页面'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('找不到书籍第 $bookPage 页对应的 PDF 页面')));
 
       return;
     }
@@ -478,6 +474,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           child: BookTreePanel(
             nodes: _bookTreeIndex.nodes,
             currentPage: targetPage ?? _currentPage,
+            currentNodeId: targetPage == null
+                ? _currentBookTreeNode?.id
+                : _bookTreeIndex.findNodeForPage(targetPage)?.id,
             onPageSelected: (pageIndex) {
               Navigator.of(context).pop();
               unawaited(_renderPage(pageIndex));
@@ -1023,9 +1022,7 @@ class _PageJumpDialogState extends State<_PageJumpDialog> {
 class _BookPageJumpDialog extends StatefulWidget {
   final int? currentPage;
 
-  const _BookPageJumpDialog({
-    required this.currentPage,
-  });
+  const _BookPageJumpDialog({required this.currentPage});
 
   @override
   State<_BookPageJumpDialog> createState() => _BookPageJumpDialogState();
@@ -1067,9 +1064,7 @@ class _BookPageJumpDialogState extends State<_BookPageJumpDialog> {
         controller: _controller,
         autofocus: true,
         keyboardType: TextInputType.number,
-        decoration: const InputDecoration(
-          labelText: '书籍页码',
-        ),
+        decoration: const InputDecoration(labelText: '书籍页码'),
         onSubmitted: (_) => _submit(),
       ),
       actions: [
@@ -1077,10 +1072,7 @@ class _BookPageJumpDialogState extends State<_BookPageJumpDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('取消'),
         ),
-        FilledButton(
-          onPressed: _submit,
-          child: const Text('跳转'),
-        ),
+        FilledButton(onPressed: _submit, child: const Text('跳转')),
       ],
     );
   }

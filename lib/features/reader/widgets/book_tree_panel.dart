@@ -7,12 +7,15 @@ class BookTreePanel extends StatefulWidget {
 
   final int currentPage;
 
+  final String? currentNodeId;
+
   final ValueChanged<int> onPageSelected;
 
   const BookTreePanel({
     super.key,
     required this.nodes,
     required this.currentPage,
+    this.currentNodeId,
     required this.onPageSelected,
   });
 
@@ -120,6 +123,7 @@ class _BookTreePanelState extends State<BookTreePanel> {
             node: node,
             level: 0,
             currentPage: widget.currentPage,
+            currentNodeId: currentNodeId,
             expandedNodes: _expandedNodes,
             onExpansionChanged: _toggleNode,
             onPageSelected: widget.onPageSelected,
@@ -137,6 +141,8 @@ class _BookTreeNodeTile extends StatelessWidget {
 
   final int currentPage;
 
+  final String? currentNodeId;
+
   final Set<String> expandedNodes;
 
   final void Function(BookTreeNode node, bool expanded) onExpansionChanged;
@@ -147,6 +153,7 @@ class _BookTreeNodeTile extends StatelessWidget {
     required this.node,
     required this.level,
     required this.currentPage,
+    this.currentNodeId,
     required this.expandedNodes,
     required this.onExpansionChanged,
     required this.onPageSelected,
@@ -186,7 +193,9 @@ class _BookTreeNodeTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasChildren = node.children.isNotEmpty;
 
-    final isCurrent = node.containsPage(currentPage);
+    final isCurrent = currentNodeId != null
+        ? node.id == currentNodeId
+        : node.containsPage(currentPage);
 
     final title = node.name.isEmpty ? node.id : node.name;
 
@@ -262,6 +271,7 @@ class _BookTreeNodeTile extends StatelessWidget {
             node: child,
             level: level + 1,
             currentPage: currentPage,
+            currentNodeId: currentNodeId,
             expandedNodes: expandedNodes,
             onExpansionChanged: onExpansionChanged,
             onPageSelected: onPageSelected,
