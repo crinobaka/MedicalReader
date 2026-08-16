@@ -23,6 +23,7 @@ import '../models/book_tree_index.dart';
 import '../models/book_page_mapping.dart';
 import '../models/book_template.dart';
 import '../widgets/book_tree_panel.dart';
+import '../widgets/reader_location_bar.dart';
 
 class ReaderPage extends ConsumerStatefulWidget {
   final LibraryDocument document;
@@ -82,6 +83,60 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     }
 
     return _bookTreeIndex.findPathForPage(_currentPage);
+  }
+
+  String get _currentBookLocationLabel {
+    final path = _currentBookTreePath;
+
+    final chapter = path.isEmpty
+        ? null
+        : path.map((node) => node.name).join(' / ');
+
+    final bookPage = _currentBookPage;
+
+    final pdfPage = _currentPage + 1;
+
+    if (chapter != null && bookPage != null) {
+      return '$chapter · 书籍第 $bookPage 页 · PDF 第 $pdfPage 页';
+    }
+
+    if (chapter != null) {
+      return '$chapter · PDF 第 $pdfPage 页';
+    }
+
+    if (bookPage != null) {
+      return '书籍第 $bookPage 页 · PDF 第 $pdfPage 页';
+    }
+
+    return 'PDF 第 $pdfPage 页';
+  }
+
+  String? get _searchLocationLabel {
+    if (_searchResultPage == null) {
+      return null;
+    }
+
+    final page = _searchResultPage! + 1;
+
+    final bookPage = _bookPageMapping.bookPageForPdfPage(
+      _searchResultPage!,
+    );
+
+    final path = _searchResultPath;
+
+    final chapter = path.isEmpty
+        ? null
+        : path.map((node) => node.name).join(' / ');
+
+    if (chapter != null && bookPage != null) {
+      return '命中 · $chapter · 书籍第 $bookPage 页 · PDF 第 $page 页';
+    }
+
+    if (bookPage != null) {
+      return '命中 · 书籍第 $bookPage 页 · PDF 第 $page 页';
+    }
+
+    return '命中 · PDF 第 $page 页';
   }
 
   BookTemplate? _bookTemplate;
@@ -612,7 +667,23 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.document.title),
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _currentBookLocationLabel,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            if (_searchLocationLabel != null)
+              Text(
+                _searchLocationLabel!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+          ],
+        ),
         actions: [
           IconButton(
             tooltip: '目录',

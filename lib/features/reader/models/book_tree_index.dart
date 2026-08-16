@@ -124,9 +124,14 @@ class BookTreeIndex {
     return isValidPageIndex(pageIndex) ? pageIndex : null;
   }
 
-int? resolveBookPageForPdfPage(int pageIndex) {
-  return BookPageMapping(index: this).bookPageForPdfPage(pageIndex);
-}
+  int? resolveBookPageForPdfPage(int pageIndex) {
+    return BookPageMapping(index: this).bookPageForPdfPage(pageIndex);
+  }
+
+  int? resolvePdfPageForBookPage(int bookPage) {
+    return BookPageMapping(index: this)
+        .pdfPageForBookPage(bookPage);
+  }  
 
   String? resolveBookPageLabelForPdfPage(int pageIndex) {
     final node = findNodeForPage(pageIndex);
