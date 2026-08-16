@@ -4,9 +4,23 @@ import 'book_tree_node.dart';
 class BookPageMapping {
   final BookTreeIndex index;
 
-  const BookPageMapping({required this.index});
+  final Map<int, int> explicitBookToPdf;
+
+  final Map<int, int> explicitPdfToBook;
+
+  const BookPageMapping({
+    required this.index,
+    this.explicitBookToPdf = const {},
+    this.explicitPdfToBook = const {},
+  });
 
   int? bookPageForPdfPage(int pageIndex) {
+    final explicit = explicitPdfToBook[pageIndex + 1];
+
+    if (explicit != null) {
+      return explicit;
+    }
+
     if (!index.isValidPageIndex(pageIndex)) {
       return null;
     }
@@ -63,6 +77,12 @@ class BookPageMapping {
   }
 
   int? pdfPageForBookPage(int bookPage) {
+    final explicit = explicitBookToPdf[bookPage];
+
+    if (explicit != null) {
+      return explicit - 1;
+    }
+
     if (bookPage <= 0) {
       return null;
     }
@@ -119,5 +139,42 @@ class BookPageMapping {
     }
 
     return null;
+  }
+
+  factory BookPageMapping.fromTemplate({
+    required BookTreeIndex index,
+    required Map<String, dynamic> config,
+  }) {
+    final explicitBookToPdf = <int, int>{};
+    final explicitPdfToBook = <int, int>{};
+
+    final explicit = config['explicit'];
+
+    if (explicit is Map) {
+      for (final entry in explicit.entries) {
+        final bookPage = int.tryParse(entry.key.toString());
+
+        if (bookPage == null) {
+          continue;
+        }
+
+        final pdfPage = entry.value is num
+            ? (entry.value as num).toInt()
+            : int.tryParse(entry.value.toString());
+
+        if (pdfPage == null || pdfPage <= 0) {
+          continue;
+        }
+
+        explicitBookToPdf[bookPage] = pdfPage;
+        explicitPdfToBook[pdfPage] = bookPage;
+      }
+    }
+
+    return BookPageMapping(
+      index: index,
+      explicitBookToPdf: Map.unmodifiable(explicitBookToPdf),
+      explicitPdfToBook: Map.unmodifiable(explicitPdfToBook),
+    );
   }
 }
