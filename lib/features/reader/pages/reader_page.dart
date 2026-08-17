@@ -594,11 +594,22 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       setState(() {
         _searchHits = result.hits;
         _searchResultPage = result.pageIndex;
-        _searchResultNode = _bookPageMapping.nodeForPdfPage(result.pageIndex);
-        _searchResultPath = _bookTreeIndex.findPathForPage(result.pageIndex);
+        _searchResultNode = _bookPageMapping.nodeForPdfPage(
+          result.pageIndex,
+        );
+        _searchResultPath = _bookTreeIndex.findPathForPage(
+          result.pageIndex,
+        );
       });
 
-      _keyboardFocusNode.requestFocus();
+      if (_searchResultPath.isNotEmpty && mounted) {
+        await _showBookTree(targetPage: result.pageIndex);
+      }
+
+      if (mounted) {
+        _keyboardFocusNode.requestFocus();
+      }
+
       return;
     }
 
@@ -822,12 +833,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
               location: _currentBookLocationLabel,
               searchLocation: _searchLocationLabel,
             ),
-            if (_searchLocationLabel != null)
-              Text(
-                _searchLocationLabel!,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
           ],
         ),
         actions: [
@@ -893,19 +898,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             onPointerSignal: _handlePointerSignal,
             child: Stack(
               children: [
-                if (_currentBookTreePath.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
-                    child: Text(
-                      _currentBookTreePath
-                          .map((node) => node.name)
-                          .where((name) => name.trim().isNotEmpty)
-                          .join('  ›  '),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                Center(
+                Expanded(
                   child: InteractiveViewer(
                     transformationController: _readerTransformationController,
                     minScale: 0.5,
