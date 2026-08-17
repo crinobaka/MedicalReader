@@ -10,15 +10,15 @@ class PagePreloader {
 
   int _generation = 0;
 
-  PagePreloader({
-    required ReaderEngineService readerEngine,
-  }) : _readerEngine = readerEngine;
+  PagePreloader({required ReaderEngineService readerEngine})
+    : _readerEngine = readerEngine;
 
   Future<void> preloadAround({
     required MedicalCoreDocument document,
     required int currentPage,
     required int pageCount,
     int dpi = 150,
+    bool cropMargins = false,
   }) async {
     if (_running) {
       return;
@@ -29,10 +29,28 @@ class PagePreloader {
     final generation = ++_generation;
 
     try {
-      final pages = <int>[
-        currentPage - 1,
-        currentPage + 1,
-      ];
+      // ------------------------------------------------------------
+      // L2 预加载策略：
+      //
+      // 当前页前后各 5 页。
+      //
+      // 例如当前页 = 100：
+      //
+      // 95 96 97 98 99
+      //       ↓
+      //      100
+      //       ↑
+      // 101 102 103 104 105
+      //
+      // 当前页本身不需要重复渲染，
+      // 因为 ReaderPage 已经负责首屏渲染。
+      // ------------------------------------------------------------
+      final pages = <int>[];
+
+      for (var offset = 1; offset <= 5; offset++) {
+        pages.add(currentPage - offset);
+        pages.add(currentPage + offset);
+      }
 
       for (final pageIndex in pages) {
         if (generation != _generation) {
@@ -44,11 +62,16 @@ class PagePreloader {
         }
 
         try {
-          await _readerEngine.renderPage(
+          final image = await _readerEngine.renderPage(
             document: document,
             pageIndex: pageIndex,
             dpi: dpi,
+            cropMargins: cropMargins,
           );
+
+          // renderPage() 返回的是 clone。
+          // 预加载器自己不需要持有它，所以立即释放。
+          image.dispose();
         } catch (error, stackTrace) {
           if (generation != _generation) {
             return;
@@ -60,9 +83,7 @@ class PagePreloader {
             'error=$error',
           );
 
-          debugPrintStack(
-            stackTrace: stackTrace,
-          );
+          debugPrintStack(stackTrace: stackTrace);
         }
       }
     } finally {

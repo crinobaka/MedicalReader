@@ -304,6 +304,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         document: document,
         currentPage: restoredPage,
         pageCount: pageCount,
+        dpi: 150,
+        cropMargins: _cropMargins,
       );
 
       _keyboardFocusNode.requestFocus();
@@ -594,12 +596,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       setState(() {
         _searchHits = result.hits;
         _searchResultPage = result.pageIndex;
-        _searchResultNode = _bookPageMapping.nodeForPdfPage(
-          result.pageIndex,
-        );
-        _searchResultPath = _bookTreeIndex.findPathForPage(
-          result.pageIndex,
-        );
+        _searchResultNode = _bookPageMapping.nodeForPdfPage(result.pageIndex);
+        _searchResultPath = _bookTreeIndex.findPathForPage(result.pageIndex);
       });
 
       if (mounted) {
