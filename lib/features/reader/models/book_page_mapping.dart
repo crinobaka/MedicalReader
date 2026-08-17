@@ -42,7 +42,13 @@ class BookPageMapping {
       }
 
       if (pdfEnd == null || bookEnd == null) {
-        return bookStart + (pageIndex + 1 - pdfStart);
+        final offset = pageIndex + 1 - pdfStart;
+
+        if (offset < 0) {
+          continue;
+        }
+
+        return bookStart + offset;
       }
 
       final pdfLength = pdfEnd - pdfStart;

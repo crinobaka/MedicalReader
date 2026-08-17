@@ -6,10 +6,13 @@ class BookTreeIndex {
 
   final int pageCount;
 
+  final BookPageMapping? _pageMapping;
+
   const BookTreeIndex({
     required this.nodes,
     required this.pageCount,
-  });
+    BookPageMapping? pageMapping,
+  }) : _pageMapping = pageMapping;
 
   bool get isEmpty => nodes.isEmpty;
 
@@ -124,14 +127,29 @@ class BookTreeIndex {
     return isValidPageIndex(pageIndex) ? pageIndex : null;
   }
 
-  int? resolveBookPageForPdfPage(int pageIndex) {
-    return BookPageMapping(index: this).bookPageForPdfPage(pageIndex);
+int? resolveBookPageForPdfPage(int pageIndex) {
+  final mapping = _pageMapping;
+
+  if (mapping != null) {
+    return mapping.bookPageForPdfPage(pageIndex);
   }
 
+  return BookPageMapping(
+    index: this,
+  ).bookPageForPdfPage(pageIndex);
+}
+
   int? resolvePdfPageForBookPage(int bookPage) {
-    return BookPageMapping(index: this)
-        .pdfPageForBookPage(bookPage);
-  }  
+    final mapping = _pageMapping;
+
+    if (mapping != null) {
+      return mapping.pdfPageForBookPage(bookPage);
+    }
+
+    return BookPageMapping(
+      index: this,
+    ).pdfPageForBookPage(bookPage);
+  } 
 
   String? resolveBookPageLabelForPdfPage(int pageIndex) {
     final node = findNodeForPage(pageIndex);
