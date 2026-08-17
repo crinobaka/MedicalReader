@@ -44,6 +44,18 @@ class _ReaderSearchDialogState extends State<ReaderSearchDialog> {
 
   Object? _error;
 
+  bool get _showContext {
+    return widget.bookTemplate?.searchContext['showContext'] as bool? ?? true;
+  }
+
+  bool get _showChapter {
+    return widget.bookTemplate?.searchContext['showChapter'] as bool? ?? true;
+  }
+
+  bool get _showBookPage {
+    return widget.bookTemplate?.searchContext['showBookPage'] as bool? ?? true;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -72,7 +84,6 @@ class _ReaderSearchDialogState extends State<ReaderSearchDialog> {
     });
 
     try {
-
       final searchContext = widget.bookTemplate?.searchContext ?? const {};
 
       final contextBefore =
@@ -86,7 +97,7 @@ class _ReaderSearchDialogState extends State<ReaderSearchDialog> {
         documentPath: widget.documentPath,
         query: query,
         contextBefore: contextBefore,
-        contextAfter : contextAfter,
+        contextAfter: contextAfter,
       );
 
       if (!mounted) {
@@ -172,33 +183,48 @@ class _ReaderSearchDialogState extends State<ReaderSearchDialog> {
 
         final page = result.pageIndex + 1;
 
-        final bookPage = widget.bookPageMapping.bookPageForPdfPage(result.pageIndex);
+        final bookPage = widget.bookPageMapping.bookPageForPdfPage(
+          result.pageIndex,
+        );
 
         final isCurrentPage = result.pageIndex == widget.currentPage;
 
-        final bookTreePath = widget.bookTreeIndex.findPathForPage(result.pageIndex);
+        final bookTreePath = widget.bookTreeIndex.findPathForPage(
+          result.pageIndex,
+        );
+
+        final chapterLabel = bookTreePath.isEmpty
+            ? null
+            : bookTreePath.map((node) => node.name).join(' / ');
+
+        final pageLabel = _showBookPage && bookPage != null
+            ? '书籍第 $bookPage 页 · PDF 第 $page 页'
+            : 'PDF 第 $page 页';
 
         return ListTile(
           leading: const Icon(Icons.description_outlined),
-          title: Text(
-            bookPage == null ? 'PDF 第 $page 页': '书籍第 $bookPage 页 · PDF 第 $page 页',
-          ),
+
+          title: Text(pageLabel),
+
           subtitle: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (bookTreePath.isNotEmpty) ...[
+              if (_showChapter && chapterLabel != null) ...[
                 const SizedBox(height: 4),
                 Text(
-                  bookTreePath.map((node) => node.name).join('/'),
+                  chapterLabel,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  // style: Theme.of(context).textTheme.bodySmall,
                 ),
-                const SizedBox(height: 4),
               ],
+
+              const SizedBox(height: 4),
+
               Text('命中 ${result.hitCount} 次'),
-              if (result.contexts.isNotEmpty) ...[
+
+              if (_showContext && result.contexts.isNotEmpty) ...[
                 const SizedBox(height: 6),
+
                 ...result.contexts.map(
                   (context) => Padding(
                     padding: const EdgeInsets.only(bottom: 4),
@@ -212,9 +238,11 @@ class _ReaderSearchDialogState extends State<ReaderSearchDialog> {
               ],
             ],
           ),
+
           trailing: isCurrentPage
               ? const Chip(label: Text('当前页'))
               : const Icon(Icons.chevron_right),
+
           onTap: () {
             Navigator.of(context).pop(result);
           },
