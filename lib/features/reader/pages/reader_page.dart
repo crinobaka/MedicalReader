@@ -602,10 +602,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         );
       });
 
-      if (_searchResultPath.isNotEmpty && mounted) {
-        await _showBookTree(targetPage: result.pageIndex);
-      }
-
       if (mounted) {
         _keyboardFocusNode.requestFocus();
       }
@@ -625,10 +621,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       _searchResultNode = _bookPageMapping.nodeForPdfPage(result.pageIndex);
       _searchResultPath = _bookTreeIndex.findPathForPage(result.pageIndex);
     });
-
-    if (_searchResultPath.isNotEmpty && mounted) {
-      await _showBookTree(targetPage: result.pageIndex);
-    }
 
     if (mounted) {
       _keyboardFocusNode.requestFocus();
@@ -898,7 +890,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             onPointerSignal: _handlePointerSignal,
             child: Stack(
               children: [
-                Expanded(
+                Center(
                   child: InteractiveViewer(
                     transformationController: _readerTransformationController,
                     minScale: 0.5,
