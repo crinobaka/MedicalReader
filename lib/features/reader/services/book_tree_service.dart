@@ -74,11 +74,32 @@ class BookTreeService {
   }
 
   Future<List<BookTreeNode>> _loadTemplateTree(BookTemplate template) async {
-    final rawBookTree = template.data['bookTree'];
+    // ------------------------------------------------------------
+    // 第一优先级：模板直接携带 bookTree。
+    //
+    // JSON：
+    //
+    // "bookTree": [
+    //   {
+    //     "id": "...",
+    //     "name": "...",
+    //     "page_start": 1
+    //   }
+    // ]
+    // ------------------------------------------------------------
+    final templateNodes = template.bookTree;
 
-    if (rawBookTree is List) {
-      return _parseNodeList(rawBookTree);
+    if (templateNodes.isNotEmpty) {
+      return _parseNodeList(templateNodes);
     }
+
+    // ------------------------------------------------------------
+    // 第二优先级：模板的 bookTree 可以是一个对象，
+    // 对象内部使用 children 保存根节点。
+    //
+    // 这里保留原有兼容能力。
+    // ------------------------------------------------------------
+    final rawBookTree = template.data['bookTree'];
 
     if (rawBookTree is Map) {
       final map = Map<String, dynamic>.from(rawBookTree);
@@ -94,10 +115,17 @@ class BookTreeService {
       }
     }
 
-    final bookTreePath = template.data['bookTreePath'];
+    // ------------------------------------------------------------
+    // 第三优先级：模板引用外部 BookTree JSON。
+    //
+    // 例如：
+    //
+    // "bookTreePath": "assets/book_templates/xxx.json"
+    // ------------------------------------------------------------
+    final bookTreePath = template.bookTreePath;
 
-    if (bookTreePath is String && bookTreePath.trim().isNotEmpty) {
-      return _loadFile(bookTreePath.trim());
+    if (bookTreePath != null) {
+      return _loadFile(bookTreePath);
     }
 
     return const [];
