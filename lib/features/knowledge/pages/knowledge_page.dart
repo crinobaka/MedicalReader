@@ -4,21 +4,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../library/models/library_document.dart';
 import '../../library/providers/library_provider.dart';
 import '../../reader/models/reader_annotation.dart';
-import '../../reader/pages/reader_notes_page.dart';
 import '../../reader/providers/reader_annotation_provider.dart';
+import 'knowledge_note_page.dart';
 
 /// Knowledge 一级页面。
 ///
-/// Knowledge 不负责 PDF 文件管理。
+/// Knowledge 负责管理用户产生的知识资产。
 ///
-/// 它负责用户从阅读过程中产生的知识资产：
+/// 当前阶段：
 ///
-/// - 笔记
-/// - 后续可以继续加入标签
-/// - 后续可以加入知识卡片
-/// - 后续可以加入引用关系
+/// - 查看 Note
+/// - 搜索 Note
+/// - 创建 Note
 ///
-/// 当前阶段先把 Note 作为第一个正式知识资产接入。
+/// Note 本身仍然使用 ReaderAnnotation，
+/// 不建立第二套持久化模型。
 class KnowledgePage extends ConsumerStatefulWidget {
   const KnowledgePage({super.key});
 
@@ -105,16 +105,16 @@ class _KnowledgePageState
                           '第 ${item.note.pageIndex + 1} 页\n'
                           '${_preview(item.note.content)}',
                           maxLines: 3,
-                          overflow:
-                              TextOverflow.ellipsis,
+                          overflow: TextOverflow.ellipsis,
                         ),
                         isThreeLine: true,
                         onTap: () {
                           Navigator.of(context).push(
                             MaterialPageRoute(
                               builder: (_) =>
-                                  ReaderNotesPage(
+                                  KnowledgeNotePage(
                                 document: item.document,
+                                note: item.note,
                               ),
                             ),
                           );
@@ -125,7 +125,84 @@ class _KnowledgePageState
           ),
         ],
       ),
+
+      // ----------------------------------------------------------
+      // Knowledge 自己负责“创建知识资产”。
+      //
+      // 不把新增入口塞进 Library。
+      // ----------------------------------------------------------
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: documents.isEmpty
+            ? null
+            : () => _createNote(documents),
+        icon: const Icon(Icons.note_add_outlined),
+        label: const Text('新建笔记'),
+      ),
     );
+  }
+
+  /// 从 Knowledge 创建一条新的 Note。
+  ///
+  /// 因为 ReaderAnnotation 必须知道所属书籍和 PDF 页码，
+  /// 所以创建时先选择书籍。
+  ///
+  /// 页码默认从 PDF 第 1 页开始。
+  /// 创建后可以在 Note 页面中通过“定位 PDF”进入阅读器。
+  Future<void> _createNote(
+    List<LibraryDocument> documents,
+  ) async {
+    final document = await showDialog<LibraryDocument>(
+      context: context,
+      builder: (context) {
+        return SimpleDialog(
+          title: const Text('选择书籍'),
+          children: [
+            for (final document in documents)
+              SimpleDialogOption(
+                onPressed: () {
+                  Navigator.of(context).pop(document);
+                },
+                child: Text(
+                  document.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+          ],
+        );
+      },
+    );
+
+    if (document == null || !mounted) {
+      return;
+    }
+
+    final now = DateTime.now();
+
+    final note = ReaderAnnotation(
+      id: 'note_${document.id}_${now.microsecondsSinceEpoch}',
+      bookId: document.id,
+      pageIndex: 0,
+      type: ReaderAnnotationType.note,
+      title: '新建笔记',
+      content: '',
+      noteFormat: ReaderNoteFormat.markdown,
+      createdAt: now,
+      updatedAt: now,
+    );
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => KnowledgeNotePage(
+          document: document,
+          note: note,
+        ),
+      ),
+    );
+
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   List<_KnowledgeNote> _filterNotes(
@@ -173,17 +250,9 @@ class _KnowledgePageState
   }
 }
 
-/// Knowledge 页面展示所需的联合数据。
+/// Knowledge 页面展示用的临时联合数据。
 ///
-/// 注意：
-///
-/// 这不是新的持久化模型。
-///
-/// 它只是把：
-///
-/// LibraryDocument + ReaderAnnotation
-///
-/// 临时组合起来供 Knowledge 页面展示。
+/// 不是新的持久化模型。
 class _KnowledgeNote {
   final LibraryDocument document;
   final ReaderAnnotation note;

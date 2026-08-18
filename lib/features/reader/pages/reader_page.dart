@@ -230,7 +230,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
     // 从笔记管理页进入时，直接定位到对应 PDF 页面。
     _currentPage = widget.initialPage;
-    
+
     _pagePreloader = PagePreloader(readerEngine: _readerEngine);
 
     _readerProgressService = ReaderProgressService(
@@ -1144,7 +1144,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
               _currentPageBookmarked ? Icons.bookmark : Icons.bookmark_border,
             ),
           ),
-
+          IconButton(
+            tooltip: '添加笔记',
+            onPressed: _pageLoading ? null : _showCurrentPageNote,
+            icon: const Icon(Icons.note_alt_outlined),
+          ),
           if (viewOptions.showCropMargins)
             Row(
               mainAxisSize: MainAxisSize.min,
