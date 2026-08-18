@@ -90,7 +90,7 @@ class _ReaderSearchDialogState extends State<ReaderSearchDialog> {
           (searchContext['contextBefore'] as num?)?.toInt() ?? 80;
 
       final contextAfter =
-          (searchContext['contextAfter'] as num?)?.toInt() ?? 80;
+          (searchContext['contextAfter'] as num?)?.toInt() ?? 120;
 
       final results = await widget.searchService.search(
         documentId: widget.documentId,

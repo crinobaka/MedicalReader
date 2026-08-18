@@ -328,7 +328,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   // 区域：页面渲染与进度控制
   // 功能：负责单页重绘、上下页切换、保存阅读进度和裁边切换。
   // ============================================================
-  Future<void> _renderPage(int pageIndex) async {
+  Future<void> _renderPage(int pageIndex, {bool clearSearch = true,}) async {
     final document = _document;
 
     if (document == null) {
@@ -346,6 +346,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     setState(() {
       _pageLoading = true;
       _error = null;
+
+      if (clearSearch) {
+        _searchHits = const [];
+        _searchResultPage = null;
+        _searchResultNode = null;
+        _searchResultPath = const [];
+      }
     });
 
     try {
@@ -607,7 +614,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       return;
     }
 
-    await _renderPage(result.pageIndex);
+    await _renderPage(result.pageIndex, clearSearch: false);
 
     if (!mounted) {
       return;
