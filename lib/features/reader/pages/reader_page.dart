@@ -44,7 +44,21 @@ import '../providers/reader_annotation_provider.dart';
 class ReaderPage extends ConsumerStatefulWidget {
   final LibraryDocument document;
 
-  const ReaderPage({super.key, required this.document});
+  const ReaderPage({
+    super.key,
+    required this.document,
+
+    /// 从笔记管理页进入 Reader 时，
+    /// 用这个页码直接定位到笔记所在 PDF 页面。
+    ///
+    /// 仍然使用 0-based。
+    this.initialPage = 0,
+  });
+
+  /// 从笔记管理页打开 Reader 时的初始 PDF 页码。
+  ///
+  /// 0-based。
+  final int initialPage;
 
   @override
   ConsumerState<ReaderPage> createState() => _ReaderPageState();
@@ -83,7 +97,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   ui.Image? _image;
 
-  int _currentPage = 0;
+  /// 当前 PDF 页码。
+  ///
+  /// 0-based。
+  ///
+  /// 默认从第一页开始；
+  /// 如果从笔记管理页进入，则直接定位到笔记所在页。
+  late int _currentPage;
 
   int _pageCount = 0;
 
@@ -208,6 +228,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   void initState() {
     super.initState();
 
+    // 从笔记管理页进入时，直接定位到对应 PDF 页面。
+    _currentPage = widget.initialPage;
+    
     _pagePreloader = PagePreloader(readerEngine: _readerEngine);
 
     _readerProgressService = ReaderProgressService(
