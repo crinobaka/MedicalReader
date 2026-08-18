@@ -117,4 +117,26 @@ class ReaderAnnotationService {
 
     return target.path;
   }
+
+  /// 把外部附件复制进当前书籍的 attachments/ 目录，
+  /// 并返回 Markdown 中应该使用的相对引用路径。
+  ///
+  /// 例如：
+  ///
+  /// attachments/attachment_123456.jpg
+  ///
+  /// 注意：
+  ///
+  /// Markdown 不保存 Windows 绝对路径。
+  /// 否则换电脑、换目录之后笔记里的图片会全部失效。
+  Future<String> importAttachmentReference(
+    LibraryDocument document,
+    String sourcePath,
+  ) async {
+    final absolutePath = await importAttachment(document, sourcePath);
+
+    final fileName = File(absolutePath).uri.pathSegments.last;
+
+    return '$attachmentsDirectoryName/$fileName';
+  }
 }
