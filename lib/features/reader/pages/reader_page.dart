@@ -24,6 +24,7 @@ import '../models/book_page_mapping.dart';
 import '../models/book_template.dart';
 import '../widgets/book_tree_panel.dart';
 import '../widgets/reader_location_bar.dart';
+import '../widgets/reader_settings_panel.dart';
 import '../models/reader_view_options.dart';
 import '../providers/reader_view_options_provider.dart';
 
@@ -634,6 +635,36 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     }
   }
 
+// ============================================================
+// 方法：_showReaderSettings
+// 功能：打开 PDF 设置框
+// ============================================================
+Future<void> _showReaderSettings() async {
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (context) {
+      return Consumer(
+        builder: (context, ref, _) {
+          final options = ref.watch(readerViewOptionsProvider);
+
+          return SafeArea(
+            child: ReaderSettingsPanel(
+              options: options,
+              onChanged: (nextOptions) {
+                ref
+                    .read(readerViewOptionsProvider.notifier)
+                    .update(nextOptions);
+              },
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+
   // ============================================================
   // 方法：_toggleCropMargins
   // 功能：切换页面裁边状态，并重新渲染当前页面以更新视觉显示效果。
@@ -866,6 +897,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                 ),
               ],
             ),
+
+          IconButton(
+            tooltip: '阅读器设置',
+            onPressed: _pageLoading ? null : _showReaderSettings,
+            icon: const Icon(Icons.tune),
+          ),
 
           const SizedBox(width: 8),
         ],
