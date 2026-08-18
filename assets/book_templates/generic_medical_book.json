@@ -2,7 +2,7 @@
   "id": "generic-medical-book",
   "name": "通用医学专业书籍",
   "version": "1.0.0",
-  "description": "MedicalReader 通用医学专业书籍模板。",
+  "description": "MedicalReader 通用医学专业书籍默认模板。",
   "author": "MedicalReader",
   "data": {
     "metadata": {
@@ -16,109 +16,18 @@
       "病理学",
       "药理学"
     ],
-    "bookPageMapping": {
-      "enabled": true,
-      "strategy": "manual",
-      "explicit": {
-        "1": 3,
-        "2": 4,
-        "3": 5,
-        "4": 6,
-        "5": 7
-      }
-    },
-    "searchContext": {
-      "showContext": true,
-      "showChapter": true,
-      "showBookPage": true,
-      "contextBefore": 80,
-      "contextAfter": 120
-    },
-    "bookTree": [
-      {
-        "id": "chapter-1",
-        "name": "第一章 基础医学概念",
-        "page_start": 1,
-        "page_end": 20,
-        "book_page_start": 1,
-        "book_page_end": 20,
-        "children": [
-          {
-            "id": "chapter-1-1",
-            "name": "1.1 基础概念",
-            "page_start": 1,
-            "page_end": 10,
-            "book_page_start": 1,
-            "book_page_end": 10,
-            "children": []
-          },
-          {
-            "id": "chapter-1-2",
-            "name": "1.2 临床基础",
-            "page_start": 11,
-            "page_end": 20,
-            "book_page_start": 11,
-            "book_page_end": 20,
-            "children": []
-          }
-        ]
+    "defaults": {
+      "bookPageMapping": {
+        "enabled": true,
+        "strategy": "manual"
       },
-      {
-        "id": "chapter-2",
-        "name": "第二章 诊断学基础",
-        "page_start": 21,
-        "page_end": 45,
-        "book_page_start": 21,
-        "book_page_end": 45,
-        "children": [
-          {
-            "id": "chapter-2-1",
-            "name": "2.1 病史采集",
-            "page_start": 21,
-            "page_end": 30,
-            "book_page_start": 21,
-            "book_page_end": 30,
-            "children": []
-          },
-          {
-            "id": "chapter-2-2",
-            "name": "2.2 体格检查",
-            "page_start": 31,
-            "page_end": 45,
-            "book_page_start": 31,
-            "book_page_end": 45,
-            "children": []
-          }
-        ]
-      },
-      {
-        "id": "chapter-3",
-        "name": "第三章 常见疾病",
-        "page_start": 46,
-        "page_end": 80,
-        "book_page_start": 46,
-        "book_page_end": 80,
-        "children": [
-          {
-            "id": "chapter-3-1",
-            "name": "3.1 呼吸系统疾病",
-            "page_start": 46,
-            "page_end": 60,
-            "book_page_start": 46,
-            "book_page_end": 60,
-            "children": []
-          },
-          {
-            "id": "chapter-3-2",
-            "name": "3.2 循环系统疾病",
-            "page_start": 61,
-            "page_end": 80,
-            "book_page_start": 61,
-            "book_page_end": 80,
-            "children": []
-          }
-        ]
+      "searchContext": {
+        "showContext": true,
+        "showChapter": true,
+        "showBookPage": true,
+        "contextBefore": 80,
+        "contextAfter": 120
       }
-    ]
+    }
   }
 }

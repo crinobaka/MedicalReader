@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:medicalreader/features/reader/models/book_template.dart';
 
 import '../services/reader_search_service.dart';
 import '../models/book_tree_index.dart';
 import '../models/book_page_mapping.dart';
+import '../models/book_template.dart';
 
 class ReaderSearchDialog extends StatefulWidget {
   final ReaderSearchService searchService;
@@ -20,6 +20,8 @@ class ReaderSearchDialog extends StatefulWidget {
 
   final BookTemplate? bookTemplate;
 
+  final Map<String, dynamic> searchContext;
+
   const ReaderSearchDialog({
     super.key,
     required this.searchService,
@@ -29,6 +31,7 @@ class ReaderSearchDialog extends StatefulWidget {
     required this.bookTreeIndex,
     required this.bookPageMapping,
     this.bookTemplate,
+    this.searchContext = const {},
   });
 
   @override
@@ -45,15 +48,15 @@ class _ReaderSearchDialogState extends State<ReaderSearchDialog> {
   Object? _error;
 
   bool get _showContext {
-    return widget.bookTemplate?.searchContext['showContext'] as bool? ?? true;
+    return widget.searchContext['showContext'] as bool? ?? true;
   }
 
   bool get _showChapter {
-    return widget.bookTemplate?.searchContext['showChapter'] as bool? ?? true;
+    return widget.searchContext['showChapter'] as bool? ?? true;
   }
 
   bool get _showBookPage {
-    return widget.bookTemplate?.searchContext['showBookPage'] as bool? ?? true;
+    return widget.searchContext['showBookPage'] as bool? ?? true;
   }
 
   @override
@@ -84,7 +87,7 @@ class _ReaderSearchDialogState extends State<ReaderSearchDialog> {
     });
 
     try {
-      final searchContext = widget.bookTemplate?.searchContext ?? const {};
+      final searchContext = widget.searchContext;
 
       final contextBefore =
           (searchContext['contextBefore'] as num?)?.toInt() ?? 80;

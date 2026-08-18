@@ -15,7 +15,9 @@ class BookTemplate {
     required this.data,
   });
 
-  factory BookTemplate.fromJson(Map<String, dynamic> json) {
+  factory BookTemplate.fromJson(
+    Map<String, dynamic> json,
+  ) {
     return BookTemplate(
       id: json['id'] as String,
       name: json['name'] as String,
@@ -30,7 +32,7 @@ class BookTemplate {
 
   // ------------------------------------------------------------
   // 模板 metadata
-  // 用途：让 BookTemplateMatcher 根据文档 metadata 识别模板。
+  // 用途：让 BookTemplateMatcher 根据文档信息匹配模板。
   // ------------------------------------------------------------
   Map<String, dynamic> get metadata {
     return Map<String, dynamic>.from(
@@ -40,7 +42,7 @@ class BookTemplate {
 
   // ------------------------------------------------------------
   // 模板别名
-  // 用途：当没有精确模板 ID 时，根据书名匹配模板。
+  // 用途：没有明确模板 ID 时，根据书名进行匹配。
   // ------------------------------------------------------------
   List<String> get aliases {
     return (data['aliases'] as List?)
@@ -50,52 +52,35 @@ class BookTemplate {
   }
 
   // ------------------------------------------------------------
-  // PDF ↔ 书籍页码映射配置
+  // 模板默认配置
+  //
+  // 注意：
+  // 这里的配置全部属于“默认值”。
+  //
+  // 当前书籍的 目录.book.json 可以覆盖这些值。
+  // ------------------------------------------------------------
+  Map<String, dynamic> get defaults {
+    return Map<String, dynamic>.from(
+      data['defaults'] as Map? ?? const {},
+    );
+  }
+
+  // ------------------------------------------------------------
+  // 默认 PDF ↔ 书籍页码映射配置
   // ------------------------------------------------------------
   Map<String, dynamic> get bookPageMapping {
     return Map<String, dynamic>.from(
-      data['bookPageMapping'] as Map? ?? const {},
+      defaults['bookPageMapping'] as Map? ?? const {},
     );
   }
 
   // ------------------------------------------------------------
-  // 搜索上下文配置
-  // 用途：搜索结果显示章节、书籍页码和上下文。
+  // 默认搜索上下文配置
   // ------------------------------------------------------------
   Map<String, dynamic> get searchContext {
     return Map<String, dynamic>.from(
-      data['searchContext'] as Map? ?? const {},
+      defaults['searchContext'] as Map? ?? const {},
     );
-  }
-
-  // ------------------------------------------------------------
-  // BookTree
-  // 用途：模板直接携带目录树时，由 BookTreeService 使用。
-  // ------------------------------------------------------------
-  List<Map<String, dynamic>> get bookTree {
-    return (data['bookTree'] as List?)
-            ?.whereType<Map>()
-            .map(
-              (item) => Map<String, dynamic>.from(item),
-            )
-            .toList() ??
-        const [];
-  }
-
-  // ------------------------------------------------------------
-  // 外部 BookTree 文件
-  // 用途：模板不直接携带目录，而是引用独立 JSON。
-  // ------------------------------------------------------------
-  String? get bookTreePath {
-    final value = data['bookTreePath'];
-
-    if (value is! String) {
-      return null;
-    }
-
-    final path = value.trim();
-
-    return path.isEmpty ? null : path;
   }
 
   Map<String, dynamic> toJson() {

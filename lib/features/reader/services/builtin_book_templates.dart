@@ -1,12 +1,19 @@
 import '../models/book_template.dart';
 
+/// 代码级 fallback。
+///
+/// 正常情况下官方模板来自：
+/// assets/book_templates/*.json
+///
+/// 只有官方模板资源加载失败时才使用这里。
 List<BookTemplate> buildBuiltinBookTemplates() {
   return const [
     BookTemplate(
       id: 'generic-medical-book',
       name: '通用医学专业书籍',
       version: '1.0.0',
-      description: 'MedicalReader 通用医学专业书籍官方基础模板。',
+      description:
+          'MedicalReader 通用医学专业书籍官方基础模板。',
       author: 'MedicalReader',
       data: {
         'metadata': {
@@ -20,18 +27,19 @@ List<BookTemplate> buildBuiltinBookTemplates() {
           '病理学',
           '药理学',
         ],
-        'bookPageMapping': {
-          'enabled': true,
-          'strategy': 'manual',
+        'defaults': {
+          'bookPageMapping': {
+            'enabled': true,
+            'strategy': 'manual',
+          },
+          'searchContext': {
+            'showContext': true,
+            'showChapter': true,
+            'showBookPage': true,
+            'contextBefore': 80,
+            'contextAfter': 120,
+          },
         },
-        'searchContext': {
-          'showContext': true,
-          'showChapter': true,
-          'showBookPage': true,
-          'contextBefore': 80,
-          'contextAfter': 120,
-        },
-        'bookTree': <Map<String, dynamic>>[],
       },
     ),
   ];

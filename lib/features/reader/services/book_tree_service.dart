@@ -2,42 +2,53 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../../library/models/library_document.dart';
-import '../models/book_template.dart';
+import '../models/book_manifest.dart';
 import '../models/book_tree_index.dart';
 import '../models/book_tree_node.dart';
-import 'book_template_matcher.dart';
-import 'builtin_book_templates.dart';
+import 'book_manifest_service.dart';
 
 class BookTreeService {
-  final BookTemplateMatcher _templateMatcher;
+  final BookManifestService _manifestService;
 
-  BookTreeService({BookTemplateMatcher? templateMatcher})
-    : _templateMatcher =
-          templateMatcher ??
-          BookTemplateMatcher(templates: buildBuiltinBookTemplates());
+  BookTreeService({
+    BookManifestService manifestService = const BookManifestService(),
+  }) : _manifestService = manifestService;
 
   Future<BookTreeIndex> loadIndexForDocument(
     LibraryDocument document, {
     required int pageCount,
+    BookManifest? manifest,
   }) async {
-    final nodes = await loadForDocument(document);
+    final nodes = await loadForDocument(document, manifest: manifest);
 
     final normalizedNodes = _normalizeTree(nodes, pageCount: pageCount);
 
     return BookTreeIndex(nodes: normalizedNodes, pageCount: pageCount);
   }
 
-  Future<List<BookTreeNode>> loadForDocument(LibraryDocument document) async {
-    final template = _templateMatcher.match(document);
+  Future<List<BookTreeNode>> loadForDocument(
+    LibraryDocument document, {
+    BookManifest? manifest,
+  }) async {
+    // ----------------------------------------------------------
+    // 第一优先级：
+    // 当前书籍自己的 目录.book.json。
+    //
+    // book.json 是这一本书的真实目录数据。
+    // ----------------------------------------------------------
+    final currentManifest =
+        manifest ?? await _manifestService.loadForDocument(document);
 
-    if (template != null) {
-      final templateNodes = await _loadTemplateTree(template);
-
-      if (templateNodes.isNotEmpty) {
-        return templateNodes;
-      }
+    if (currentManifest != null && currentManifest.bookTree.isNotEmpty) {
+      return _parseNodeList(currentManifest.bookTree);
     }
 
+    // ----------------------------------------------------------
+    // 第二优先级：
+    // 保留旧版本 metadata booktree_path 兼容能力。
+    //
+    // 这是迁移旧项目用的，不再作为新架构入口。
+    // ----------------------------------------------------------
     final metadataPath = _metadataBookTreePath(document);
 
     if (metadataPath != null) {
@@ -48,9 +59,15 @@ class BookTreeService {
       }
     }
 
-    final sidecarPath = _sidecarPath(document.file.path);
+    // ----------------------------------------------------------
+    // 第三优先级：
+    // 兼容旧版本的 xxx.pdf.booktree.json。
+    //
+    // 新代码不会再创建这种文件。
+    // ----------------------------------------------------------
+    final legacySidecarPath = '${document.file.path}.booktree.json';
 
-    return _loadFile(sidecarPath);
+    return _loadFile(legacySidecarPath);
   }
 
   String? _metadataBookTreePath(LibraryDocument document) {
@@ -62,73 +79,7 @@ class BookTreeService {
 
     final path = value.toString().trim();
 
-    if (path.isEmpty) {
-      return null;
-    }
-
-    return path;
-  }
-
-  String _sidecarPath(String pdfPath) {
-    return '$pdfPath.booktree.json';
-  }
-
-  Future<List<BookTreeNode>> _loadTemplateTree(BookTemplate template) async {
-    // ------------------------------------------------------------
-    // 第一优先级：模板直接携带 bookTree。
-    //
-    // JSON：
-    //
-    // "bookTree": [
-    //   {
-    //     "id": "...",
-    //     "name": "...",
-    //     "page_start": 1
-    //   }
-    // ]
-    // ------------------------------------------------------------
-    final templateNodes = template.bookTree;
-
-    if (templateNodes.isNotEmpty) {
-      return _parseNodeList(templateNodes);
-    }
-
-    // ------------------------------------------------------------
-    // 第二优先级：模板的 bookTree 可以是一个对象，
-    // 对象内部使用 children 保存根节点。
-    //
-    // 这里保留原有兼容能力。
-    // ------------------------------------------------------------
-    final rawBookTree = template.data['bookTree'];
-
-    if (rawBookTree is Map) {
-      final map = Map<String, dynamic>.from(rawBookTree);
-
-      final children = map['children'];
-
-      if (children is List) {
-        return _parseNodeList(children);
-      }
-
-      if (_looksLikeNode(map)) {
-        return [BookTreeNode.fromJson(map)];
-      }
-    }
-
-    // ------------------------------------------------------------
-    // 第三优先级：模板引用外部 BookTree JSON。
-    //
-    // 例如：
-    //
-    // "bookTreePath": "assets/book_templates/xxx.json"
-    // ------------------------------------------------------------
-    final bookTreePath = template.bookTreePath;
-
-    if (bookTreePath != null) {
-      return _loadFile(bookTreePath);
-    }
-
-    return const [];
+    return path.isEmpty ? null : path;
   }
 
   Future<List<BookTreeNode>> _loadFile(String path) async {
@@ -150,10 +101,10 @@ class BookTreeService {
       if (decoded is Map) {
         final map = Map<String, dynamic>.from(decoded);
 
-        final rawChildren = map['children'];
+        final children = map['children'];
 
-        if (rawChildren is List) {
-          return _parseNodeList(rawChildren);
+        if (children is List) {
+          return _parseNodeList(children);
         }
 
         if (_looksLikeNode(map)) {
@@ -161,8 +112,7 @@ class BookTreeService {
         }
       }
     } catch (_) {
-      // 目录文件损坏或格式不正确时，
-      // Reader 应继续正常阅读，而不是因为目录导致 PDF 打不开。
+      // 目录损坏不能阻止 PDF 打开。
     }
 
     return const [];
@@ -206,6 +156,7 @@ class BookTreeService {
       final node = nodes[index];
 
       final start = node.pageStart;
+
       final nextStart = index + 1 < nodes.length
           ? nodes[index + 1].pageStart
           : null;

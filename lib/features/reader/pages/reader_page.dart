@@ -18,6 +18,8 @@ import '../services/book_tree_service.dart';
 import '../services/book_template_matcher.dart';
 import '../services/book_template_service.dart';
 import '../services/builtin_book_templates.dart';
+import '../models/book_manifest.dart';
+import '../services/book_manifest_service.dart';
 import '../models/book_tree_node.dart';
 import '../models/book_tree_index.dart';
 import '../models/book_page_mapping.dart';
@@ -50,9 +52,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   final BookTemplateService _bookTemplateService = BookTemplateService();
 
+  final BookManifestService _bookManifestService = const BookManifestService();
+
   late BookTemplateMatcher _bookTemplateMatcher;
 
   late final BookTreeService _bookTreeService;
+
+  BookManifest? _bookManifest;
 
   late final PagePreloader _pagePreloader;
 
@@ -182,10 +188,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
     _pagePreloader = PagePreloader(readerEngine: _readerEngine);
 
-    _bookTemplateMatcher = BookTemplateMatcher(
-      templates: buildBuiltinBookTemplates(),
-    );
-
     _readerProgressService = ReaderProgressService(
       libraryRepository: ref.read(libraryRepositoryProvider),
     );
@@ -204,25 +206,17 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   // 功能：初始化书籍模板资源，并在加载完成后准备文档打开流程。
   // ============================================================
   Future<void> _initializeBookTemplates() async {
-    try {
-      await _bookTemplateService.loadAssets(const [
-        'assets/book_templates/generic_medical_book.json',
-      ]);
+    await _bookTemplateService.loadAvailableTemplates();
 
-      if (!mounted) {
-        return;
-      }
-
-      _bookTemplateMatcher = BookTemplateMatcher(
-        templates: _bookTemplateService.templates,
-      );
-    } catch (_) {
-      _bookTemplateMatcher = BookTemplateMatcher(
-        templates: buildBuiltinBookTemplates(),
-      );
+    if (!mounted) {
+      return;
     }
 
-    _bookTreeService = BookTreeService(templateMatcher: _bookTemplateMatcher);
+    _bookTemplateMatcher = BookTemplateMatcher(
+      templates: _bookTemplateService.templates,
+    );
+
+    _bookTreeService = BookTreeService(manifestService: _bookManifestService);
 
     await _openDocument();
   }
@@ -251,16 +245,39 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
       final progress = await _readerProgressService.load(widget.document.id);
 
-      final bookTemplate = _bookTemplateMatcher.match(widget.document);
+      // ----------------------------------------------------------
+      // 当前书籍自己的目录.book.json。
+      // 这是“书籍实例配置”，优先于模板默认值。
+      // ----------------------------------------------------------
+      final bookManifest = await _bookManifestService.loadForDocument(
+        widget.document,
+      );
+
+      final bookTemplate = _bookTemplateMatcher.match(
+        widget.document,
+        manifest: bookManifest,
+      );
 
       final bookTreeIndex = await _bookTreeService.loadIndexForDocument(
         widget.document,
         pageCount: pageCount,
+        manifest: bookManifest,
+      );
+
+      // ----------------------------------------------------------
+      // 模板 defaults + 书籍 book.json 覆盖。
+      //
+      // book.json 有值 → 使用 book.json
+      // book.json 没值 → 使用模板 defaults
+      // ----------------------------------------------------------
+      final bookPageMappingConfig = _mergeConfig(
+        bookTemplate?.bookPageMapping ?? const {},
+        bookManifest?.bookPageMapping ?? const {},
       );
 
       final bookPageMapping = BookPageMapping.fromTemplate(
-        index: _bookTreeIndex,
-        config: bookTemplate?.bookPageMapping ?? const {},
+        index: bookTreeIndex,
+        config: bookPageMappingConfig,
       );
 
       final restoredPage = progress.lastPage.clamp(0, pageCount - 1);
@@ -277,6 +294,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         _bookTreeIndex = bookTreeIndex;
         _bookPageMapping = bookPageMapping;
         _bookTemplate = bookTemplate;
+        _bookManifest = bookManifest;
         _cropMargins = progress.cropMargins;
         _loading = false;
         _pageLoading = true;
@@ -325,6 +343,25 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         _error = error;
       });
     }
+  }
+
+  /// 合并模板默认配置和当前书籍配置。
+  ///
+  /// 规则：
+  ///
+  /// template defaults
+  ///        ↓
+  /// book.json override
+  ///        ↓
+  /// final config
+  ///
+  /// 目前只需要浅层 Map 合并，
+  /// 后续如果某个配置需要深层合并，再单独处理。
+  Map<String, dynamic> _mergeConfig(
+    Map<String, dynamic> defaults,
+    Map<String, dynamic> overrides,
+  ) {
+    return {...defaults, ...overrides};
   }
 
   // ============================================================
@@ -594,6 +631,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           bookTreeIndex: _bookTreeIndex,
           bookPageMapping: _bookPageMapping,
           bookTemplate: _bookTemplate,
+          searchContext: _mergeConfig(
+            _bookTemplate?.searchContext ?? const {},
+            _bookManifest?.searchContext ?? const {},
+          ),
         );
       },
     );
