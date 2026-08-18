@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../library/models/library_document.dart';
-import '../library/providers/library_provider.dart';
-import '../reader/models/reader_annotation.dart';
-import '../reader/pages/reader_notes_page.dart';
-import '../reader/providers/reader_annotation_provider.dart';
+import '../../library/models/library_document.dart';
+import '../../library/providers/library_provider.dart';
+import '../../reader/models/reader_annotation.dart';
+import '../../reader/pages/reader_notes_page.dart';
+import '../../reader/providers/reader_annotation_provider.dart';
 
 /// Knowledge 一级页面。
 ///
