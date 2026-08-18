@@ -29,6 +29,8 @@ import '../widgets/reader_location_bar.dart';
 import '../widgets/reader_settings_panel.dart';
 import '../models/reader_view_options.dart';
 import '../providers/reader_view_options_provider.dart';
+import '../models/reader_annotation.dart';
+import '../providers/reader_annotation_provider.dart';
 
 // ============================================================
 // 区域：阅读器页面入口
@@ -163,6 +165,19 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   BookTemplate? _bookTemplate;
 
   List<ReaderSearchHit> _searchHits = const [];
+
+  List<ReaderAnnotation> get _currentPageAnnotations {
+    return ref
+        .read(readerAnnotationsProvider(widget.document))
+        .where((annotation) => annotation.pageIndex == _currentPage)
+        .toList();
+  }
+
+  bool get _currentPageBookmarked {
+    return _currentPageAnnotations.any(
+      (annotation) => annotation.type == ReaderAnnotationType.bookmark,
+    );
+  }
 
   int? _searchResultPage;
 
@@ -677,6 +692,45 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   }
 
   // ============================================================
+  // 方法：_toggleBookmark
+  // 功能：切换当前 PDF 页的书签状态。
+  // ============================================================
+  Future<void> _toggleBookmark() async {
+    if (_pageLoading) {
+      return;
+    }
+
+    final notifier = ref.read(
+      readerAnnotationsProvider(widget.document).notifier,
+    );
+
+    final existing = _currentPageAnnotations.where(
+      (annotation) => annotation.type == ReaderAnnotationType.bookmark,
+    );
+
+    if (existing.isNotEmpty) {
+      for (final annotation in existing) {
+        await notifier.remove(annotation.id);
+      }
+
+      return;
+    }
+
+    final now = DateTime.now();
+
+    final annotation = ReaderAnnotation(
+      id: 'bookmark_${widget.document.id}_${_currentPage}',
+      bookId: widget.document.id,
+      pageIndex: _currentPage,
+      type: ReaderAnnotationType.bookmark,
+      createdAt: now,
+      updatedAt: now,
+    );
+
+    await notifier.add(annotation);
+  }
+
+  // ============================================================
   // 方法：_showReaderSettings
   // 功能：打开 PDF 设置框
   // ============================================================
@@ -929,6 +983,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
               onPressed: _pageLoading ? null : _showPageJumpDialog,
               icon: const Icon(Icons.find_in_page),
             ),
+          IconButton(
+            tooltip: _currentPageBookmarked ? '取消书签' : '添加书签',
+            onPressed: _pageLoading ? null : _toggleBookmark,
+            icon: Icon(
+              _currentPageBookmarked ? Icons.bookmark : Icons.bookmark_border,
+            ),
+          ),
 
           if (viewOptions.showCropMargins)
             Row(
