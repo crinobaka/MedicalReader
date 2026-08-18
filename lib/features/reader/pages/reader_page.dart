@@ -24,6 +24,8 @@ import '../models/book_page_mapping.dart';
 import '../models/book_template.dart';
 import '../widgets/book_tree_panel.dart';
 import '../widgets/reader_location_bar.dart';
+import '../models/reader_view_options.dart';
+import '../providers/reader_view_options_provider.dart';
 
 // ============================================================
 // 区域：阅读器页面入口
@@ -328,7 +330,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   // 区域：页面渲染与进度控制
   // 功能：负责单页重绘、上下页切换、保存阅读进度和裁边切换。
   // ============================================================
-  Future<void> _renderPage(int pageIndex, {bool clearSearch = true,}) async {
+  Future<void> _renderPage(int pageIndex, {bool clearSearch = true}) async {
     final document = _document;
 
     if (document == null) {
@@ -820,51 +822,58 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   // ============================================================
   @override
   Widget build(BuildContext context) {
+    final viewOptions = ref.watch(readerViewOptionsProvider);
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ReaderLocationBar(
-              location: _currentBookLocationLabel,
-              searchLocation: _searchLocationLabel,
-            ),
-          ],
-        ),
+        title: viewOptions.showLocationBar
+            ? ReaderLocationBar(
+                location: _currentBookLocationLabel,
+                searchLocation: viewOptions.showSearchLocation
+                    ? _searchLocationLabel
+                    : null,
+              )
+            : null,
         actions: [
-          IconButton(
-            tooltip: '目录',
-            onPressed: _pageLoading ? null : _showBookTree,
-            icon: const Icon(Icons.menu_book),
-          ),
-          IconButton(
-            tooltip: '搜索 PDF (Ctrl+F)',
-            onPressed: _pageLoading ? null : _showSearchDialog,
-            icon: const Icon(Icons.search),
-          ),
-          IconButton(
-            tooltip: '跳转到页码 (G)',
-            onPressed: _pageLoading ? null : _showPageJumpDialog,
-            icon: const Icon(Icons.find_in_page),
-          ),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('裁边'),
-              Switch(
-                value: _cropMargins,
-                onChanged: _pageLoading ? null : _toggleCropMargins,
-              ),
-            ],
-          ),
+          if (viewOptions.showBookTreeButton)
+            IconButton(
+              tooltip: '目录',
+              onPressed: _pageLoading ? null : _showBookTree,
+              icon: const Icon(Icons.menu_book),
+            ),
+
+          if (viewOptions.showSearchButton)
+            IconButton(
+              tooltip: '搜索 PDF (Ctrl+F)',
+              onPressed: _pageLoading ? null : _showSearchDialog,
+              icon: const Icon(Icons.search),
+            ),
+
+          if (viewOptions.showPageJumpButton)
+            IconButton(
+              tooltip: '跳转到页码 (G)',
+              onPressed: _pageLoading ? null : _showPageJumpDialog,
+              icon: const Icon(Icons.find_in_page),
+            ),
+
+          if (viewOptions.showCropMargins)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('裁边'),
+                Switch(
+                  value: _cropMargins,
+                  onChanged: _pageLoading ? null : _toggleCropMargins,
+                ),
+              ],
+            ),
+
           const SizedBox(width: 8),
         ],
       ),
       body: KeyboardListener(
         focusNode: _keyboardFocusNode,
         onKeyEvent: _handleKeyEvent,
-        child: _buildBody(),
+        child: _buildBody(viewOptions),
       ),
     );
   }
@@ -873,7 +882,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   // 方法：_buildBody
   // 功能：根据加载状态、错误状态和当前页面生成主内容区域的展示结构。
   // ============================================================
-  Widget _buildBody() {
+  Widget _buildBody(ReaderViewOptions viewOptions) {
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -925,7 +934,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             ),
           ),
         ),
-        _buildPageControls(),
+        if (viewOptions.showPageControls) _buildPageControls(),
       ],
     );
   }
