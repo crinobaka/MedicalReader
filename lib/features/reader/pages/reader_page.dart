@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'dart:ui' as ui;
+import 'dart:io';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:record/record.dart';
+import 'package:file_picker/file_picker.dart';
 
 import '../../../core/ffi/medical_core.dart';
 import '../../library/models/library_document.dart';
@@ -13,23 +16,25 @@ import '../services/page_preloader.dart';
 import '../services/reader_engine_service.dart';
 import '../services/reader_progress_service.dart';
 import '../services/reader_search_service.dart';
-import '../widgets/reader_serch_dialog.dart';
 import '../services/book_tree_service.dart';
 import '../services/book_template_matcher.dart';
 import '../services/book_template_service.dart';
 import '../services/builtin_book_templates.dart';
-import '../models/book_manifest.dart';
 import '../services/book_manifest_service.dart';
+import '../services/reader_annotation_service.dart';
+import '../models/book_manifest.dart';
 import '../models/book_tree_node.dart';
 import '../models/book_tree_index.dart';
 import '../models/book_page_mapping.dart';
 import '../models/book_template.dart';
+import '../models/reader_annotation.dart';
+import '../models/reader_view_options.dart';
+import '../widgets/reader_serch_dialog.dart';
 import '../widgets/book_tree_panel.dart';
 import '../widgets/reader_location_bar.dart';
 import '../widgets/reader_settings_panel.dart';
-import '../models/reader_view_options.dart';
+import '../widgets/reader_note_dialog.dart';
 import '../providers/reader_view_options_provider.dart';
-import '../models/reader_annotation.dart';
 import '../providers/reader_annotation_provider.dart';
 
 // ============================================================
@@ -51,6 +56,8 @@ class ReaderPage extends ConsumerStatefulWidget {
 // ============================================================
 class _ReaderPageState extends ConsumerState<ReaderPage> {
   final ReaderEngineService _readerEngine = ReaderEngineService();
+
+  final AudioRecorder _noteAudioRecorder = AudioRecorder();
 
   final BookTemplateService _bookTemplateService = BookTemplateService();
 
@@ -728,6 +735,130 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     );
 
     await notifier.add(annotation);
+  }
+
+  // ============================================================
+  // 方法：_showCurrentPageNote
+  // 功能：打开当前 PDF 页对应的笔记。
+  // ============================================================
+  Future<void> _showCurrentPageNote() async {
+    if (_pageLoading) {
+      return;
+    }
+
+    final notifier = ref.read(
+      readerAnnotationsProvider(widget.document).notifier,
+    );
+
+    final existing = _currentPageAnnotations.where(
+      (annotation) => annotation.type == ReaderAnnotationType.note,
+    );
+
+    final note = existing.isNotEmpty
+        ? existing.first
+        : ReaderAnnotation(
+            id: 'note_${widget.document.id}_$_currentPage',
+            bookId: widget.document.id,
+            pageIndex: _currentPage,
+            type: ReaderAnnotationType.note,
+            title: 'PDF 第 ${_currentPage + 1} 页笔记',
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+          );
+
+    final result = await showDialog<ReaderAnnotation>(
+      context: context,
+      builder: (context) {
+        return ReaderNoteDialog(
+          note: note,
+          onInsertImage: () async {
+            final result = await FilePicker.platform.pickFiles(
+              type: FileType.image,
+            );
+
+            final path = result?.files.single.path;
+
+            if (path == null) {
+              return null;
+            }
+
+            final service = const ReaderAnnotationService();
+
+            return service.importAttachment(widget.document, path);
+          },
+          onInsertAudio: () async {
+            return _recordNoteAudio();
+          },
+        );
+      },
+    );
+
+    if (result == null) {
+      return;
+    }
+
+    await notifier.add(result);
+  }
+
+  // ============================================================
+  // 方法：_recordNoteAudio
+  // 功能：录制一段笔记语音并保存到当前书籍 attachments 目录。
+  // ============================================================
+  Future<String?> _recordNoteAudio() async {
+    final hasPermission = await _noteAudioRecorder.hasPermission();
+
+    if (!hasPermission) {
+      return null;
+    }
+
+    final service = const ReaderAnnotationService();
+
+    final directory = await service.ensureAttachmentsDirectory(widget.document);
+
+    final timestamp = DateTime.now().microsecondsSinceEpoch;
+
+    final path =
+        '${directory.path}'
+        '${Platform.pathSeparator}'
+        'audio_$timestamp.wav';
+
+    await _noteAudioRecorder.start(
+      const RecordConfig(encoder: AudioEncoder.wav),
+      path: path,
+    );
+
+    if (!mounted) {
+      return null;
+    }
+
+    final shouldStop =
+        await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) {
+            return AlertDialog(
+              title: const Text('正在录音'),
+              content: const Text('录音完成后点击“停止”。'),
+              actions: [
+                FilledButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).pop(true);
+                  },
+                  icon: const Icon(Icons.stop),
+                  label: const Text('停止'),
+                ),
+              ],
+            );
+          },
+        ) ??
+        false;
+
+    if (!shouldStop) {
+      await _noteAudioRecorder.stop();
+      return null;
+    }
+
+    return _noteAudioRecorder.stop();
   }
 
   // ============================================================

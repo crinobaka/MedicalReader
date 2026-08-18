@@ -22,6 +22,7 @@ class ReaderAnnotationService {
   const ReaderAnnotationService();
 
   static const String fileName = 'annotations.json';
+  static const String attachmentsDirectoryName = 'attachments';
 
   String annotationPathForDocument(LibraryDocument document) {
     final directory = File(document.file.path).parent.path;
@@ -29,9 +30,23 @@ class ReaderAnnotationService {
     return '$directory${Platform.pathSeparator}$fileName';
   }
 
-  Future<List<ReaderAnnotation>> load(
-    LibraryDocument document,
-  ) async {
+  String attachmentsPathForDocument(LibraryDocument document) {
+    final directory = File(document.file.path).parent.path;
+
+    return '$directory'
+        '${Platform.pathSeparator}'
+        '$attachmentsDirectoryName';
+  }
+
+  Future<Directory> ensureAttachmentsDirectory(LibraryDocument document) async {
+    final directory = Directory(attachmentsPathForDocument(document));
+
+    await directory.create(recursive: true);
+
+    return directory;
+  }
+
+  Future<List<ReaderAnnotation>> load(LibraryDocument document) async {
     final file = File(annotationPathForDocument(document));
 
     if (!await file.exists()) {
@@ -54,9 +69,8 @@ class ReaderAnnotationService {
       return decoded
           .whereType<Map>()
           .map(
-            (item) => ReaderAnnotation.fromJson(
-              Map<String, dynamic>.from(item),
-            ),
+            (item) =>
+                ReaderAnnotation.fromJson(Map<String, dynamic>.from(item)),
           )
           .where((annotation) => annotation.bookId == document.id)
           .toList();
@@ -74,12 +88,33 @@ class ReaderAnnotationService {
 
     await file.parent.create(recursive: true);
 
-    final data = annotations
-        .map((annotation) => annotation.toJson())
-        .toList();
+    final data = annotations.map((annotation) => annotation.toJson()).toList();
 
-    await file.writeAsString(
-      const JsonEncoder.withIndent('  ').convert(data),
+    await file.writeAsString(const JsonEncoder.withIndent('  ').convert(data));
+  }
+
+  Future<String> importAttachment(
+    LibraryDocument document,
+    String sourcePath,
+  ) async {
+    final directory = await ensureAttachmentsDirectory(document);
+
+    final source = File(sourcePath);
+
+    final extension = source.path.contains('.')
+        ? source.path.substring(source.path.lastIndexOf('.'))
+        : '';
+
+    final timestamp = DateTime.now().microsecondsSinceEpoch;
+
+    final target = File(
+      '${directory.path}'
+      '${Platform.pathSeparator}'
+      'attachment_$timestamp$extension',
     );
+
+    await source.copy(target.path);
+
+    return target.path;
   }
 }
