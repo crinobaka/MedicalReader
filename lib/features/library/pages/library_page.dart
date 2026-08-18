@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/library_provider.dart';
 import '../models/library_document.dart';
 import '../../reader/pages/reader_page.dart';
-import '../../reader/pages/reader_notes_page.dart';
 import '../widgets/document_card.dart';
 
 class LibraryPage extends ConsumerWidget {
@@ -15,34 +14,7 @@ class LibraryPage extends ConsumerWidget {
     final documents = ref.watch(libraryProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Medical Library'),
-        actions: [
-          if (documents.isNotEmpty)
-            PopupMenuButton<LibraryDocument>(
-              tooltip: '笔记',
-              icon: const Icon(Icons.note_alt_outlined),
-              onSelected: (document) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ReaderNotesPage(document: document),
-                  ),
-                );
-              },
-              itemBuilder: (context) {
-                return [
-                  for (final document in documents)
-                    PopupMenuItem<LibraryDocument>(
-                      value: document,
-                      child: Text(document.title),
-                    ),
-                ];
-              },
-            ),
-        ],
-      ),
-
+      appBar: AppBar(title: const Text('Medical Library')),
       body: ListView.builder(
         itemCount: documents.length,
 
