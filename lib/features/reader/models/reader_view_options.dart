@@ -47,18 +47,36 @@ class ReaderViewOptions {
   }) {
     return ReaderViewOptions(
       showLocationBar: showLocationBar ?? this.showLocationBar,
-      showSearchLocation:
-          showSearchLocation ?? this.showSearchLocation,
-      showPageControls:
-          showPageControls ?? this.showPageControls,
-      showBookTreeButton:
-          showBookTreeButton ?? this.showBookTreeButton,
-      showSearchButton:
-          showSearchButton ?? this.showSearchButton,
-      showPageJumpButton:
-          showPageJumpButton ?? this.showPageJumpButton,
-      showCropMargins:
-          showCropMargins ?? this.showCropMargins,
+      showSearchLocation: showSearchLocation ?? this.showSearchLocation,
+      showPageControls: showPageControls ?? this.showPageControls,
+      showBookTreeButton: showBookTreeButton ?? this.showBookTreeButton,
+      showSearchButton: showSearchButton ?? this.showSearchButton,
+      showPageJumpButton: showPageJumpButton ?? this.showPageJumpButton,
+      showCropMargins: showCropMargins ?? this.showCropMargins,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'showLocationBar': showLocationBar,
+      'showSearchLocation': showSearchLocation,
+      'showPageControls': showPageControls,
+      'showBookTreeButton': showBookTreeButton,
+      'showSearchButton': showSearchButton,
+      'showPageJumpButton': showPageJumpButton,
+      'showCropMargins': showCropMargins,
+    };
+  }
+
+  factory ReaderViewOptions.fromJson(Map<String, dynamic> json) {
+    return ReaderViewOptions(
+      showLocationBar: json['showLocationBar'] as bool? ?? true,
+      showSearchLocation: json['showSearchLocation'] as bool? ?? true,
+      showPageControls: json['showPageControls'] as bool? ?? true,
+      showBookTreeButton: json['showBookTreeButton'] as bool? ?? true,
+      showSearchButton: json['showSearchButton'] as bool? ?? true,
+      showPageJumpButton: json['showPageJumpButton'] as bool? ?? true,
+      showCropMargins: json['showCropMargins'] as bool? ?? true,
     );
   }
 }

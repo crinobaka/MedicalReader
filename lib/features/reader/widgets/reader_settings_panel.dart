@@ -9,11 +9,13 @@ import '../models/reader_view_options.dart';
 class ReaderSettingsPanel extends StatelessWidget {
   final ReaderViewOptions options;
   final ValueChanged<ReaderViewOptions> onChanged;
+  final VoidCallback onReset;
 
   const ReaderSettingsPanel({
     super.key,
     required this.options,
     required this.onChanged,
+    required this.onReset,
   });
 
   @override
@@ -24,10 +26,7 @@ class ReaderSettingsPanel extends StatelessWidget {
       children: [
         const Text(
           '阅读器显示',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
 
@@ -36,9 +35,7 @@ class ReaderSettingsPanel extends StatelessWidget {
           subtitle: const Text('显示当前章节、书籍页码和 PDF 页码'),
           value: options.showLocationBar,
           onChanged: (value) {
-            onChanged(
-              options.copyWith(showLocationBar: value),
-            );
+            onChanged(options.copyWith(showLocationBar: value));
           },
         ),
 
@@ -48,9 +45,7 @@ class ReaderSettingsPanel extends StatelessWidget {
           value: options.showSearchLocation,
           onChanged: options.showLocationBar
               ? (value) {
-                  onChanged(
-                    options.copyWith(showSearchLocation: value),
-                  );
+                  onChanged(options.copyWith(showSearchLocation: value));
                 }
               : null,
         ),
@@ -61,9 +56,7 @@ class ReaderSettingsPanel extends StatelessWidget {
           title: const Text('显示目录按钮'),
           value: options.showBookTreeButton,
           onChanged: (value) {
-            onChanged(
-              options.copyWith(showBookTreeButton: value),
-            );
+            onChanged(options.copyWith(showBookTreeButton: value));
           },
         ),
 
@@ -71,9 +64,7 @@ class ReaderSettingsPanel extends StatelessWidget {
           title: const Text('显示搜索按钮'),
           value: options.showSearchButton,
           onChanged: (value) {
-            onChanged(
-              options.copyWith(showSearchButton: value),
-            );
+            onChanged(options.copyWith(showSearchButton: value));
           },
         ),
 
@@ -81,9 +72,7 @@ class ReaderSettingsPanel extends StatelessWidget {
           title: const Text('显示页码跳转按钮'),
           value: options.showPageJumpButton,
           onChanged: (value) {
-            onChanged(
-              options.copyWith(showPageJumpButton: value),
-            );
+            onChanged(options.copyWith(showPageJumpButton: value));
           },
         ),
 
@@ -91,9 +80,7 @@ class ReaderSettingsPanel extends StatelessWidget {
           title: const Text('显示裁边开关'),
           value: options.showCropMargins,
           onChanged: (value) {
-            onChanged(
-              options.copyWith(showCropMargins: value),
-            );
+            onChanged(options.copyWith(showCropMargins: value));
           },
         ),
 
@@ -101,10 +88,16 @@ class ReaderSettingsPanel extends StatelessWidget {
           title: const Text('显示底部控制栏'),
           value: options.showPageControls,
           onChanged: (value) {
-            onChanged(
-              options.copyWith(showPageControls: value),
-            );
+            onChanged(options.copyWith(showPageControls: value));
           },
+        ),
+        const Divider(),
+
+        ListTile(
+          leading: const Icon(Icons.restore),
+          title: const Text('恢复默认设置'),
+          subtitle: const Text('恢复阅读器所有显示设置'),
+          onTap: onReset,
         ),
       ],
     );

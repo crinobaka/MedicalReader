@@ -1,24 +1,40 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/reader_view_options.dart';
+import '../services/reader_settings_service.dart';
 
-/// 当前阅读器界面的显示配置。
-///
-/// 目前使用默认值。
-/// 下一阶段接入 Settings 页面后，只需要通过这个 Provider 更新配置。
+final readerSettingsServiceProvider =
+    Provider<ReaderSettingsService>((ref) {
+  return ReaderSettingsService();
+});
+
 final readerViewOptionsProvider =
     NotifierProvider<ReaderViewOptionsNotifier, ReaderViewOptions>(
   ReaderViewOptionsNotifier.new,
 );
 
 class ReaderViewOptionsNotifier extends Notifier<ReaderViewOptions> {
+  late final ReaderSettingsService _settingsService;
+
   @override
   ReaderViewOptions build() {
+    _settingsService = ref.read(readerSettingsServiceProvider);
+
+    _loadSavedOptions();
+
     return const ReaderViewOptions();
+  }
+
+  Future<void> _loadSavedOptions() async {
+    final options = await _settingsService.load();
+
+    state = options;
   }
 
   void update(ReaderViewOptions options) {
     state = options;
+
+    _save(options);
   }
 
   void updatePartial({
@@ -30,7 +46,7 @@ class ReaderViewOptionsNotifier extends Notifier<ReaderViewOptions> {
     bool? showPageJumpButton,
     bool? showCropMargins,
   }) {
-    state = state.copyWith(
+    final options = state.copyWith(
       showLocationBar: showLocationBar,
       showSearchLocation: showSearchLocation,
       showPageControls: showPageControls,
@@ -39,5 +55,21 @@ class ReaderViewOptionsNotifier extends Notifier<ReaderViewOptions> {
       showPageJumpButton: showPageJumpButton,
       showCropMargins: showCropMargins,
     );
+
+    state = options;
+
+    _save(options);
+  }
+
+  Future<void> reset() async {
+    const options = ReaderViewOptions();
+
+    state = options;
+
+    await _settingsService.clear();
+  }
+
+  void _save(ReaderViewOptions options) {
+    _settingsService.save(options);
   }
 }

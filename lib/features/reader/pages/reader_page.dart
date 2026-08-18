@@ -635,35 +635,38 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     }
   }
 
-// ============================================================
-// 方法：_showReaderSettings
-// 功能：打开 PDF 设置框
-// ============================================================
-Future<void> _showReaderSettings() async {
-  await showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
-    builder: (context) {
-      return Consumer(
-        builder: (context, ref, _) {
-          final options = ref.watch(readerViewOptionsProvider);
+  // ============================================================
+  // 方法：_showReaderSettings
+  // 功能：打开 PDF 设置框
+  // ============================================================
+  Future<void> _showReaderSettings() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) {
+        return Consumer(
+          builder: (context, ref, _) {
+            final options = ref.watch(readerViewOptionsProvider);
 
-          return SafeArea(
-            child: ReaderSettingsPanel(
-              options: options,
-              onChanged: (nextOptions) {
-                ref
-                    .read(readerViewOptionsProvider.notifier)
-                    .update(nextOptions);
-              },
-            ),
-          );
-        },
-      );
-    },
-  );
-}
+            return SafeArea(
+              child: ReaderSettingsPanel(
+                options: options,
+                onChanged: (nextOptions) {
+                  ref
+                      .read(readerViewOptionsProvider.notifier)
+                      .update(nextOptions);
+                },
+                onReset: () {
+                  ref.read(readerViewOptionsProvider.notifier).reset();
+                },
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 
   // ============================================================
   // 方法：_toggleCropMargins
