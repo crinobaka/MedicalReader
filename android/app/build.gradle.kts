@@ -6,7 +6,13 @@ plugins {
 
 android {
     namespace = "com.example.medicalreader"
+
+    // file_picker 当前依赖的 flutter_plugin_android_lifecycle
+    // 要求 compileSdk >= 36。
+    // compileSdk 只决定编译时可使用的 Android API，
+    // 不会因此改变 minSdk，也不会自动改变 targetSdk 的运行时行为。
     compileSdk = 36
+
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
