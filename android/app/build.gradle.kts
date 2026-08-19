@@ -34,13 +34,6 @@ android {
     }
 }
 
-dependencies {
-    // camera_android_camerax 使用 CameraX 的 ListenableFuture API。
-    // 显式声明该依赖，避免 AGP 9 + CameraX 依赖解析时缺失
-    // androidx.concurrent.futures.CallbackToFutureAdapter。
-    implementation("androidx.concurrent:concurrent-futures:1.3.0")
-}
-
 kotlin {
     compilerOptions {
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
