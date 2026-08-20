@@ -6,7 +6,7 @@ import FlutterMacOS
 import Foundation
 
 import camera_desktop
-import file_picker
+import file_picker_darwin
 import record_macos
 
 func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
