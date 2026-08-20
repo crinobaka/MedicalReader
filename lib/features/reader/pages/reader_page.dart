@@ -795,13 +795,15 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         return ReaderNoteDialog(
           note: note,
           onInsertImage: () async {
-            final result = await FilePicker.pickFiles(
-              type: FileType.image,
-            );
+            final files = await FilePicker.pickFiles(type: FileType.image);
 
-            final path = result?.files.single.path;
+            if (files.isEmpty) {
+              return null;
+            }
 
-            if (path == null) {
+            final path = files.first.path;
+
+            if (path == null || path.isEmpty) {
               return null;
             }
 
