@@ -308,19 +308,29 @@ class MedicalCore {
   }
 
   static DynamicLibrary _openLibrary() {
-    // Android packages native Rust libraries as lib/<abi>/libmedical_core.so.
+    // Android 的 native library 会由 APK 打包到：
+    // lib/<ABI>/libmedical_core.so
+    //
+    // DynamicLibrary.open() 使用库文件名加载，
+    // Android 会根据当前设备 ABI 找到对应的 .so。
     if (Platform.isAndroid) {
       return DynamicLibrary.open('libmedical_core.so');
     }
 
+    // Windows:
+    // build/windows/x64/runner/Debug/medical_core.dll
     if (Platform.isWindows) {
       return DynamicLibrary.open('medical_core.dll');
     }
 
+    // macOS:
+    // libmedical_core.dylib
     if (Platform.isMacOS) {
       return DynamicLibrary.open('libmedical_core.dylib');
     }
 
+    // Linux:
+    // libmedical_core.so
     if (Platform.isLinux) {
       return DynamicLibrary.open('libmedical_core.so');
     }

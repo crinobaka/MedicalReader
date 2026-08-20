@@ -51,3 +51,7 @@ target/
 # Flutter/Dart build artifacts
 .dart_tool/
 build/
+
+# Generated Android native libraries.
+# Built locally from core/medical_core.
+android/app/src/main/jniLibs/
