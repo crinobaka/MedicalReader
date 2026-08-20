@@ -128,12 +128,23 @@ class MedicalCoreDocument {
     _closed = true;
   }
 
-  String searchBook({required String query, int maxResults = 50, int contextBefore = 80, int contextAfter = 80,}) {
+  String searchBook({
+    required String query,
+    int maxResults = 50,
+    int contextBefore = 80,
+    int contextAfter = 80,
+  }) {
     if (_closed) {
       throw StateError('MedicalCoreDocument is already closed.');
     }
 
-    return _core.searchBook(_handle, query: query, maxResults: maxResults, contextBefore: contextBefore, contextAfter: contextAfter,);
+    return _core.searchBook(
+      _handle,
+      query: query,
+      maxResults: maxResults,
+      contextBefore: contextBefore,
+      contextAfter: contextAfter,
+    );
   }
 }
 
@@ -172,6 +183,7 @@ class MedicalCore {
           'medical_core_free_page',
         )
         .asFunction<_MedicalCoreFreePageDart>();
+
     _searchBook = _library
         .lookup<NativeFunction<_MedicalCoreSearchBookNative>>(
           'medical_core_search_book',
@@ -190,19 +202,12 @@ class MedicalCore {
   final DynamicLibrary _library;
 
   late final _MedicalCoreHelloDart _hello;
-
   late final _MedicalCoreOpenBookDart _openBook;
-
   late final _MedicalCoreCloseBookDart _closeBook;
-
   late final _MedicalCoreGetPageCountDart _getPageCount;
-
   late final _MedicalCoreRenderPageDart _renderPage;
-
   late final _MedicalCoreFreePageDart _freePage;
-
   late final _MedicalCoreSearchBookDart _searchBook;
-
   late final _MedicalCoreFreeStringDart _freeString;
 
   factory MedicalCore() {
@@ -288,7 +293,6 @@ class MedicalCore {
 
     try {
       final page = pagePointer.ref;
-
       final data = List<int>.from(page.data.asTypedList(page.dataLen));
 
       return MedicalCorePage(
@@ -304,6 +308,11 @@ class MedicalCore {
   }
 
   static DynamicLibrary _openLibrary() {
+    // Android packages native Rust libraries as lib/<abi>/libmedical_core.so.
+    if (Platform.isAndroid) {
+      return DynamicLibrary.open('libmedical_core.so');
+    }
+
     if (Platform.isWindows) {
       return DynamicLibrary.open('medical_core.dll');
     }
@@ -347,7 +356,13 @@ class MedicalCore {
     final queryPointer = normalizedQuery.toNativeUtf8();
 
     try {
-      final resultPointer = _searchBook(handle, queryPointer, maxResults, contextBefore, contextAfter);
+      final resultPointer = _searchBook(
+        handle,
+        queryPointer,
+        maxResults,
+        contextBefore,
+        contextAfter,
+      );
 
       if (resultPointer == nullptr) {
         throw StateError('Failed to search PDF document.');
