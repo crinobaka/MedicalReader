@@ -21,12 +21,59 @@ Write-Host ""
 $rustTarget = "aarch64-linux-android"
 $androidAbi = "arm64-v8a"
 
+# MedicalCore / mupdf-sys 使用固定的 Android NDK。
+#
+# 不使用系统当前默认 NDK，避免不同 NDK 版本导致
+# mupdf-sys 的 C/C++ 构建脚本行为发生变化。
+#
+# 推荐使用 NDK r23.1.7779620。
+$androidNdkVersion = "23.1.7779620"
+$androidSdkRoot = $env:ANDROID_HOME
+
+if ([string]::IsNullOrWhiteSpace($androidSdkRoot)) {
+    $androidSdkRoot = $env:ANDROID_SDK_ROOT
+}
+
+if ([string]::IsNullOrWhiteSpace($androidSdkRoot)) {
+    throw "ANDROID_HOME / ANDROID_SDK_ROOT is not configured."
+}
+
+$androidNdkRoot = Join-Path `
+    $androidSdkRoot `
+    "ndk\$androidNdkVersion"
+
+if (-not (Test-Path $androidNdkRoot)) {
+    throw @"
+Required Android NDK was not found:
+
+$androidNdkRoot
+
+Please install Android NDK $androidNdkVersion from Android Studio
+or the Android SDK Manager before building MedicalCore.
+"@
+}
+
+Write-Host "Android SDK  : $androidSdkRoot"
+Write-Host "Android NDK  : $androidNdkRoot"
+Write-Host ""
+
+# 临时指定本次 cargo-ndk 构建使用的 NDK。
+#
+# 不修改系统环境变量。
+# 脚本结束后恢复原来的 ANDROID_NDK_HOME。
+$previousAndroidNdkHome = $env:ANDROID_NDK_HOME
+$env:ANDROID_NDK_HOME = $androidNdkRoot
+
 # 检查 Rust target。
 $installedTargets = rustup target list --installed
 
 if ($installedTargets -notcontains $rustTarget) {
     Write-Host "Installing Rust target: $rustTarget" -ForegroundColor Yellow
     rustup target add $rustTarget
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to install Rust target: $rustTarget"
+    }
 }
 
 # 检查 cargo-ndk。
@@ -64,6 +111,9 @@ try {
 }
 finally {
     Pop-Location
+
+    # 恢复原来的 ANDROID_NDK_HOME。
+    $env:ANDROID_NDK_HOME = $previousAndroidNdkHome
 }
 
 $nativeLibrary = Join-Path `
