@@ -9,7 +9,7 @@ class FilePickerService {
   Future<File?> pickPDF() async {
 
     final result =
-        await FilePicker.platform.pickFiles(
+        await FilePicker.pickFiles(
           type: FileType.custom,
           allowedExtensions: [
             'pdf',
