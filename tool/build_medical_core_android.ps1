@@ -188,6 +188,38 @@ Copy-Item `
     $nativeLibrary `
     (Join-Path $abiOutputDir "libmedical_core.so")
 
+# ------------------------------------------------------------
+# Copy Android C++ runtime
+#
+# medical_core.so depends on Android NDK libc++.
+# The shared runtime must be packaged into the APK.
+# ------------------------------------------------------------
+
+$libcxxShared = Join-Path `
+    $sysroot `
+    "usr\lib\aarch64-linux-android\libc++_shared.so"
+
+if (-not (Test-Path $libcxxShared)) {
+    throw @"
+Android libc++_shared.so was not found:
+
+$libcxxShared
+"@
+}
+
+Copy-Item `
+    -Force `
+    $libcxxShared `
+    (Join-Path $abiOutputDir "libc++_shared.so")
+
+$finalLibcxx = Join-Path `
+    $abiOutputDir `
+    "libc++_shared.so"
+
+if (-not (Test-Path $finalLibcxx)) {
+    throw "Failed to copy libc++_shared.so: $finalLibcxx"
+}    
+
 $finalLibrary = Join-Path `
     $abiOutputDir `
     "libmedical_core.so"
@@ -201,6 +233,13 @@ Write-Host "============================================" -ForegroundColor Green
 Write-Host "MedicalCore Android build succeeded." -ForegroundColor Green
 Write-Host "============================================" -ForegroundColor Green
 Write-Host ""
+
 Write-Host "Native library:" -ForegroundColor Cyan
 Write-Host $finalLibrary
+
+Write-Host ""
+
+Write-Host "C++ runtime:" -ForegroundColor Cyan
+Write-Host $finalLibcxx
+
 Write-Host ""
