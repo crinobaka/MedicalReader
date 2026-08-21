@@ -123,8 +123,6 @@ $env:BINDGEN_EXTRA_CLANG_ARGS_aarch64_linux_android = @(
 
 $env:PKG_CONFIG_ALLOW_CROSS = "1"
 
-# 在 cargo build 之前添加
-$env:RUSTFLAGS = "-C link-arg=-lc++_static"
 
 # ------------------------------------------------------------
 # Output directory
