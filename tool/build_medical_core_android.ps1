@@ -183,6 +183,20 @@ $nativeLibrary
 "@
 }
 
+# 强行移除 libstdc++.so 的 NEEDED 依赖（使用 patchelf）
+$patchelf = Get-Command patchelf.exe -ErrorAction SilentlyContinue
+if ($patchelf) {
+    Write-Host "Removing NEEDED libstdc++.so using patchelf" -ForegroundColor Yellow
+    & patchelf --remove-needed libstdc++.so $nativeLibrary
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Warning: patchelf failed" -ForegroundColor Red
+    }
+} else {
+    Write-Host "patchelf not found." -ForegroundColor Red
+    Write-Host "Please install it first (in Git Bash): pacman -S patchelf" -ForegroundColor Yellow
+    Write-Host "Skipping removal – libstdc++.so dependency may remain." -ForegroundColor Yellow
+}
+
 # ------------------------------------------------------------
 # Copy into Flutter Android jniLibs
 # ------------------------------------------------------------
