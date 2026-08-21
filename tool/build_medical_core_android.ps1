@@ -112,8 +112,8 @@ ${env:CXX_aarch64-linux-android} = "clang++"
 ${env:AR_aarch64-linux-android} = "llvm-ar"
 
 # Android API level.
-${env:CFLAGS_aarch64-linux-android} = "--target=aarch64-linux-android21"
-${env:CXXFLAGS_aarch64-linux-android} = "--target=aarch64-linux-android21"
+${env:CFLAGS_aarch64-linux-android} = "--target=aarch64-linux-android21 -stdlib=libc++"
+${env:CXXFLAGS_aarch64-linux-android} = "--target=aarch64-linux-android21 -stdlib=libc++"
 
 # Bindgen needs the real sysroot.
 $env:BINDGEN_EXTRA_CLANG_ARGS_aarch64_linux_android = @(
@@ -144,6 +144,10 @@ New-Item -ItemType Directory -Force -Path $abiOutputDir | Out-Null
 Push-Location $rustProject
 
 try {
+    # 清除可能覆盖 config.toml 的环境变量
+    Remove-Item Env:RUSTFLAGS -ErrorAction SilentlyContinue
+    Remove-Item Env:CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER -ErrorAction SilentlyContinue
+
     cargo clean
 
     if ($LASTEXITCODE -ne 0) {
