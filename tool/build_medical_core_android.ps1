@@ -6,65 +6,52 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 # Rust native engine
 $rustProject = Join-Path $projectRoot "core\medical_core"
 
-# Flutter Android native libraries 目录。
-# cargo-ndk 会按照 ABI 自动生成：
-# android/app/src/main/jniLibs/arm64-v8a/libmedical_core.so
+# Android native library 输出目录
 $outputDir = Join-Path $projectRoot "android\app\src\main\jniLibs"
+
+# 固定 Android NDK
+$ndk = "D:\Android\Sdk\ndk\23.1.7779620"
+$toolchain = Join-Path $ndk "toolchains\llvm\prebuilt\windows-x86_64"
+$ndkBin = Join-Path $toolchain "bin"
+$sysroot = Join-Path $toolchain "sysroot"
 
 Write-Host ""
 Write-Host "=== MedicalCore Android Build ===" -ForegroundColor Cyan
 Write-Host "Rust project : $rustProject"
 Write-Host "Output       : $outputDir"
+Write-Host "NDK          : $ndk"
 Write-Host ""
 
-# Android 真机目前以 arm64-v8a 为目标。
+# ------------------------------------------------------------
+# Check NDK
+# ------------------------------------------------------------
+
+if (-not (Test-Path $ndk)) {
+    throw "Android NDK not found: $ndk"
+}
+
+$clang = Join-Path $ndkBin "clang.exe"
+$clangxx = Join-Path $ndkBin "clang++.exe"
+$llvmAr = Join-Path $ndkBin "llvm-ar.exe"
+$androidLinker = Join-Path $ndkBin "aarch64-linux-android21-clang.cmd"
+
+foreach ($tool in @(
+    $clang,
+    $clangxx,
+    $llvmAr,
+    $androidLinker
+)) {
+    if (-not (Test-Path $tool)) {
+        throw "Required Android tool not found: $tool"
+    }
+}
+
+# ------------------------------------------------------------
+# Rust target
+# ------------------------------------------------------------
+
 $rustTarget = "aarch64-linux-android"
-$androidAbi = "arm64-v8a"
 
-# MedicalCore / mupdf-sys 使用固定的 Android NDK。
-#
-# 不使用系统当前默认 NDK，避免不同 NDK 版本导致
-# mupdf-sys 的 C/C++ 构建脚本行为发生变化。
-#
-# 推荐使用 NDK r23.1.7779620。
-$androidNdkVersion = "23.1.7779620"
-$androidSdkRoot = $env:ANDROID_HOME
-
-if ([string]::IsNullOrWhiteSpace($androidSdkRoot)) {
-    $androidSdkRoot = $env:ANDROID_SDK_ROOT
-}
-
-if ([string]::IsNullOrWhiteSpace($androidSdkRoot)) {
-    throw "ANDROID_HOME / ANDROID_SDK_ROOT is not configured."
-}
-
-$androidNdkRoot = Join-Path `
-    $androidSdkRoot `
-    "ndk\$androidNdkVersion"
-
-if (-not (Test-Path $androidNdkRoot)) {
-    throw @"
-Required Android NDK was not found:
-
-$androidNdkRoot
-
-Please install Android NDK $androidNdkVersion from Android Studio
-or the Android SDK Manager before building MedicalCore.
-"@
-}
-
-Write-Host "Android SDK  : $androidSdkRoot"
-Write-Host "Android NDK  : $androidNdkRoot"
-Write-Host ""
-
-# 临时指定本次 cargo-ndk 构建使用的 NDK。
-#
-# 不修改系统环境变量。
-# 脚本结束后恢复原来的 ANDROID_NDK_HOME。
-$previousAndroidNdkHome = $env:ANDROID_NDK_HOME
-$env:ANDROID_NDK_HOME = $androidNdkRoot
-
-# 检查 Rust target。
 $installedTargets = rustup target list --installed
 
 if ($installedTargets -notcontains $rustTarget) {
@@ -76,57 +63,143 @@ if ($installedTargets -notcontains $rustTarget) {
     }
 }
 
-# 检查 cargo-ndk。
-$cargoNdk = Get-Command cargo-ndk -ErrorAction SilentlyContinue
+# ------------------------------------------------------------
+# Make sure Git/MSYS make is available.
+#
+# mupdf-sys 0.8.0 uses make internally.
+# We intentionally expose clang through PATH as "clang",
+# instead of giving make a Windows absolute CC path.
+# ------------------------------------------------------------
 
-if ($null -eq $cargoNdk) {
-    Write-Host "cargo-ndk is not installed." -ForegroundColor Yellow
-    Write-Host "Installing cargo-ndk..." -ForegroundColor Yellow
+$make = Get-Command make.exe -ErrorAction SilentlyContinue
 
-    cargo install cargo-ndk
+if ($null -eq $make) {
+    throw @"
+GNU make was not found.
 
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to install cargo-ndk."
-    }
+Please make sure Git Bash / MSYS make is installed and available
+to the process PATH.
+
+Current PATH:
+$env:PATH
+"@
 }
 
-# 创建 APK native library 输出目录。
-New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
-
-# 只构建 arm64-v8a。
+# ------------------------------------------------------------
+# Android C toolchain
 #
-# 不构建 x86/x86_64，避免开发阶段额外占用磁盘空间。
-# 以后需要 Android Emulator 时再增加 ABI。
+# IMPORTANT:
+# Do NOT set CC to D:\...\clang here.
+#
+# mupdf-sys invokes make through /bin/sh.
+# "clang" must be resolved through PATH so MSYS does not
+# destroy the Windows path.
+# ------------------------------------------------------------
+
+$env:PATH = "$ndkBin;$env:PATH"
+
+$env:CC_aarch64_linux_android = "clang"
+$env:CXX_aarch64_linux_android = "clang++"
+$env:AR_aarch64_linux_android = "llvm-ar"
+
+$env:CC_aarch64_linux_android = "clang"
+$env:CXX_aarch64_linux_android = "clang++"
+$env:AR_aarch64_linux_android = "llvm-ar"
+
+# Cargo/cc also recognizes the hyphenated form.
+${env:CC_aarch64-linux-android} = "clang"
+${env:CXX_aarch64-linux-android} = "clang++"
+${env:AR_aarch64-linux-android} = "llvm-ar"
+
+# Android API level.
+${env:CFLAGS_aarch64-linux-android} = "--target=aarch64-linux-android21"
+${env:CXXFLAGS_aarch64-linux-android} = "--target=aarch64-linux-android21"
+
+# Bindgen needs the real sysroot.
+$env:BINDGEN_EXTRA_CLANG_ARGS_aarch64_linux_android = @(
+    "--sysroot=$($sysroot.Replace('\','/'))"
+    "-I$($sysroot.Replace('\','/'))/usr/include/aarch64-linux-android"
+) -join " "
+
+$env:PKG_CONFIG_ALLOW_CROSS = "1"
+
+# ------------------------------------------------------------
+# Output directory
+# ------------------------------------------------------------
+
+$abi = "arm64-v8a"
+$abiOutputDir = Join-Path $outputDir $abi
+
+New-Item -ItemType Directory -Force -Path $abiOutputDir | Out-Null
+
+# ------------------------------------------------------------
+# Build
+#
+# DO NOT use cargo ndk here.
+#
+# .cargo/config.toml supplies the Android Rust linker.
+# ------------------------------------------------------------
+
 Push-Location $rustProject
 
 try {
-    cargo ndk `
-        -t $androidAbi `
-        -o $outputDir `
-        build --release
+    cargo clean
 
     if ($LASTEXITCODE -ne 0) {
-        throw "MedicalCore Android build failed."
+        throw "cargo clean failed."
+    }
+
+    cargo build `
+        --target $rustTarget `
+        --release `
+        -vv
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "MedicalCore Android Rust build failed."
     }
 }
 finally {
     Pop-Location
-
-    # 恢复原来的 ANDROID_NDK_HOME。
-    $env:ANDROID_NDK_HOME = $previousAndroidNdkHome
 }
+
+# ------------------------------------------------------------
+# Locate generated library
+# ------------------------------------------------------------
 
 $nativeLibrary = Join-Path `
-    $outputDir `
-    "$androidAbi\libmedical_core.so"
+    $rustProject `
+    "target\$rustTarget\release\libmedical_core.so"
 
 if (-not (Test-Path $nativeLibrary)) {
-    throw "Build finished but libmedical_core.so was not generated: $nativeLibrary"
+    throw @"
+Rust build succeeded but libmedical_core.so was not found:
+
+$nativeLibrary
+"@
+}
+
+# ------------------------------------------------------------
+# Copy into Flutter Android jniLibs
+# ------------------------------------------------------------
+
+Copy-Item `
+    -Force `
+    $nativeLibrary `
+    (Join-Path $abiOutputDir "libmedical_core.so")
+
+$finalLibrary = Join-Path `
+    $abiOutputDir `
+    "libmedical_core.so"
+
+if (-not (Test-Path $finalLibrary)) {
+    throw "Failed to copy Android native library: $finalLibrary"
 }
 
 Write-Host ""
-Write-Host "MedicalCore Android library built successfully." -ForegroundColor Green
+Write-Host "============================================" -ForegroundColor Green
+Write-Host "MedicalCore Android build succeeded." -ForegroundColor Green
+Write-Host "============================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "Native library:" -ForegroundColor Cyan
-Write-Host $nativeLibrary
+Write-Host $finalLibrary
 Write-Host ""
