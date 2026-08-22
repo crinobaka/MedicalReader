@@ -21,9 +21,8 @@ class ReaderCropController extends ChangeNotifier {
   }
 
   CropConfiguration get configuration => _configuration;
-
   CropTemplate get template => _configuration.template;
-
+  CropLayout get layout => _configuration.layout;
   List<CropRegion> get regions => List.unmodifiable(_configuration.regions);
 
   Future<void> setDocument(String documentId) async {
@@ -44,7 +43,21 @@ class ReaderCropController extends ChangeNotifier {
   }
 
   Future<void> apply(CropConfiguration configuration) async {
-    await _store.setForCurrentDocument(configuration);
+    await _store.setForCurrentDocument(configuration.copyWith(
+      sourceDocumentId: _store.currentDocumentId,
+    ));
+  }
+
+  Future<void> setTemplate(CropTemplate template) async {
+    await apply(_configuration.copyWith(template: template));
+  }
+
+  Future<void> setLayout(CropLayout layout) async {
+    await apply(_configuration.copyWith(layout: layout));
+  }
+
+  Future<void> setRegions(List<CropRegion> regions) async {
+    await apply(_configuration.copyWith(regions: regions));
   }
 
   Future<void> reset() async {
