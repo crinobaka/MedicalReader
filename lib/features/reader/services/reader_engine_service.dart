@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
+
 import '../../../core/ffi/medical_core.dart';
 import '../../../core/ffi/medical_core_image.dart';
 import '../models/crop_configuration.dart';
@@ -14,20 +16,36 @@ class ReaderEngineService {
   final PageCache _pageCache;
   final PageCropService _cropService;
   final CropEngineService _cropEngine;
+  final CropConfigurationStore _cropConfigurationStore;
+
+  late final VoidCallback _cropConfigurationListener;
 
   ReaderEngineService({
     MedicalCore? core,
     PageCache? pageCache,
     PageCropService? cropService,
     CropEngineService? cropEngine,
+    CropConfigurationStore? cropConfigurationStore,
   }) : _core = core ?? MedicalCore(),
        _pageCache = pageCache ?? PageCache(),
        _cropService = cropService ?? const PageCropService(),
-       _cropEngine = cropEngine ?? const CropEngineService();
+       _cropEngine = cropEngine ?? const CropEngineService(),
+       _cropConfigurationStore =
+           cropConfigurationStore ?? CropConfigurationStore.instance {
+    _cropConfigurationListener = _handleCropConfigurationChanged;
+    _cropConfigurationStore.addListener(_cropConfigurationListener);
+  }
+
+  void _handleCropConfigurationChanged() {
+    // Crop configuration participates in the page cache key, but changing the
+    // configuration must also invalidate already cached images immediately.
+    // Otherwise a later render could keep an image produced by the old layout.
+    _pageCache.clear();
+  }
 
   MedicalCoreDocument openDocument({required String id, required String path}) {
     _pageCache.clear();
-    unawaited(CropConfigurationStore.instance.setCurrentDocument(id));
+    unawaited(_cropConfigurationStore.setCurrentDocument(id));
     return _core.openBook(id: id, path: path);
   }
 
@@ -47,7 +65,7 @@ class ReaderEngineService {
 
     if (effectiveConfiguration == null) {
       effectiveConfiguration =
-          await CropConfigurationStore.instance.getForCurrentDocument();
+          await _cropConfigurationStore.getForCurrentDocument();
     }
 
     final hasConfiguredRegions =
@@ -123,6 +141,7 @@ class ReaderEngineService {
   }
 
   void dispose() {
+    _cropConfigurationStore.removeListener(_cropConfigurationListener);
     _pageCache.dispose();
   }
 }
