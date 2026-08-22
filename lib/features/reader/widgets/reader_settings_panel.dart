@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 
+import '../models/crop_configuration.dart';
 import '../models/reader_view_options.dart';
+import '../services/crop_configuration_store.dart';
+import 'crop_editor_dialog.dart';
 
 /// 阅读器显示设置面板。
 ///
-/// 这个 Widget 只负责“展示设置”和返回新的配置。
-/// 它不直接操作 Riverpod，也不保存数据。
+/// 这个 Widget 负责展示 UI 设置，同时提供 Commit 4 的裁剪模板编辑入口。
+/// 裁剪配置由 CropConfigurationStore 持久化，ReaderEngine 会在下一次渲染时自动读取。
 class ReaderSettingsPanel extends StatelessWidget {
   final ReaderViewOptions options;
   final ValueChanged<ReaderViewOptions> onChanged;
@@ -17,6 +20,38 @@ class ReaderSettingsPanel extends StatelessWidget {
     required this.onChanged,
     required this.onReset,
   });
+
+  Future<void> _editCropConfiguration(BuildContext context) async {
+    final store = CropConfigurationStore.instance;
+    final current = await store.getForCurrentDocument();
+
+    if (!context.mounted) {
+      return;
+    }
+
+    final result = await showDialog<CropConfiguration>(
+      context: context,
+      builder: (context) {
+        return CropEditorDialog(
+          initial: current ?? CropConfiguration.initial(),
+        );
+      },
+    );
+
+    if (result == null) {
+      return;
+    }
+
+    await store.setForCurrentDocument(result);
+
+    if (!context.mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('裁剪模板已保存，重新渲染页面后生效。')),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -82,6 +117,14 @@ class ReaderSettingsPanel extends StatelessWidget {
           onChanged: (value) {
             onChanged(options.copyWith(showCropMargins: value));
           },
+        ),
+
+        ListTile(
+          leading: const Icon(Icons.crop),
+          title: const Text('编辑裁剪模板'),
+          subtitle: const Text('单栏、双栏、三栏、自定义区域、页码范围、继承与增量调整'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _editCropConfiguration(context),
         ),
 
         SwitchListTile(
