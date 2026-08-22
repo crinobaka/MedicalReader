@@ -1,16 +1,16 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/crop_configuration.dart';
 
 /// 当前应用内的裁剪配置仓库。
 ///
-/// ReaderEngine 在打开文档时登记 documentId，
-/// ReaderSettingsPanel 修改的配置会优先保存到当前文档。
-/// 没有当前文档时则写入 default，作为下一本书的默认裁剪模板。
-class CropConfigurationStore {
+/// 除了持久化配置，还提供变更通知，让打开中的 Reader 可以在设置修改后
+/// 立即重新读取配置并重新渲染当前页面。
+class CropConfigurationStore extends ChangeNotifier {
   CropConfigurationStore._();
 
   static final CropConfigurationStore instance = CropConfigurationStore._();
@@ -19,6 +19,8 @@ class CropConfigurationStore {
 
   bool _loaded = false;
   String? _currentDocumentId;
+
+  String? get currentDocumentId => _currentDocumentId;
 
   Future<void> setCurrentDocument(String documentId) async {
     _currentDocumentId = documentId;
@@ -42,12 +44,14 @@ class CropConfigurationStore {
       sourceDocumentId: _currentDocumentId,
     );
     await _save();
+    notifyListeners();
   }
 
   Future<void> setDefault(CropConfiguration configuration) async {
     await _ensureLoaded();
     _configurations['default'] = configuration;
     await _save();
+    notifyListeners();
   }
 
   Future<void> clearCurrentDocument() async {
@@ -55,25 +59,19 @@ class CropConfigurationStore {
     final key = _currentDocumentId ?? 'default';
     _configurations.remove(key);
     await _save();
+    notifyListeners();
   }
 
   Future<void> _ensureLoaded() async {
-    if (_loaded) {
-      return;
-    }
-
+    if (_loaded) return;
     _loaded = true;
 
     try {
       final file = await _configFile();
-      if (!await file.exists()) {
-        return;
-      }
+      if (!await file.exists()) return;
 
       final decoded = jsonDecode(await file.readAsString());
-      if (decoded is! Map) {
-        return;
-      }
+      if (decoded is! Map) return;
 
       for (final entry in decoded.entries) {
         if (entry.value is Map) {
@@ -91,9 +89,7 @@ class CropConfigurationStore {
     final file = await _configFile();
     await file.writeAsString(
       const JsonEncoder.withIndent('  ').convert(
-        _configurations.map(
-          (key, value) => MapEntry(key, value.toJson()),
-        ),
+        _configurations.map((key, value) => MapEntry(key, value.toJson())),
       ),
     );
   }
