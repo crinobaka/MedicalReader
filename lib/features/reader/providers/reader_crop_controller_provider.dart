@@ -10,9 +10,7 @@ import '../services/crop_configuration_store.dart';
 /// Annotation, Note, or Audio code.
 final readerCropControllerProvider =
     ChangeNotifierProvider<ReaderCropController>((ref) {
-  final controller = ReaderCropController(
+  return ReaderCropController(
     store: CropConfigurationStore.instance,
   );
-  ref.onDispose(controller.dispose);
-  return controller;
 });
