@@ -12,12 +12,12 @@ class ReaderCropController extends ChangeNotifier {
 
   CropConfiguration _configuration = CropConfiguration.initial();
   VoidCallback? _storeListener;
+  bool _disposed = false;
 
   ReaderCropController({CropConfigurationStore? store})
       : _store = store ?? CropConfigurationStore.instance {
     _storeListener = _handleStoreChanged;
     _store.addListener(_storeListener!);
-    _load();
   }
 
   CropConfiguration get configuration => _configuration;
@@ -26,16 +26,21 @@ class ReaderCropController extends ChangeNotifier {
 
   List<CropRegion> get regions => List.unmodifiable(_configuration.regions);
 
-  Future<void> _load() async {
+  Future<void> setDocument(String documentId) async {
+    await _store.setCurrentDocument(documentId);
+    await _reload();
+  }
+
+  Future<void> _reload() async {
     final configuration = await _store.getForCurrentDocument();
-    if (configuration == null) return;
+    if (_disposed || configuration == null) return;
     if (_configuration.cacheKey == configuration.cacheKey) return;
     _configuration = configuration;
     notifyListeners();
   }
 
   void _handleStoreChanged() {
-    _load();
+    _reload();
   }
 
   Future<void> apply(CropConfiguration configuration) async {
@@ -44,6 +49,7 @@ class ReaderCropController extends ChangeNotifier {
 
   Future<void> reset() async {
     await _store.clearCurrentDocument();
+    if (_disposed) return;
     _configuration = CropConfiguration.initial(
       sourceDocumentId: _store.currentDocumentId,
     );
@@ -52,6 +58,7 @@ class ReaderCropController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     final listener = _storeListener;
     if (listener != null) {
       _store.removeListener(listener);
