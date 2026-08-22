@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import '../../library/models/library_document.dart';
 import '../models/crop_configuration.dart';
@@ -78,6 +79,24 @@ class CropSessionService {
 
     await file.writeAsBytes(pngBytes, flush: true);
     return file;
+  }
+
+  /// 直接把 Crop Engine 的 ui.Image 写入临时会话。
+  Future<File> writePageImageFromUiImage({
+    required CropSession session,
+    required int pageIndex,
+    required ui.Image image,
+  }) async {
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    if (byteData == null) {
+      throw StateError('Unable to encode cropped page as PNG.');
+    }
+
+    return writePageImage(
+      session: session,
+      pageIndex: pageIndex,
+      pngBytes: byteData.buffer.asUint8List(),
+    );
   }
 
   Future<CropSession?> loadSession(
