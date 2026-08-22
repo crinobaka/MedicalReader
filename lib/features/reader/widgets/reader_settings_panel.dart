@@ -38,11 +38,16 @@ class ReaderSettingsPanel extends StatelessWidget {
     if (result == null) return;
 
     await store.setForCurrentDocument(result);
+
+    // ReaderPage 提供这个回调时，保存配置后立即重新渲染当前页面。
+    // 没有回调时，配置仍然已经持久化，下一次打开 Reader 会读取它。
     await onCropConfigurationChanged?.call();
 
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('裁剪模板已保存。双栏、三栏和自定义区域会在应用裁剪后改变页面显示。')),
+      const SnackBar(
+        content: Text('裁剪模板已保存并应用。双栏、三栏和自定义区域会立即影响当前页面。'),
+      ),
     );
   }
 
@@ -98,18 +103,18 @@ class ReaderSettingsPanel extends StatelessWidget {
         const Text('页面裁剪 / 双栏 / 三栏', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         const SizedBox(height: 4),
         const Text(
-          '这里的模板决定“从一页 PDF 里取哪些区域”。双栏会取左、右两个区域；三栏会取三个区域；自定义则按你定义的矩形区域取图。',
+          '裁剪模板决定 PDF 页面实际显示哪些区域：单栏显示整页，双栏拆成左右两块，三栏拆成三块，自定义按矩形区域显示。保存后会立即应用。',
         ),
         SwitchListTile(
           title: const Text('显示裁剪控制'),
-          subtitle: const Text('控制阅读器顶部是否显示“裁边”开关；关闭不等于删除已保存的裁剪模板'),
+          subtitle: const Text('控制阅读器顶部是否显示“裁边”开关；关闭不会删除已保存的裁剪模板'),
           value: options.showCropMargins,
           onChanged: (value) => onChanged(options.copyWith(showCropMargins: value)),
         ),
         ListTile(
           leading: const Icon(Icons.view_column_outlined),
-          title: const Text('编辑并查看裁剪模板'),
-          subtitle: const Text('编辑器会实时显示单栏、双栏、三栏和自定义区域的布局示意'),
+          title: const Text('编辑并应用裁剪模板'),
+          subtitle: const Text('实时预览单栏、双栏、三栏和自定义区域，保存后立即刷新当前 PDF 页面'),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => _editCropConfiguration(context),
         ),
