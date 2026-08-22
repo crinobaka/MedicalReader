@@ -27,6 +27,18 @@
         "showBookPage": true,
         "contextBefore": 80,
         "contextAfter": 120
+      },
+      "crop": {
+        "template": "single",
+        "layout": "horizontal",
+        "regions": [],
+        "inheritPrevious": false,
+        "adjustment": {
+          "left": 0,
+          "right": 0,
+          "top": 0,
+          "bottom": 0
+        }
       }
     }
   }
