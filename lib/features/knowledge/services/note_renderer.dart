@@ -1,4 +1,4 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
 import '../../reader/models/reader_annotation.dart';
@@ -10,7 +10,7 @@ import '../models/note_document.dart';
 /// Markdown -> Markdown renderer
 /// Markdown-HTML -> HTML renderer
 ///
-/// 因此 Markdown-HTML 不会再次经过 Markdown parser。
+/// Markdown-HTML 不会再次经过 Markdown parser。
 class NoteRenderer {
   const NoteRenderer();
 
@@ -20,12 +20,27 @@ class NoteRenderer {
         return Markdown(
           data: note.body,
           padding: EdgeInsets.zero,
-          styleSheet: MarkdownStyleSheet.fromTheme(
-            const DefaultTextStyle.fallback().style is TextStyle
-                ? ThemeData.fallback()
-                : ThemeData.fallback(),
-          ).copyWith(
-            p: const TextStyle(textBaseline: TextBaseline.alphabetic),
+          styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(_context)).copyWith(
+            p: const TextStyle(textAlign: TextAlign.left),
+          ),
+        );
+      case ReaderNoteFormat.markdownHtml:
+        return _HtmlNoteView(html: note.body);
+    }
+  }
+
+  // The renderer is normally used through buildInContext below. Kept private
+  // so callers do not need to know about the implementation details.
+  BuildContext get _context => throw StateError('Use buildInContext');
+
+  Widget buildInContext(BuildContext context, NoteDocument note) {
+    switch (note.format) {
+      case ReaderNoteFormat.markdown:
+        return Markdown(
+          data: note.body,
+          padding: EdgeInsets.zero,
+          styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
+            p: const TextStyle(textAlign: TextAlign.left),
           ),
         );
       case ReaderNoteFormat.markdownHtml:
@@ -34,12 +49,10 @@ class NoteRenderer {
   }
 }
 
-/// Minimal HTML renderer boundary.
+/// Dedicated HTML renderer boundary.
 ///
-/// HTML support is deliberately kept behind this widget so the storage model
-/// does not depend on a particular HTML package. The current fallback renders
-/// plain text rather than parsing HTML as Markdown, preserving the important
-/// format separation until a dedicated HTML renderer is introduced.
+/// This intentionally does not invoke Markdown. A real HTML widget can replace
+/// this implementation without changing Note storage or the renderer API.
 class _HtmlNoteView extends StatelessWidget {
   final String html;
 
