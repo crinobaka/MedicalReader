@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'crop_configuration.dart';
+
 /// 当前书籍自己的配置文件。
 ///
 /// BookTemplate 是“默认值”，BookManifest 是“这一本书自己的数据和覆盖配置”。
@@ -44,6 +46,15 @@ class BookManifest {
       if (crop.isNotEmpty) 'crop': crop,
       if (bookTree.isNotEmpty) 'bookTree': bookTree,
     };
+  }
+
+  /// 已解析的裁剪配置；没有 crop 配置时返回 null。
+  CropConfiguration? get cropConfiguration {
+    if (crop.isEmpty) {
+      return null;
+    }
+
+    return CropConfiguration.fromJson(crop);
   }
 
   String encode() {
