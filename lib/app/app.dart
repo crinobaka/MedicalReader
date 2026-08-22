@@ -4,7 +4,7 @@ import '../features/home/home_page.dart';
 import '../features/library/pages/library_page.dart';
 import '../features/search/search_page.dart';
 import '../features/knowledge/pages/knowledge_page.dart';
-import '../features/settings/settings_page.dart';
+import '../features/settings/pages/settings_page.dart';
 
 
 

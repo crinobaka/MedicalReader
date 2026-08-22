@@ -15,31 +15,47 @@ class LibraryDocument {
 
   const LibraryDocument({
     required this.id,
-
     required this.file,
-
     required this.title,
-
     this.pages,
-
     this.metadata = const {},
-
     required this.addedAt,
   });
 
-  factory LibraryDocument.fromFile(DocumentFile file) {
+  factory LibraryDocument.fromFile(
+    DocumentFile file,
+  ) {
     return LibraryDocument(
-      id: file.path,
+      // 使用 DocumentFile 的稳定 ID。
+      id: file.id,
 
       file: file,
 
-      title: file.name.replaceAll('.pdf', ''),
+      title: _removePdfExtension(file.name),
 
       pages: null,
 
-      metadata: {},
+      metadata: const {},
 
-      addedAt: DateTime.now(),
+      addedAt: file.createdAt,
+    );
+  }
+
+  LibraryDocument copyWith({
+    String? id,
+    DocumentFile? file,
+    String? title,
+    int? pages,
+    Map<String, dynamic>? metadata,
+    DateTime? addedAt,
+  }) {
+    return LibraryDocument(
+      id: id ?? this.id,
+      file: file ?? this.file,
+      title: title ?? this.title,
+      pages: pages ?? this.pages,
+      metadata: metadata ?? this.metadata,
+      addedAt: addedAt ?? this.addedAt,
     );
   }
 
@@ -55,17 +71,42 @@ class LibraryDocument {
   }
 
   factory LibraryDocument.fromJson(
-    Map<String,dynamic> json,
+    Map<String, dynamic> json,
     DocumentFile file,
-  ){
+  ) {
+    final rawMetadata = json['metadata'];
+
     return LibraryDocument(
-      id: json['id'],
+      id: json['id']?.toString() ?? file.id,
+
       file: file,
-      title: json['title'],
-      pages: json['pages'],
-      metadata: json['metadata'] ?? {},
-      addedAt: DateTime.parse(json['addedAt'],),
+
+      title: json['title']?.toString() ??
+          _removePdfExtension(file.name),
+
+      pages: (json['pages'] as num?)?.toInt(),
+
+      metadata: rawMetadata is Map
+          ? Map<String, dynamic>.from(rawMetadata)
+          : const {},
+
+      addedAt:
+          DateTime.tryParse(
+                json['addedAt']?.toString() ?? '',
+              ) ??
+              file.createdAt,
     );
   }
 
+  static String _removePdfExtension(
+    String name,
+  ) {
+    return name.replaceFirst(
+      RegExp(
+        r'\.pdf$',
+        caseSensitive: false,
+      ),
+      '',
+    );
+  }
 }

@@ -1,9 +1,6 @@
-import 'dart:io';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
 
-import '../../../../core/file_manager/providers/file_manager_provider.dart';
+import '../../../core/file_manager/providers/file_manager_provider.dart';
 
 import '../repositories/library_repository.dart';
 import '../storage/library_metadata_storage.dart';
@@ -11,15 +8,15 @@ import '../storage/library_metadata_storage.dart';
 final libraryMetadataStorageFutureProvider =
     Provider<Future<LibraryMetadataStorage>>(
   (ref) async {
-    final directory =
-        await getApplicationDocumentsDirectory();
-
-    final metadataDirectory = Directory(
-      '${directory.path}/MedicalReader',
-    );
+    final libraryDirectory =
+        await ref
+            .read(
+              libraryStorageServiceProvider,
+            )
+            .getLibraryDirectory();
 
     return LibraryMetadataStorage(
-      directory: metadataDirectory,
+      directory: libraryDirectory,
     );
   },
 );
@@ -33,14 +30,25 @@ final libraryRepositoryProvider =
           documentFilesProvider,
         );
       },
-      addFileAction: () async {
+
+      initializeFilesAction: () async {
         await ref
+            .read(
+              documentFilesProvider.notifier,
+            )
+            .initialize();
+      },
+
+      addFileAction: () async {
+        return ref
             .read(
               documentFilesProvider.notifier,
             )
             .addFile();
       },
-      metadataStorageFuture: ref.read(
+
+      metadataStorageFuture:
+          ref.read(
         libraryMetadataStorageFutureProvider,
       ),
     );

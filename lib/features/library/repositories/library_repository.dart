@@ -7,7 +7,9 @@ import '../storage/library_metadata_storage.dart';
 class LibraryRepository {
   final List<DocumentFile> Function() loadFiles;
 
-  final Future<void> Function() addFileAction;
+  final Future<DocumentFile?> Function() addFileAction;
+
+  final Future<void> Function() initializeFilesAction;
 
   final Future<LibraryMetadataStorage>
       metadataStorageFuture;
@@ -17,16 +19,24 @@ class LibraryRepository {
 
   Future<void>? _initializeFuture;
 
-  Future<void> _writeQueue = Future<void>.value();
+  Future<void> _writeQueue =
+      Future<void>.value();
 
   LibraryRepository({
     required this.loadFiles,
     required this.addFileAction,
+    required this.initializeFilesAction,
     required this.metadataStorageFuture,
   });
 
   Future<void> addFile() async {
+    await initializeFilesAction();
     await addFileAction();
+  }
+
+  Future<void> initialize() {
+    return _initializeFuture ??=
+        _loadMetadata();
   }
 
   List<LibraryDocument> getDocuments() {
@@ -34,8 +44,9 @@ class LibraryRepository {
 
     return files.map(
       (file) {
+        // ID 必须统一使用 DocumentFile.id。
         final storedJson =
-            _documentJsonById[file.path];
+            _documentJsonById[file.id];
 
         if (storedJson == null) {
           return LibraryDocument.fromFile(file);
@@ -53,14 +64,12 @@ class LibraryRepository {
     ).toList();
   }
 
-  Future<void> initialize() {
-    return _initializeFuture ??= _loadMetadata();
-  }
-
   Future<void> _loadMetadata() async {
-    final storage = await metadataStorageFuture;
+    final storage =
+        await metadataStorageFuture;
 
-    final documents = await storage.load();
+    final documents =
+        await storage.load();
 
     _documentJsonById.clear();
 
@@ -139,9 +148,11 @@ class LibraryRepository {
     await initialize();
 
     final currentIds =
-        documents.map(
-          (document) => document.id,
-        ).toSet();
+        documents
+            .map(
+              (document) => document.id,
+            )
+            .toSet();
 
     _documentJsonById.removeWhere(
       (id, _) => !currentIds.contains(id),
@@ -155,11 +166,26 @@ class LibraryRepository {
     await _persist();
   }
 
+  Future<void> removeDocument(
+    String documentId,
+  ) async {
+    await initialize();
+
+    _documentJsonById.remove(
+      documentId,
+    );
+
+    await _persist();
+  }
+
   Future<void> _persist() async {
     final storage =
         await metadataStorageFuture;
 
-    final documents = <LibraryDocument>[];
+    final documents =
+        <LibraryDocument>[];
+
+    final files = loadFiles();
 
     for (final json
         in _documentJsonById.values) {
@@ -169,12 +195,10 @@ class LibraryRepository {
         continue;
       }
 
-      final files = loadFiles();
-
       DocumentFile? file;
 
       for (final candidate in files) {
-        if (candidate.path == id) {
+        if (candidate.id == id) {
           file = candidate;
           break;
         }
@@ -196,11 +220,13 @@ class LibraryRepository {
       }
     }
 
-    final operation = _writeQueue.then(
+    final operation =
+        _writeQueue.then(
       (_) => storage.save(documents),
     );
 
-    _writeQueue = operation.then<void>(
+    _writeQueue =
+        operation.then<void>(
       (_) {},
       onError: (_, __) {},
     );

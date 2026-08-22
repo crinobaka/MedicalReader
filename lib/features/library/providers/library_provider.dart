@@ -1,12 +1,15 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:medicalreader/features/library/providers/library_repository_provider.dart';
 
+import '../../../core/file_manager/providers/file_manager_provider.dart';
 import '../models/library_document.dart';
+import '../providers/library_repository_provider.dart';
 
 final libraryProvider =
-    StateNotifierProvider<LibraryNotifier, List<LibraryDocument>>(
+    StateNotifierProvider<
+        LibraryNotifier,
+        List<LibraryDocument>>(
   (ref) {
     return LibraryNotifier(ref);
   },
@@ -17,19 +20,20 @@ class LibraryNotifier
   final Ref ref;
 
   LibraryNotifier(this.ref)
-      : super(
-          ref
-              .read(
-                libraryRepositoryProvider,
-              )
-              .getDocuments(),
-        ) {
+      : super(const []) {
     unawaited(
       _initialize(),
     );
   }
 
   Future<void> _initialize() async {
+    final fileNotifier =
+        ref.read(
+          documentFilesProvider.notifier,
+        );
+
+    await fileNotifier.initialize();
+
     final repository =
         ref.read(
           libraryRepositoryProvider,
@@ -41,7 +45,8 @@ class LibraryNotifier
       return;
     }
 
-    state = repository.getDocuments();
+    state =
+        repository.getDocuments();
   }
 
   Future<void> addFile() async {
@@ -52,10 +57,110 @@ class LibraryNotifier
 
     await repository.addFile();
 
-    state = repository.getDocuments();
+    if (!mounted) {
+      return;
+    }
+
+    state =
+        repository.getDocuments();
 
     await repository.saveDocuments(
       state,
     );
+  }
+
+  Future<void> removeDocument(
+    String documentId,
+  ) async {
+    final repository =
+        ref.read(
+          libraryRepositoryProvider,
+        );
+
+    final fileNotifier =
+        ref.read(
+          documentFilesProvider.notifier,
+        );
+
+    await fileNotifier.removeFile(
+      documentId,
+    );
+
+    await repository.removeDocument(
+      documentId,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    state =
+        repository.getDocuments();
+  }
+
+  Future<void> reload() async {
+    final fileNotifier =
+        ref.read(
+          documentFilesProvider.notifier,
+        );
+
+    await fileNotifier.reload();
+
+    final repository =
+        ref.read(
+          libraryRepositoryProvider,
+        );
+
+    await repository.initialize();
+
+    if (!mounted) {
+      return;
+    }
+
+    state =
+        repository.getDocuments();
+  }
+
+  Future<String> libraryPath() {
+    return ref
+        .read(
+          libraryStorageServiceProvider,
+        )
+        .getLibraryDirectory()
+        .then(
+          (directory) => directory.path,
+        );
+  }
+
+  Future<void> changeLibraryDirectory() async {
+    final storage =
+        ref.read(
+          libraryStorageServiceProvider,
+        );
+
+    final selected =
+        await storage.pickLibraryDirectory();
+
+    if (selected == null) {
+      return;
+    }
+
+    final fileNotifier =
+        ref.read(
+          documentFilesProvider.notifier,
+        );
+
+    await fileNotifier.reload();
+
+    if (!mounted) {
+      return;
+    }
+
+    state =
+        ref
+            .read(
+              libraryRepositoryProvider,
+            )
+            .getDocuments();
   }
 }
