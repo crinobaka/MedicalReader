@@ -2,9 +2,7 @@ import '../models/book_template.dart';
 
 /// 代码级 fallback。
 ///
-/// 正常情况下官方模板来自：
-/// assets/book_templates/*.json
-///
+/// 正常情况下官方模板来自 assets/book_templates/*.json。
 /// 只有官方模板资源加载失败时才使用这里。
 List<BookTemplate> buildBuiltinBookTemplates() {
   return const [
@@ -12,8 +10,7 @@ List<BookTemplate> buildBuiltinBookTemplates() {
       id: 'generic-medical-book',
       name: '通用医学专业书籍',
       version: '1.0.0',
-      description:
-          'MedicalReader 通用医学专业书籍官方基础模板。',
+      description: 'MedicalReader 通用医学专业书籍官方基础模板。',
       author: 'MedicalReader',
       data: {
         'metadata': {
@@ -38,6 +35,18 @@ List<BookTemplate> buildBuiltinBookTemplates() {
             'showBookPage': true,
             'contextBefore': 80,
             'contextAfter': 120,
+          },
+          'crop': {
+            'template': 'single',
+            'layout': 'horizontal',
+            'regions': [],
+            'inheritPrevious': false,
+            'adjustment': {
+              'left': 0,
+              'right': 0,
+              'top': 0,
+              'bottom': 0,
+            },
           },
         },
       },
