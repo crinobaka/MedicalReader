@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:ui' as ui;
 
 import '../../../core/ffi/medical_core.dart';
 import '../../../core/ffi/medical_core_image.dart';
 import '../models/crop_configuration.dart';
+import 'crop_configuration_store.dart';
 import 'crop_engine_service.dart';
 import 'page_cache.dart';
 import 'page_crop_service.dart';
@@ -25,13 +27,14 @@ class ReaderEngineService {
 
   MedicalCoreDocument openDocument({required String id, required String path}) {
     _pageCache.clear();
+    unawaited(CropConfigurationStore.instance.setCurrentDocument(id));
     return _core.openBook(id: id, path: path);
   }
 
   /// 渲染普通页面。
   ///
-  /// cropMargins=true 时保留原有自动去白边行为，保证现有 Reader 行为不变。
-  /// cropConfiguration 非空时则使用 Commit 4 Crop Engine 的模板/自定义区域。
+  /// cropMargins=true 时保留原有自动去白边行为。
+  /// 如果当前文档已经保存了 CropConfiguration，则自动使用该配置。
   Future<ui.Image> renderPage({
     required MedicalCoreDocument document,
     required int pageIndex,
@@ -40,7 +43,14 @@ class ReaderEngineService {
     CropConfiguration? cropConfiguration,
     List<CropRegion>? previousCropRegions,
   }) async {
-    final cropSignature = cropConfiguration?.cacheKey ?? '';
+    CropConfiguration? effectiveConfiguration = cropConfiguration;
+
+    if (effectiveConfiguration == null && cropMargins) {
+      effectiveConfiguration =
+          await CropConfigurationStore.instance.getForCurrentDocument();
+    }
+
+    final cropSignature = effectiveConfiguration?.cacheKey ?? '';
 
     final cached = _pageCache.get(
       pageIndex: pageIndex,
@@ -60,9 +70,9 @@ class ReaderEngineService {
 
     ui.Image image = await MedicalCoreImage.decode(page);
 
-    if (cropConfiguration != null) {
+    if (effectiveConfiguration != null) {
       final regions = _cropEngine.resolveRegions(
-        configuration: cropConfiguration,
+        configuration: effectiveConfiguration,
         pageIndex: pageIndex,
         previousRegions: previousCropRegions,
       );
@@ -71,7 +81,7 @@ class ReaderEngineService {
         final cropped = await _cropEngine.cropAndCompose(
           source: image,
           regions: regions,
-          layout: cropConfiguration.layout,
+          layout: effectiveConfiguration.layout,
         );
 
         if (!identical(cropped, image)) {
