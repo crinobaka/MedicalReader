@@ -3,8 +3,6 @@ import 'dart:ui' as ui;
 import '../models/crop_configuration.dart';
 
 /// Crop Engine：只处理“怎么算裁剪”，不修改原始 PDF。
-///
-/// 设计成独立服务后，Reader、设置页和以后真正的裁剪编辑器都可以复用同一套规则。
 class CropEngineService {
   const CropEngineService();
 
@@ -12,9 +10,7 @@ class CropEngineService {
     switch (template) {
       case CropTemplate.single:
       case CropTemplate.bookTemplate:
-        return const [
-          CropRegion(x: 0, y: 0, width: 1, height: 1),
-        ];
+        return const [CropRegion(x: 0, y: 0, width: 1, height: 1)];
       case CropTemplate.doubleColumn:
         return const [
           CropRegion(x: 0, y: 0, width: 0.5, height: 1),
@@ -34,7 +30,7 @@ class CropEngineService {
   /// 解析当前页最终应该使用的裁剪区域。
   ///
   /// inheritPrevious=true 时，如果本页没有自己的 regions，直接继承上一页，
-  /// 然后再应用 adjustment，从而实现“套用当前裁剪 + 微调”。
+  /// 然后再应用 adjustment，实现“套用当前裁剪 + 微调”。
   List<CropRegion> resolveRegions({
     required CropConfiguration configuration,
     int? pageIndex,
@@ -65,8 +61,6 @@ class CropEngineService {
   }
 
   /// 将一页图片按一个或多个归一化区域裁剪并拼接。
-  ///
-  /// 多区域默认横向排列，适合双栏、三栏医学教材；custom + grid 可由编辑器选择网格布局。
   Future<ui.Image> cropAndCompose({
     required ui.Image source,
     required List<CropRegion> regions,
@@ -81,10 +75,22 @@ class CropEngineService {
 
     try {
       for (final region in normalized) {
-        final width = (source.width * region.width).round().clamp(1, source.width);
-        final height = (source.height * region.height).round().clamp(1, source.height);
-        final left = (source.width * region.x).round().clamp(0, source.width - width);
-        final top = (source.height * region.y).round().clamp(0, source.height - height);
+        final width = (source.width * region.width)
+            .round()
+            .clamp(1, source.width)
+            .toInt();
+        final height = (source.height * region.height)
+            .round()
+            .clamp(1, source.height)
+            .toInt();
+        final left = (source.width * region.x)
+            .round()
+            .clamp(0, source.width - width)
+            .toInt();
+        final top = (source.height * region.y)
+            .round()
+            .clamp(0, source.height - height)
+            .toInt();
 
         final recorder = ui.PictureRecorder();
         final canvas = ui.Canvas(recorder);
@@ -94,10 +100,14 @@ class CropEngineService {
           width.toDouble(),
           height.toDouble(),
         );
-        final dst = ui.Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble());
+        final dst = ui.Rect.fromLTWH(
+          0,
+          0,
+          width.toDouble(),
+          height.toDouble(),
+        );
 
         canvas.drawImageRect(source, src, dst, ui.Paint());
-
         final picture = recorder.endRecording();
         crops.add(await picture.toImage(width, height));
       }
@@ -118,10 +128,7 @@ class CropEngineService {
 
       final recorder = ui.PictureRecorder();
       final canvas = ui.Canvas(recorder);
-
       var offsetX = 0;
-      var offsetY = 0;
-      var rowHeight = 0;
       final columns = layout == CropLayout.horizontal
           ? crops.length
           : (crops.length <= 2 ? 2 : 3);
@@ -130,18 +137,24 @@ class CropEngineService {
         final image = crops[index];
 
         if (layout == CropLayout.horizontal) {
-          canvas.drawImage(image, ui.Offset(offsetX.toDouble(), 0), ui.Paint());
+          canvas.drawImage(
+            image,
+            ui.Offset(offsetX.toDouble(), 0),
+            ui.Paint(),
+          );
           offsetX += image.width;
           continue;
         }
 
         final column = index % columns;
         final row = index ~/ columns;
-        final x = _gridX(crops, column, row, columns);
-        final y = _gridY(crops, column, row, columns);
-        canvas.drawImage(image, ui.Offset(x.toDouble(), y.toDouble()), ui.Paint());
-        rowHeight = rowHeight < image.height ? image.height : rowHeight;
-        offsetY = rowHeight;
+        final x = _gridX(crops, column, columns);
+        final y = _gridY(crops, row, columns);
+        canvas.drawImage(
+          image,
+          ui.Offset(x.toDouble(), y.toDouble()),
+          ui.Paint(),
+        );
       }
 
       final picture = recorder.endRecording();
@@ -183,7 +196,7 @@ class CropEngineService {
     return result;
   }
 
-  int _gridX(List<ui.Image> images, int column, int row, int columns) {
+  int _gridX(List<ui.Image> images, int column, int columns) {
     var x = 0;
     for (var c = 0; c < column; c++) {
       var width = 0;
@@ -195,7 +208,7 @@ class CropEngineService {
     return x;
   }
 
-  int _gridY(List<ui.Image> images, int column, int row, int columns) {
+  int _gridY(List<ui.Image> images, int row, int columns) {
     var y = 0;
     for (var r = 0; r < row; r++) {
       var height = 0;
