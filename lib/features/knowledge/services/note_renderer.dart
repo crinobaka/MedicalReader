@@ -6,40 +6,20 @@ import '../models/note_document.dart';
 
 /// Note 渲染入口。
 ///
-/// Renderer 首先判断 Note 格式，再选择唯一对应的解析器：
-/// Markdown -> Markdown renderer
-/// Markdown-HTML -> HTML renderer
-///
-/// Markdown-HTML 不会再次经过 Markdown parser。
+/// Markdown 与 Markdown-HTML 使用完全不同的 renderer。
+/// Markdown-HTML 永远不会再次经过 Markdown parser。
 class NoteRenderer {
   const NoteRenderer();
 
-  Widget build(NoteDocument note) {
+  Widget build(BuildContext context, NoteDocument note) {
     switch (note.format) {
       case ReaderNoteFormat.markdown:
         return Markdown(
           data: note.body,
           padding: EdgeInsets.zero,
-          styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(_context)).copyWith(
-            p: const TextStyle(textAlign: TextAlign.left),
-          ),
-        );
-      case ReaderNoteFormat.markdownHtml:
-        return _HtmlNoteView(html: note.body);
-    }
-  }
-
-  // The renderer is normally used through buildInContext below. Kept private
-  // so callers do not need to know about the implementation details.
-  BuildContext get _context => throw StateError('Use buildInContext');
-
-  Widget buildInContext(BuildContext context, NoteDocument note) {
-    switch (note.format) {
-      case ReaderNoteFormat.markdown:
-        return Markdown(
-          data: note.body,
-          padding: EdgeInsets.zero,
-          styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
+          styleSheet: MarkdownStyleSheet.fromTheme(
+            Theme.of(context),
+          ).copyWith(
             p: const TextStyle(textAlign: TextAlign.left),
           ),
         );
@@ -51,8 +31,8 @@ class NoteRenderer {
 
 /// Dedicated HTML renderer boundary.
 ///
-/// This intentionally does not invoke Markdown. A real HTML widget can replace
-/// this implementation without changing Note storage or the renderer API.
+/// 当前项目尚未引入 HTML widget 依赖，因此先保留独立边界。
+/// 后续接入 HTML renderer 时只替换这里，不修改 Note 数据模型。
 class _HtmlNoteView extends StatelessWidget {
   final String html;
 
