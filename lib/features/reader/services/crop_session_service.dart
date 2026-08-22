@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import '../../library/models/library_document.dart';
@@ -52,7 +53,9 @@ class CropSessionService {
       id: sessionId,
       sourceDocumentId: document.id,
       template: nextConfiguration.template.name,
-      regions: nextConfiguration.regions.map((region) => region.toJson()).toList(),
+      regions: nextConfiguration.regions
+          .map((region) => region.toJson())
+          .toList(),
       pageStart: nextConfiguration.pageStart,
       pageEnd: nextConfiguration.pageEnd,
       createdAt: nextConfiguration.createdAt,
@@ -93,7 +96,11 @@ class CropSessionService {
 
     try {
       final content = await file.readAsString();
-      return CropSession.fromJson(_decodeObject(content));
+      final decoded = jsonDecode(content);
+      if (decoded is! Map) {
+        return null;
+      }
+      return CropSession.fromJson(Map<String, dynamic>.from(decoded));
     } catch (_) {
       return null;
     }
@@ -139,11 +146,5 @@ class CropSessionService {
     return File(
       '${directory.path}${Platform.pathSeparator}manifest.json',
     );
-  }
-
-  Map<String, dynamic> _decodeObject(String content) {
-    final decoded = content.isEmpty ? const <String, dynamic>{} :
-        Map<String, dynamic>.from(const JsonDecoder().convert(content) as Map);
-    return decoded;
   }
 }
