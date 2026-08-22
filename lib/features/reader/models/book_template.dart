@@ -56,8 +56,7 @@ class BookTemplate {
   //
   // 注意：
   // 这里的配置全部属于“默认值”。
-  //
-  // 当前书籍的 目录.book.json 可以覆盖这些值。
+  // 当前书籍的目录.book.json 可以覆盖这些值。
   // ------------------------------------------------------------
   Map<String, dynamic> get defaults {
     return Map<String, dynamic>.from(
@@ -80,6 +79,18 @@ class BookTemplate {
   Map<String, dynamic> get searchContext {
     return Map<String, dynamic>.from(
       defaults['searchContext'] as Map? ?? const {},
+    );
+  }
+
+  // ------------------------------------------------------------
+  // 默认裁剪配置。
+  //
+  // Commit 4：裁剪配置同样属于模板默认值，具体书籍可以在
+  // 目录.book.json 中覆盖。
+  // ------------------------------------------------------------
+  Map<String, dynamic> get crop {
+    return Map<String, dynamic>.from(
+      defaults['crop'] as Map? ?? const {},
     );
   }
 
