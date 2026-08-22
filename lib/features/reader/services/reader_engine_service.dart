@@ -31,10 +31,10 @@ class ReaderEngineService {
     return _core.openBook(id: id, path: path);
   }
 
-  /// 渲染普通页面。
+  /// 渲染页面。
   ///
-  /// cropMargins=true 时保留原有自动去白边行为。
-  /// 如果当前文档已经保存了 CropConfiguration，则自动使用该配置。
+  /// 已保存的单栏/双栏/三栏/自定义模板是页面布局，因此独立于
+  /// [cropMargins] 这个旧的“自动去白边”开关。
   Future<ui.Image> renderPage({
     required MedicalCoreDocument document,
     required int pageIndex,
@@ -45,10 +45,14 @@ class ReaderEngineService {
   }) async {
     CropConfiguration? effectiveConfiguration = cropConfiguration;
 
-    if (effectiveConfiguration == null && cropMargins) {
+    if (effectiveConfiguration == null) {
       effectiveConfiguration =
           await CropConfigurationStore.instance.getForCurrentDocument();
     }
+
+    final hasConfiguredRegions =
+        effectiveConfiguration != null &&
+        effectiveConfiguration.regions.isNotEmpty;
 
     final cropSignature = effectiveConfiguration?.cacheKey ?? '';
 
@@ -70,7 +74,7 @@ class ReaderEngineService {
 
     ui.Image image = await MedicalCoreImage.decode(page);
 
-    if (effectiveConfiguration != null) {
+    if (effectiveConfiguration != null && hasConfiguredRegions) {
       final regions = _cropEngine.resolveRegions(
         configuration: effectiveConfiguration,
         pageIndex: pageIndex,
