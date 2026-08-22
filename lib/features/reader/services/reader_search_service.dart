@@ -5,6 +5,8 @@ import '../../../core/ffi/medical_core.dart';
 import '../models/reader_document_session.dart';
 import '../models/reader_search_hit.dart';
 
+export '../models/reader_search_hit.dart';
+
 class ReaderSearchResult {
   final int pageIndex;
   final int hitCount;
@@ -76,7 +78,6 @@ class ReaderSearchService {
     }
 
     final results = _parseResults(encoded);
-
     if (session == null) {
       return results;
     }
