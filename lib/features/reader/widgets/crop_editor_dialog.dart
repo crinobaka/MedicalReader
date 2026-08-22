@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import '../models/crop_configuration.dart';
 import '../services/crop_engine_service.dart';
 
-/// Commit 4 裁剪编辑器。
+/// 裁剪编辑器。
 ///
-/// 这个组件只负责编辑 CropConfiguration，不直接修改 PDF。
-/// 调用方关闭弹窗后，把返回的配置交给 ReaderEngineService 即可。
+/// 除了编辑配置，这里提供实时的区域示意图，让双栏/三栏/自定义不会再
+/// 只是“改了一个下拉框却看不出区别”。真正的 PDF 渲染仍由 ReaderEngine 完成。
 class CropEditorDialog extends StatefulWidget {
   final CropConfiguration initial;
 
@@ -50,7 +50,6 @@ class _CropEditorDialogState extends State<CropEditorDialog> {
     _pageStart = value.pageStart;
     _pageEnd = value.pageEnd;
     _regions = List.of(value.regions);
-
     _pageStartController.text = value.pageStart?.toString() ?? '';
     _pageEndController.text = value.pageEnd?.toString() ?? '';
   }
@@ -83,8 +82,7 @@ class _CropEditorDialogState extends State<CropEditorDialog> {
 
   void _removeRegion(int index) {
     setState(() {
-      final next = List<CropRegion>.of(_regions)..removeAt(index);
-      _regions = next;
+      _regions = List<CropRegion>.of(_regions)..removeAt(index);
     });
   }
 
@@ -92,6 +90,36 @@ class _CropEditorDialogState extends State<CropEditorDialog> {
     setState(() {
       _regions[index] = region.clamp();
     });
+  }
+
+  List<CropRegion> get _previewRegions {
+    final regions = _template == CropTemplate.custom
+        ? _regions
+        : _engine.defaultRegions(_template);
+    return regions
+        .map((region) => region.adjust(CropAdjustment(
+              left: _left,
+              right: _right,
+              top: _top,
+              bottom: _bottom,
+            )))
+        .where((region) => region.width > 0 && region.height > 0)
+        .toList();
+  }
+
+  String get _templateDescription {
+    switch (_template) {
+      case CropTemplate.single:
+        return '整页显示，不拆分页面。';
+      case CropTemplate.doubleColumn:
+        return '一页 PDF 拆成左、右两个区域，再横向拼接。';
+      case CropTemplate.tripleColumn:
+        return '一页 PDF 拆成三个区域，再按当前布局排列。';
+      case CropTemplate.custom:
+        return '只使用下面定义的区域。';
+      case CropTemplate.bookTemplate:
+        return '使用书籍模板提供的区域；没有区域时按整页处理。';
+    }
   }
 
   void _submit() {
@@ -126,11 +154,13 @@ class _CropEditorDialogState extends State<CropEditorDialog> {
     return AlertDialog(
       title: const Text('裁剪设置'),
       content: SizedBox(
-        width: 560,
+        width: 600,
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              _buildPreview(context),
+              const SizedBox(height: 16),
               DropdownButtonFormField<CropTemplate>(
                 value: _template,
                 decoration: const InputDecoration(labelText: '裁剪模板'),
@@ -145,6 +175,8 @@ class _CropEditorDialogState extends State<CropEditorDialog> {
                   if (value != null) _selectTemplate(value);
                 },
               ),
+              const SizedBox(height: 6),
+              Text(_templateDescription, style: Theme.of(context).textTheme.bodySmall),
               const SizedBox(height: 12),
               DropdownButtonFormField<CropLayout>(
                 value: _layout,
@@ -167,21 +199,9 @@ class _CropEditorDialogState extends State<CropEditorDialog> {
               ),
               Row(
                 children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _pageStartController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: '起始页'),
-                    ),
-                  ),
+                  Expanded(child: TextField(controller: _pageStartController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: '起始页'))),
                   const SizedBox(width: 12),
-                  Expanded(
-                    child: TextField(
-                      controller: _pageEndController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: '结束页'),
-                    ),
-                  ),
+                  Expanded(child: TextField(controller: _pageEndController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: '结束页'))),
                 ],
               ),
               const SizedBox(height: 16),
@@ -192,65 +212,82 @@ class _CropEditorDialogState extends State<CropEditorDialog> {
               _buildAdjustmentSlider('下边', _bottom, (value) => setState(() => _bottom = value)),
               if (_template == CropTemplate.custom) ...[
                 const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Text('自定义区域', style: Theme.of(context).textTheme.titleMedium),
-                    const Spacer(),
-                    IconButton(
-                      tooltip: '添加区域',
-                      onPressed: _addRegion,
-                      icon: const Icon(Icons.add_box_outlined),
-                    ),
-                  ],
-                ),
+                Row(children: [
+                  Text('自定义区域', style: Theme.of(context).textTheme.titleMedium),
+                  const Spacer(),
+                  IconButton(tooltip: '添加区域', onPressed: _addRegion, icon: const Icon(Icons.add_box_outlined)),
+                ]),
                 if (_regions.isEmpty)
                   const Text('暂无区域，点击右侧 + 添加。')
                 else
-                  ...List.generate(_regions.length, (index) {
-                    return _buildRegionEditor(index, _regions[index]);
-                  }),
+                  ...List.generate(_regions.length, (index) => _buildRegionEditor(index, _regions[index])),
               ],
             ],
           ),
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
-        ),
-        FilledButton(
-          onPressed: _submit,
-          child: const Text('保存裁剪'),
-        ),
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('取消')),
+        FilledButton(onPressed: _submit, child: const Text('保存并应用')),
       ],
     );
   }
 
-  Widget _buildAdjustmentSlider(
-    String label,
-    double value,
-    ValueChanged<double> onChanged,
-  ) {
-    return Row(
-      children: [
-        SizedBox(width: 48, child: Text(label)),
-        Expanded(
-          child: Slider(
-            value: value.clamp(-0.20, 0.20).toDouble(),
-            min: -0.20,
-            max: 0.20,
-            divisions: 80,
-            label: '${(value * 100).toStringAsFixed(1)}%',
-            onChanged: onChanged,
-          ),
-        ),
-        SizedBox(
-          width: 60,
-          child: Text('${(value * 100).toStringAsFixed(1)}%'),
-        ),
-      ],
+  Widget _buildPreview(BuildContext context) {
+    return Container(
+      height: 180,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Theme.of(context).dividerColor),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final regions = _previewRegions;
+          return Stack(
+            children: [
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
+                    border: Border.all(color: Theme.of(context).dividerColor),
+                  ),
+                ),
+              ),
+              ...regions.asMap().entries.map((entry) {
+                final index = entry.key;
+                final region = entry.value.clamp();
+                return Positioned(
+                  left: region.x * constraints.maxWidth,
+                  top: region.y * constraints.maxHeight,
+                  width: region.width * constraints.maxWidth,
+                  height: region.height * constraints.maxHeight,
+                  child: Container(
+                    alignment: Alignment.center,
+                    margin: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Theme.of(context).colorScheme.primary, width: 2),
+                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
+                    ),
+                    child: Text('区域 ${index + 1}'),
+                  ),
+                );
+              }),
+            ],
+          );
+        },
+      ),
     );
+  }
+
+  Widget _buildAdjustmentSlider(String label, double value, ValueChanged<double> onChanged) {
+    return Row(children: [
+      SizedBox(width: 48, child: Text(label)),
+      Expanded(child: Slider(value: value.clamp(-0.20, 0.20).toDouble(), min: -0.20, max: 0.20, divisions: 80, label: '${(value * 100).toStringAsFixed(1)}%', onChanged: onChanged)),
+      SizedBox(width: 60, child: Text('${(value * 100).toStringAsFixed(1)}%')),
+    ]);
   }
 
   Widget _buildRegionEditor(int index, CropRegion region) {
@@ -258,81 +295,22 @@ class _CropEditorDialogState extends State<CropEditorDialog> {
       margin: const EdgeInsets.only(bottom: 8),
       child: Padding(
         padding: const EdgeInsets.all(8),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Text('区域 ${index + 1}'),
-                const Spacer(),
-                IconButton(
-                  tooltip: '删除区域',
-                  onPressed: () => _removeRegion(index),
-                  icon: const Icon(Icons.delete_outline),
-                ),
-              ],
-            ),
-            _buildRegionSlider('X', region.x, 0, 1, (value) {
-              _updateRegion(index, CropRegion(
-                x: value,
-                y: region.y,
-                width: region.width,
-                height: region.height,
-              ));
-            }),
-            _buildRegionSlider('Y', region.y, 0, 1, (value) {
-              _updateRegion(index, CropRegion(
-                x: region.x,
-                y: value,
-                width: region.width,
-                height: region.height,
-              ));
-            }),
-            _buildRegionSlider('宽', region.width, 0.01, 1, (value) {
-              _updateRegion(index, CropRegion(
-                x: region.x,
-                y: region.y,
-                width: value,
-                height: region.height,
-              ));
-            }),
-            _buildRegionSlider('高', region.height, 0.01, 1, (value) {
-              _updateRegion(index, CropRegion(
-                x: region.x,
-                y: region.y,
-                width: region.width,
-                height: value,
-              ));
-            }),
-          ],
-        ),
+        child: Column(children: [
+          Row(children: [Text('区域 ${index + 1}'), const Spacer(), IconButton(tooltip: '删除区域', onPressed: () => _removeRegion(index), icon: const Icon(Icons.delete_outline))]),
+          _buildRegionSlider('X', region.x, 0, 1, (value) => _updateRegion(index, CropRegion(x: value, y: region.y, width: region.width, height: region.height))),
+          _buildRegionSlider('Y', region.y, 0, 1, (value) => _updateRegion(index, CropRegion(x: region.x, y: value, width: region.width, height: region.height))),
+          _buildRegionSlider('宽', region.width, 0.01, 1, (value) => _updateRegion(index, CropRegion(x: region.x, y: region.y, width: value, height: region.height))),
+          _buildRegionSlider('高', region.height, 0.01, 1, (value) => _updateRegion(index, CropRegion(x: region.x, y: region.y, width: region.width, height: value))),
+        ]),
       ),
     );
   }
 
-  Widget _buildRegionSlider(
-    String label,
-    double value,
-    double min,
-    double max,
-    ValueChanged<double> onChanged,
-  ) {
-    return Row(
-      children: [
-        SizedBox(width: 32, child: Text(label)),
-        Expanded(
-          child: Slider(
-            value: value.clamp(min, max).toDouble(),
-            min: min,
-            max: max,
-            divisions: 100,
-            onChanged: onChanged,
-          ),
-        ),
-        SizedBox(
-          width: 52,
-          child: Text('${(value * 100).toStringAsFixed(0)}%'),
-        ),
-      ],
-    );
+  Widget _buildRegionSlider(String label, double value, double min, double max, ValueChanged<double> onChanged) {
+    return Row(children: [
+      SizedBox(width: 32, child: Text(label)),
+      Expanded(child: Slider(value: value.clamp(min, max).toDouble(), min: min, max: max, divisions: 100, onChanged: onChanged)),
+      SizedBox(width: 52, child: Text('${(value * 100).toStringAsFixed(0)}%')),
+    ]);
   }
 }
