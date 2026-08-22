@@ -2,24 +2,14 @@ import 'dart:convert';
 
 /// 当前书籍自己的配置文件。
 ///
-/// 对应书籍目录中的：
-///
-/// 原文.pdf
-/// 目录.book.json
-///
-/// BookTemplate 是“默认值”，
-/// BookManifest 是“这一本书自己的数据和覆盖配置”。
+/// BookTemplate 是“默认值”，BookManifest 是“这一本书自己的数据和覆盖配置”。
 class BookManifest {
   final int version;
-
   final String? templateId;
-
   final Map<String, dynamic> metadata;
-
   final Map<String, dynamic> bookPageMapping;
-
   final Map<String, dynamic> searchContext;
-
+  final Map<String, dynamic> crop;
   final List<Map<String, dynamic>> bookTree;
 
   const BookManifest({
@@ -28,6 +18,7 @@ class BookManifest {
     this.metadata = const {},
     this.bookPageMapping = const {},
     this.searchContext = const {},
+    this.crop = const {},
     this.bookTree = const [],
   });
 
@@ -38,6 +29,7 @@ class BookManifest {
       metadata: _readMap(json['metadata']),
       bookPageMapping: _readMap(json['bookPageMapping']),
       searchContext: _readMap(json['searchContext']),
+      crop: _readMap(json['crop']),
       bookTree: _readNodeList(json['bookTree']),
     );
   }
@@ -47,10 +39,9 @@ class BookManifest {
       'version': version,
       if (templateId != null) 'templateId': templateId,
       if (metadata.isNotEmpty) 'metadata': metadata,
-      if (bookPageMapping.isNotEmpty)
-        'bookPageMapping': bookPageMapping,
-      if (searchContext.isNotEmpty)
-        'searchContext': searchContext,
+      if (bookPageMapping.isNotEmpty) 'bookPageMapping': bookPageMapping,
+      if (searchContext.isNotEmpty) 'searchContext': searchContext,
+      if (crop.isNotEmpty) 'crop': crop,
       if (bookTree.isNotEmpty) 'bookTree': bookTree,
     };
   }
@@ -65,7 +56,6 @@ class BookManifest {
     }
 
     final text = value.trim();
-
     return text.isEmpty ? null : text;
   }
 
@@ -84,9 +74,7 @@ class BookManifest {
 
     return value
         .whereType<Map>()
-        .map(
-          (item) => Map<String, dynamic>.from(item),
-        )
+        .map((item) => Map<String, dynamic>.from(item))
         .toList();
   }
 }
