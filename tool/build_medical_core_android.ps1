@@ -192,9 +192,7 @@ if ($patchelf) {
         Write-Host "Warning: patchelf failed" -ForegroundColor Red
     }
 } else {
-    Write-Host "patchelf not found." -ForegroundColor Red
-    Write-Host "Please install it first (in Git Bash): pacman -S patchelf" -ForegroundColor Yellow
-    Write-Host "Skipping removal – libstdc++.so dependency may remain." -ForegroundColor Yellow
+    Write-Host "patchelf not found. Please install: pacman -S patchelf" -ForegroundColor Red
 }
 
 # ------------------------------------------------------------

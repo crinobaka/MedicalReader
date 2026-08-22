@@ -6,6 +6,4 @@ rustflags = [
     "link-arg=-lc++_shared",
     "-C",
     "link-arg=-Wl,--as-needed",
-    "-C",
-    "link-arg=-stdlib=libc++",
 ]
