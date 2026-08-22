@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/reader_search_service.dart';
+import '../services/crop_configuration_store.dart';
 import '../models/reader_document_session.dart';
 import '../models/book_tree_index.dart';
 import '../models/book_page_mapping.dart';
@@ -56,6 +57,22 @@ class _ReaderSearchDialogState extends State<ReaderSearchDialog> {
     super.dispose();
   }
 
+  Future<ReaderDocumentSession> _resolveSession() async {
+    if (widget.session != null) {
+      return widget.session!;
+    }
+
+    final cropConfiguration = await CropConfigurationStore.instance.get(widget.documentId);
+
+    return ReaderDocumentSession.initial(
+      documentId: widget.documentId,
+      documentPath: widget.documentPath,
+      pageCount: 0,
+      currentPage: widget.currentPage,
+      cropConfiguration: cropConfiguration,
+    );
+  }
+
   Future<void> _search() async {
     final query = _controller.text.trim();
     if (query.isEmpty || _searching) {
@@ -72,11 +89,12 @@ class _ReaderSearchDialogState extends State<ReaderSearchDialog> {
       final searchContext = widget.searchContext;
       final contextBefore = (searchContext['contextBefore'] as num?)?.toInt() ?? 80;
       final contextAfter = (searchContext['contextAfter'] as num?)?.toInt() ?? 120;
+      final session = await _resolveSession();
 
       final results = await widget.searchService.search(
         documentId: widget.documentId,
         documentPath: widget.documentPath,
-        session: widget.session,
+        session: session,
         query: query,
         contextBefore: contextBefore,
         contextAfter: contextAfter,
