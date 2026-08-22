@@ -56,6 +56,50 @@ class AnnotationNoteAttachmentService {
     }
   }
 
+  /// 重新生成截图并把新的派生附件写回 Annotation。
+  ///
+  /// 旧截图会从 Annotation 的 attachments 中移除并删除，避免用户
+  /// 修改勾划后 Note 仍然指向旧 PNG。
+  Future<ReaderAnnotation> rebuildAndUpdateAnnotation(
+    LibraryDocument document,
+    ReaderAnnotation annotation,
+  ) async {
+    final attachment = await rebuildNoteImage(document, annotation);
+    final service = const ReaderAnnotationService();
+    final updated = annotation.copyWith(
+      attachments: [
+        ...annotation.attachments.where(
+          (item) => !item.startsWith('attachments/annotation_${annotation.id}.'),
+        ),
+        attachment,
+      ],
+      updatedAt: DateTime.now(),
+    );
+
+    await service.save(
+      document,
+      (await service.load(document))
+          .map((item) => item.id == annotation.id ? updated : item)
+          .toList(),
+    );
+
+    for (final oldAttachment in annotation.attachments) {
+      if (!oldAttachment.startsWith('attachments/annotation_${annotation.id}.')) {
+        continue;
+      }
+      final oldFile = File(
+        '${File(document.file.path).parent.path}${Platform.pathSeparator}$oldAttachment',
+      );
+      if (oldFile.path != File(document.file.path).parent.uri.resolve(attachment).toFilePath()) {
+        try {
+          await oldFile.delete();
+        } catch (_) {}
+      }
+    }
+
+    return updated;
+  }
+
   Rect? _normalizedCropRect(
     List<double> geometry,
     double pageWidth,
