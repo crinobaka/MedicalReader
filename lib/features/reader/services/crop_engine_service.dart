@@ -28,9 +28,6 @@ class CropEngineService {
   }
 
   /// 解析当前页最终应该使用的裁剪区域。
-  ///
-  /// inheritPrevious=true 时，如果本页没有自己的 regions，直接继承上一页，
-  /// 然后再应用 adjustment，实现“套用当前裁剪 + 微调”。
   List<CropRegion> resolveRegions({
     required CropConfiguration configuration,
     int? pageIndex,
@@ -56,21 +53,28 @@ class CropEngineService {
 
     return source
         .map((region) => region.adjust(configuration.adjustment))
-        .where((region) => region.width > 0 && region.height > 0)
+        .where((region) => !region.excluded && region.width > 0 && region.height > 0)
         .toList();
   }
 
-  /// 将一页图片按一个或多个归一化区域裁剪并拼接。
+  /// 保留自然分隔出来的所有区域，但只返回实际参与输出的区域。
+  List<CropRegion> selectableRegions(List<CropRegion> regions) =>
+      regions.where((region) => !region.excluded).toList();
+
   Future<ui.Image> cropAndCompose({
     required ui.Image source,
     required List<CropRegion> regions,
     CropLayout layout = CropLayout.horizontal,
   }) async {
-    if (regions.isEmpty) {
+    final normalized = regions
+        .where((region) => !region.excluded)
+        .map((region) => region.clamp())
+        .toList();
+
+    if (normalized.isEmpty) {
       return source;
     }
 
-    final normalized = regions.map((region) => region.clamp()).toList();
     final crops = <ui.Image>[];
 
     try {
@@ -100,13 +104,7 @@ class CropEngineService {
           width.toDouble(),
           height.toDouble(),
         );
-        final dst = ui.Rect.fromLTWH(
-          0,
-          0,
-          width.toDouble(),
-          height.toDouble(),
-        );
-
+        final dst = ui.Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble());
         canvas.drawImageRect(source, src, dst, ui.Paint());
         final picture = recorder.endRecording();
         crops.add(await picture.toImage(width, height));
@@ -118,7 +116,6 @@ class CropEngineService {
 
       final cellWidths = crops.map((image) => image.width).toList();
       final cellHeights = crops.map((image) => image.height).toList();
-
       final canvasWidth = layout == CropLayout.horizontal
           ? cellWidths.fold<int>(0, (sum, value) => sum + value)
           : _gridWidth(cellWidths);
@@ -135,24 +132,20 @@ class CropEngineService {
 
       for (var index = 0; index < crops.length; index++) {
         final image = crops[index];
-
         if (layout == CropLayout.horizontal) {
-          canvas.drawImage(
-            image,
-            ui.Offset(offsetX.toDouble(), 0),
-            ui.Paint(),
-          );
+          canvas.drawImage(image, ui.Offset(offsetX.toDouble(), 0), ui.Paint());
           offsetX += image.width;
           continue;
         }
 
         final column = index % columns;
         final row = index ~/ columns;
-        final x = _gridX(crops, column, columns);
-        final y = _gridY(crops, row, columns);
         canvas.drawImage(
           image,
-          ui.Offset(x.toDouble(), y.toDouble()),
+          ui.Offset(
+            _gridX(crops, column, columns).toDouble(),
+            _gridY(crops, row, columns).toDouble(),
+          ),
           ui.Paint(),
         );
       }
