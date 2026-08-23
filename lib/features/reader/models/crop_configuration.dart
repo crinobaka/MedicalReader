@@ -84,7 +84,6 @@ class CropConfiguration {
 
   String encode() => const JsonEncoder.withIndent('  ').convert(toJson());
 
-  /// 用于页面缓存键，确保裁剪参数变化后不会复用旧图像。
   String get cacheKey => jsonEncode(toJson());
 
   CropConfiguration copyWith({
@@ -114,17 +113,23 @@ class CropConfiguration {
   }
 }
 
+/// 页面被自然分隔出的一个候选区域。
+///
+/// excluded=true 表示“这块被分隔出来，但不参与最终编号/输出”。
+/// 这样一个页面可以保留完整的自然分隔信息，而不必强迫每块区域都成为阅读区域。
 class CropRegion {
   final double x;
   final double y;
   final double width;
   final double height;
+  final bool excluded;
 
   const CropRegion({
     required this.x,
     required this.y,
     required this.width,
     required this.height,
+    this.excluded = false,
   });
 
   factory CropRegion.fromJson(Map<String, dynamic> json) {
@@ -133,6 +138,7 @@ class CropRegion {
       y: (json['y'] as num?)?.toDouble() ?? 0,
       width: (json['width'] as num?)?.toDouble() ?? 1,
       height: (json['height'] as num?)?.toDouble() ?? 1,
+      excluded: json['excluded'] == true,
     ).clamp();
   }
 
@@ -141,6 +147,7 @@ class CropRegion {
         'y': y,
         'width': width,
         'height': height,
+        if (excluded) 'excluded': true,
       };
 
   CropRegion clamp() {
@@ -154,7 +161,24 @@ class CropRegion {
       y: nextY,
       width: nextWidth,
       height: nextHeight,
+      excluded: excluded,
     );
+  }
+
+  CropRegion copyWith({
+    double? x,
+    double? y,
+    double? width,
+    double? height,
+    bool? excluded,
+  }) {
+    return CropRegion(
+      x: x ?? this.x,
+      y: y ?? this.y,
+      width: width ?? this.width,
+      height: height ?? this.height,
+      excluded: excluded ?? this.excluded,
+    ).clamp();
   }
 
   CropRegion adjust(CropAdjustment adjustment) {
@@ -163,6 +187,7 @@ class CropRegion {
       y: y + adjustment.top,
       width: width - adjustment.left - adjustment.right,
       height: height - adjustment.top - adjustment.bottom,
+      excluded: excluded,
     ).clamp();
   }
 }
