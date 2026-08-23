@@ -5,15 +5,12 @@ import '../services/crop_engine_service.dart';
 
 /// 裁剪编辑器。
 ///
-/// 除了编辑配置，这里提供实时的区域示意图，让双栏/三栏/自定义不会再
-/// 只是“改了一个下拉框却看不出区别”。真正的 PDF 渲染仍由 ReaderEngine 完成。
+/// 页面分隔出来的区域可以独立标记为“排除”。排除区域仍保留在配置中，
+/// 但不会参与最终编号和拼接；长按区域即可在参与/排除之间切换。
 class CropEditorDialog extends StatefulWidget {
   final CropConfiguration initial;
 
-  const CropEditorDialog({
-    super.key,
-    required this.initial,
-  });
+  const CropEditorDialog({super.key, required this.initial});
 
   @override
   State<CropEditorDialog> createState() => _CropEditorDialogState();
@@ -21,7 +18,6 @@ class CropEditorDialog extends StatefulWidget {
 
 class _CropEditorDialogState extends State<CropEditorDialog> {
   final CropEngineService _engine = const CropEngineService();
-
   late CropTemplate _template;
   late CropLayout _layout;
   late bool _inheritPrevious;
@@ -64,45 +60,45 @@ class _CropEditorDialogState extends State<CropEditorDialog> {
   void _selectTemplate(CropTemplate value) {
     setState(() {
       _template = value;
-      if (value != CropTemplate.custom) {
-        _regions = _engine.defaultRegions(value);
-      }
+      _regions = List.of(_engine.defaultRegions(value));
+    });
+  }
+
+  void _materializeRegions() {
+    if (_regions.isEmpty) _regions = List.of(_engine.defaultRegions(_template));
+  }
+
+  void _toggleExcluded(int index) {
+    setState(() {
+      _materializeRegions();
+      _template = CropTemplate.custom;
+      _regions[index] = _regions[index].copyWith(excluded: !_regions[index].excluded);
     });
   }
 
   void _addRegion() {
     setState(() {
-      _regions = [
-        ..._regions,
-        const CropRegion(x: 0.1, y: 0.1, width: 0.8, height: 0.8),
-      ];
+      _regions = [..._regions, const CropRegion(x: 0.1, y: 0.1, width: 0.8, height: 0.8)];
       _template = CropTemplate.custom;
     });
   }
 
   void _removeRegion(int index) {
-    setState(() {
-      _regions = List<CropRegion>.of(_regions)..removeAt(index);
-    });
+    setState(() => _regions = List<CropRegion>.of(_regions)..removeAt(index));
   }
 
   void _updateRegion(int index, CropRegion region) {
     setState(() {
+      _materializeRegions();
+      _template = CropTemplate.custom;
       _regions[index] = region.clamp();
     });
   }
 
   List<CropRegion> get _previewRegions {
-    final regions = _template == CropTemplate.custom
-        ? _regions
-        : _engine.defaultRegions(_template);
+    final regions = _regions.isNotEmpty ? _regions : _engine.defaultRegions(_template);
     return regions
-        .map((region) => region.adjust(CropAdjustment(
-              left: _left,
-              right: _right,
-              top: _top,
-              bottom: _bottom,
-            )))
+        .map((region) => region.adjust(CropAdjustment(left: _left, right: _right, top: _top, bottom: _bottom)))
         .where((region) => region.width > 0 && region.height > 0)
         .toList();
   }
@@ -116,7 +112,7 @@ class _CropEditorDialogState extends State<CropEditorDialog> {
       case CropTemplate.tripleColumn:
         return '一页 PDF 拆成三个区域，再按当前布局排列。';
       case CropTemplate.custom:
-        return '只使用下面定义的区域。';
+        return '长按区域可切换是否参与编号和输出；斜线区域不会参与。';
       case CropTemplate.bookTemplate:
         return '使用书籍模板提供的区域；没有区域时按整页处理。';
     }
@@ -125,28 +121,18 @@ class _CropEditorDialogState extends State<CropEditorDialog> {
   void _submit() {
     _pageStart = int.tryParse(_pageStartController.text.trim());
     _pageEnd = int.tryParse(_pageEndController.text.trim());
-
-    final configuration = CropConfiguration(
+    Navigator.of(context).pop(CropConfiguration(
       template: _template,
       layout: _layout,
-      regions: _template == CropTemplate.custom
-          ? _regions.map((region) => region.clamp()).toList()
-          : const [],
+      regions: _regions.map((region) => region.clamp()).toList(),
       pageStart: _pageStart,
       pageEnd: _pageEnd,
       inheritPrevious: _inheritPrevious,
-      adjustment: CropAdjustment(
-        left: _left,
-        right: _right,
-        top: _top,
-        bottom: _bottom,
-      ),
+      adjustment: CropAdjustment(left: _left, right: _right, top: _top, bottom: _bottom),
       sourceDocumentId: widget.initial.sourceDocumentId,
       temporarySessionId: widget.initial.temporarySessionId,
       createdAt: widget.initial.createdAt,
-    );
-
-    Navigator.of(context).pop(configuration);
+    ));
   }
 
   @override
@@ -160,6 +146,8 @@ class _CropEditorDialogState extends State<CropEditorDialog> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildPreview(context),
+              const SizedBox(height: 8),
+              Text('长按区域：切换参与/排除。排除区域保留分隔线，但不编号、不输出。', style: Theme.of(context).textTheme.bodySmall),
               const SizedBox(height: 16),
               DropdownButtonFormField<CropTemplate>(
                 value: _template,
@@ -171,9 +159,7 @@ class _CropEditorDialogState extends State<CropEditorDialog> {
                   DropdownMenuItem(value: CropTemplate.custom, child: Text('自定义')),
                   DropdownMenuItem(value: CropTemplate.bookTemplate, child: Text('书籍模板')),
                 ],
-                onChanged: (value) {
-                  if (value != null) _selectTemplate(value);
-                },
+                onChanged: (value) { if (value != null) _selectTemplate(value); },
               ),
               const SizedBox(height: 6),
               Text(_templateDescription, style: Theme.of(context).textTheme.bodySmall),
@@ -185,9 +171,7 @@ class _CropEditorDialogState extends State<CropEditorDialog> {
                   DropdownMenuItem(value: CropLayout.horizontal, child: Text('横向拼接')),
                   DropdownMenuItem(value: CropLayout.grid, child: Text('自动网格')),
                 ],
-                onChanged: (value) {
-                  if (value != null) setState(() => _layout = value);
-                },
+                onChanged: (value) { if (value != null) setState(() => _layout = value); },
               ),
               const SizedBox(height: 12),
               SwitchListTile.adaptive(
@@ -197,13 +181,11 @@ class _CropEditorDialogState extends State<CropEditorDialog> {
                 value: _inheritPrevious,
                 onChanged: (value) => setState(() => _inheritPrevious = value),
               ),
-              Row(
-                children: [
-                  Expanded(child: TextField(controller: _pageStartController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: '起始页'))),
-                  const SizedBox(width: 12),
-                  Expanded(child: TextField(controller: _pageEndController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: '结束页'))),
-                ],
-              ),
+              Row(children: [
+                Expanded(child: TextField(controller: _pageStartController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: '起始页'))),
+                const SizedBox(width: 12),
+                Expanded(child: TextField(controller: _pageEndController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: '结束页'))),
+              ]),
               const SizedBox(height: 16),
               Text('当前裁剪基础上的增量调整', style: Theme.of(context).textTheme.titleMedium),
               _buildAdjustmentSlider('左边', _left, (value) => setState(() => _left = value)),
@@ -246,37 +228,37 @@ class _CropEditorDialogState extends State<CropEditorDialog> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final regions = _previewRegions;
-          return Stack(
-            children: [
-              Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surface,
-                    border: Border.all(color: Theme.of(context).dividerColor),
-                  ),
-                ),
-              ),
-              ...regions.asMap().entries.map((entry) {
-                final index = entry.key;
-                final region = entry.value.clamp();
-                return Positioned(
-                  left: region.x * constraints.maxWidth,
-                  top: region.y * constraints.maxHeight,
-                  width: region.width * constraints.maxWidth,
-                  height: region.height * constraints.maxHeight,
+          var includedNumber = 0;
+          return Stack(children: [
+            Positioned.fill(child: DecoratedBox(decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, border: Border.all(color: Theme.of(context).dividerColor)))),
+            ...regions.asMap().entries.map((entry) {
+              final index = entry.key;
+              final region = entry.value.clamp();
+              final excluded = region.excluded;
+              final number = excluded ? null : ++includedNumber;
+              return Positioned(
+                left: region.x * constraints.maxWidth,
+                top: region.y * constraints.maxHeight,
+                width: region.width * constraints.maxWidth,
+                height: region.height * constraints.maxHeight,
+                child: GestureDetector(
+                  onLongPress: () => _toggleExcluded(index),
                   child: Container(
                     alignment: Alignment.center,
                     margin: const EdgeInsets.all(2),
                     decoration: BoxDecoration(
-                      border: Border.all(color: Theme.of(context).colorScheme.primary, width: 2),
-                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
+                      border: Border.all(color: excluded ? Theme.of(context).colorScheme.outline : Theme.of(context).colorScheme.primary, width: 2),
+                      color: excluded ? Theme.of(context).colorScheme.surfaceContainerHighest : Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
                     ),
-                    child: Text('区域 ${index + 1}'),
+                    child: Stack(children: [
+                      if (excluded) Positioned.fill(child: _CropHatch(color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3))),
+                      Center(child: Text(excluded ? '排除' : '区域 $number', style: TextStyle(fontWeight: FontWeight.w600, decoration: excluded ? TextDecoration.lineThrough : null))),
+                    ]),
                   ),
-                );
-              }),
-            ],
-          );
+                ),
+              );
+            }),
+          ]);
         },
       ),
     );
@@ -296,11 +278,16 @@ class _CropEditorDialogState extends State<CropEditorDialog> {
       child: Padding(
         padding: const EdgeInsets.all(8),
         child: Column(children: [
-          Row(children: [Text('区域 ${index + 1}'), const Spacer(), IconButton(tooltip: '删除区域', onPressed: () => _removeRegion(index), icon: const Icon(Icons.delete_outline))]),
-          _buildRegionSlider('X', region.x, 0, 1, (value) => _updateRegion(index, CropRegion(x: value, y: region.y, width: region.width, height: region.height))),
-          _buildRegionSlider('Y', region.y, 0, 1, (value) => _updateRegion(index, CropRegion(x: region.x, y: value, width: region.width, height: region.height))),
-          _buildRegionSlider('宽', region.width, 0.01, 1, (value) => _updateRegion(index, CropRegion(x: region.x, y: region.y, width: value, height: region.height))),
-          _buildRegionSlider('高', region.height, 0.01, 1, (value) => _updateRegion(index, CropRegion(x: region.x, y: region.y, width: region.width, height: value))),
+          Row(children: [
+            Text(region.excluded ? '排除区域' : '区域 $index'),
+            const Spacer(),
+            IconButton(tooltip: region.excluded ? '恢复区域' : '排除区域', onPressed: () => _toggleExcluded(index), icon: Icon(region.excluded ? Icons.check_box_outline_blank : Icons.block_outlined)),
+            IconButton(tooltip: '删除区域', onPressed: () => _removeRegion(index), icon: const Icon(Icons.delete_outline)),
+          ]),
+          _buildRegionSlider('X', region.x, 0, 1, (value) => _updateRegion(index, CropRegion(x: value, y: region.y, width: region.width, height: region.height, excluded: region.excluded))),
+          _buildRegionSlider('Y', region.y, 0, 1, (value) => _updateRegion(index, CropRegion(x: region.x, y: value, width: region.width, height: region.height, excluded: region.excluded))),
+          _buildRegionSlider('宽', region.width, 0.01, 1, (value) => _updateRegion(index, CropRegion(x: region.x, y: region.y, width: value, height: region.height, excluded: region.excluded))),
+          _buildRegionSlider('高', region.height, 0.01, 1, (value) => _updateRegion(index, CropRegion(x: region.x, y: region.y, width: region.width, height: value, excluded: region.excluded))),
         ]),
       ),
     );
@@ -313,4 +300,28 @@ class _CropEditorDialogState extends State<CropEditorDialog> {
       SizedBox(width: 52, child: Text('${(value * 100).toStringAsFixed(0)}%')),
     ]);
   }
+}
+
+class _CropHatch extends StatelessWidget {
+  final Color color;
+  const _CropHatch({required this.color});
+
+  @override
+  Widget build(BuildContext context) => CustomPaint(painter: _CropHatchPainter(color));
+}
+
+class _CropHatchPainter extends CustomPainter {
+  final Color color;
+  const _CropHatchPainter(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = color..strokeWidth = 1;
+    for (var offset = -size.height; offset < size.width; offset += 10) {
+      canvas.drawLine(Offset(offset, 0), Offset(offset + size.height, size.height), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _CropHatchPainter oldDelegate) => oldDelegate.color != color;
 }
