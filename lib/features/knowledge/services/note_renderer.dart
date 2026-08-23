@@ -15,7 +15,8 @@ class NoteRenderer {
           data: note.body,
           padding: EdgeInsets.zero,
           styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
-            p: const TextStyle(textAlign: TextAlign.left),
+            p: const TextStyle(),
+            textAlign: WrapAlignment.start,
           ),
         );
       case ReaderNoteFormat.markdownHtml:

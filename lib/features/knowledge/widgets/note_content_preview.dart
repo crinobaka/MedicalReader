@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:path/path.dart';
 
 import '../models/note_document.dart';
 import '../services/note_renderer.dart';
@@ -45,7 +46,8 @@ class NoteContentPreview extends StatelessWidget {
     if (path.startsWith('http://') || path.startsWith('https://')) return path;
     if (attachmentBasePath == null) return path;
     final relative = path.startsWith('attachments/') ? path.substring('attachments/'.length) : path;
-    return File(attachmentBasePath!, relative).path;
+    String fullpath = join(attachmentBasePath!, relative);
+    return File(fullpath).path;
   }
 }
 

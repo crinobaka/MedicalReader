@@ -34,7 +34,7 @@ class AnnotationNoteAttachmentService {
       final image = await page.render(
         width: page.width * _renderScale,
         height: page.height * _renderScale,
-        format: PdfPageImageFormat.PNG,
+        format: PdfPageImageFormat.png,
         cropRect: cropRect,
         removeTempFile: true,
       );

@@ -1,0 +1,1 @@
+dart run pdfx:install_windows

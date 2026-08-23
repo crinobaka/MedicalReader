@@ -213,7 +213,7 @@ class _KnowledgeNotePageState extends ConsumerState<KnowledgeNotePage> {
                 ]),
               ),
             ),
-          SafeArea(top: false, child: Padding(padding: const EdgeInsets.all(12), child: SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: _saving || _recording ? null : _save, icon: const Icon(Icons.save_outlined), label: Text(_saving ? '保存中...' : '保存笔记')))),
+          SafeArea(top: false, child: Padding(padding: const EdgeInsets.all(12), child: SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: _saving || _recording ? null : _save, icon: const Icon(Icons.save_outlined), label: Text(_saving ? '保存中...' : '保存笔记'))))),
         ],
       ),
     );

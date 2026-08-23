@@ -6,50 +6,8 @@ project(medicalreader LANGUAGES CXX)
 # the on-disk name of your application.
 set(BINARY_NAME "medicalreader")
 
-# Native Medical Core.
-set(MEDICAL_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../core/medical_core")
-set(MEDICAL_CORE_DLL "${MEDICAL_CORE_DIR}/target/debug/medical_core.dll")
-
-# Locate Cargo explicitly.
-find_program(
-  CARGO_EXECUTABLE
-  cargo
-  PATHS
-    "$ENV{USERPROFILE}/.cargo/bin"
-)
-
-if(NOT CARGO_EXECUTABLE)
-  message(FATAL_ERROR
-    "Cargo was not found. "
-    "Please install Rust with rustup and make sure cargo.exe is available."
-  )
-endif()
-
-add_custom_command(
-  OUTPUT "${MEDICAL_CORE_DLL}"
-  COMMAND "${CARGO_EXECUTABLE}" build --manifest-path "${MEDICAL_CORE_DIR}/Cargo.toml"
-  WORKING_DIRECTORY "${MEDICAL_CORE_DIR}"
-  DEPENDS
-    "${MEDICAL_CORE_DIR}/Cargo.toml"
-    "${MEDICAL_CORE_DIR}/src/lib.rs"
-    "${MEDICAL_CORE_DIR}/src/ffi/mod.rs"
-    "${MEDICAL_CORE_DIR}/src/ffi/api.rs"
-    "${MEDICAL_CORE_DIR}/src/ffi/types.rs"
-    "${MEDICAL_CORE_DIR}/src/reader/mod.rs"
-    "${MEDICAL_CORE_DIR}/src/reader/document.rs"
-    "${MEDICAL_CORE_DIR}/src/reader/renderer.rs"
-)
-
-add_custom_target(medical_core ALL DEPENDS "${MEDICAL_CORE_DLL}")
-add_custom_command(TARGET medical_core
-  POST_BUILD
-  COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    "${MEDICAL_CORE_DLL}"
-    "$<TARGET_FILE_DIR:${BINARY_NAME}>/medical_core.dll"
-)
-
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
-# versions.
+# versions of CMake.
 cmake_policy(VERSION 3.14...3.25)
 
 # Define build configuration option.
@@ -128,10 +86,6 @@ if(PLUGIN_BUNDLED_LIBRARIES)
     DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)
 endif()
-
-install(FILES "${MEDICAL_CORE_DLL}"
-  DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
-  COMPONENT Runtime)
 
 # Copy the native assets provided by the build.dart from all packages.
 set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/windows/")

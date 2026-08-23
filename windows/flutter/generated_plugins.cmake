@@ -4,6 +4,7 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   camera_desktop
+  pdfx
   record_windows
 )
 
