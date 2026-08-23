@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 
 /// Bottom navigation controls for the Reader page.
 ///
-/// This widget intentionally contains no Reader business logic. Navigation,
-/// page mapping, and loading state remain owned by the Reader controller/page.
+/// The control row becomes horizontally scrollable on narrow screens so the
+/// page/location/search labels can never force the controls outside the phone
+/// viewport.
 class ReaderPageControls extends StatelessWidget {
   final bool canGoPrevious;
   final bool canGoNext;
@@ -33,49 +34,60 @@ class ReaderPageControls extends StatelessWidget {
     final enabled = !pageLoading;
 
     return SafeArea(
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          IconButton(
-            tooltip: 'Previous page',
-            onPressed: enabled && canGoPrevious ? onPrevious : null,
-            icon: const Icon(Icons.chevron_left),
-          ),
-          const SizedBox(width: 16),
-          InkWell(
-            borderRadius: BorderRadius.circular(6),
-            onTap: enabled ? onPageTap : null,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(pageLabel),
-                  if (locationLabel != null)
-                    Text(
-                      locationLabel!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  if (searchLabel != null)
-                    Text(
-                      searchLabel!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                ],
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              tooltip: 'Previous page',
+              onPressed: enabled && canGoPrevious ? onPrevious : null,
+              icon: const Icon(Icons.chevron_left),
+            ),
+            const SizedBox(width: 8),
+            InkWell(
+              borderRadius: BorderRadius.circular(6),
+              onTap: enabled ? onPageTap : null,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 280),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        pageLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (locationLabel != null)
+                        Text(
+                          locationLabel!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      if (searchLabel != null)
+                        Text(
+                          searchLabel!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                    ],
+                  ),
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 16),
-          IconButton(
-            tooltip: 'Next page',
-            onPressed: enabled && canGoNext ? onNext : null,
-            icon: const Icon(Icons.chevron_right),
-          ),
-        ],
+            const SizedBox(width: 8),
+            IconButton(
+              tooltip: 'Next page',
+              onPressed: enabled && canGoNext ? onNext : null,
+              icon: const Icon(Icons.chevron_right),
+            ),
+          ],
+        ),
       ),
     );
   }
