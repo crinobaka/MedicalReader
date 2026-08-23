@@ -38,6 +38,11 @@ class CropConfiguration {
   }
 
   factory CropConfiguration.fromJson(Map<String, dynamic> json) {
+    final rawStart = (json['pageStart'] as num?)?.toInt();
+    final rawEnd = (json['pageEnd'] as num?)?.toInt();
+    final start = rawStart != null && rawStart > 0 ? rawStart : null;
+    final end = rawEnd != null && rawEnd > 0 ? rawEnd : null;
+
     return CropConfiguration(
       template: CropTemplate.values.firstWhere(
         (item) => item.name == json['template'],
@@ -52,8 +57,8 @@ class CropConfiguration {
               .map((item) => CropRegion.fromJson(Map<String, dynamic>.from(item)))
               .toList() ??
           const [],
-      pageStart: (json['pageStart'] as num?)?.toInt(),
-      pageEnd: (json['pageEnd'] as num?)?.toInt(),
+      pageStart: start != null && end != null && start > end ? end : start,
+      pageEnd: start != null && end != null && start > end ? start : end,
       inheritPrevious: json['inheritPrevious'] == true,
       adjustment: CropAdjustment.fromJson(
         Map<String, dynamic>.from(json['adjustment'] as Map? ?? const {}),
@@ -67,7 +72,7 @@ class CropConfiguration {
   Map<String, dynamic> toJson() => {
         'template': template.name,
         'layout': layout.name,
-        'regions': regions.map((region) => region.toJson()).toList(),
+        'regions': regions.map((region) => region.clamp().toJson()).toList(),
         if (pageStart != null) 'pageStart': pageStart,
         if (pageEnd != null) 'pageEnd': pageEnd,
         'inheritPrevious': inheritPrevious,
