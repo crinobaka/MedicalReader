@@ -143,7 +143,31 @@ class FileRepository {
       originalName,
     );
 
-    await source.copy(destination.path);
+    try {
+      await source.copy(destination.path);
+    } catch (e) {
+      // 如果目标目录不可写（例如某些 Android 外部目录权限问题），
+      // 尝试回退到默认库目录并将文件复制到默认位置。
+      try {
+        final defaultLibrary = await storageService.getDefaultLibraryDirectory();
+        final fallbackBookDir = Directory(
+          '${defaultLibrary.path}${Platform.pathSeparator}$bookName',
+        );
+
+        await fallbackBookDir.create(recursive: true);
+
+        final fallbackDestination = await _findAvailableDestination(
+          fallbackBookDir,
+          originalName,
+        );
+
+        await source.copy(fallbackDestination.path);
+
+        destination = fallbackDestination;
+      } catch (_) {
+        rethrow;
+      }
+    }
 
     final stat = await destination.stat();
 

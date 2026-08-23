@@ -55,9 +55,29 @@ class LibraryStorageService {
 
     await directory.create(recursive: true);
 
+    // 在保存配置前保留当前目录引用，以便后续尝试迁移 metadata.json。
+    final oldDirectory = current;
+
     await _saveConfiguredPath(directory.path);
 
+    // 尝试将旧目录下的 metadata.json 迁移到新目录，避免历史记录丢失。
+    try {
+      final oldMeta = File('${oldDirectory.path}${Platform.pathSeparator}metadata.json');
+      final newMeta = File('${directory.path}${Platform.pathSeparator}metadata.json');
+
+      if (await oldMeta.exists() && !await newMeta.exists()) {
+        await oldMeta.copy(newMeta.path);
+      }
+    } catch (_) {
+      // 忽略任何迁移错误；历史数据仍可保留在旧目录。
+    }
+
     return directory;
+  }
+
+  /// 返回应用的默认 Library 目录（不考虑用户配置），可用于回退。
+  Future<Directory> getDefaultLibraryDirectory() async {
+    return _defaultLibraryDirectory();
   }
 
   Future<Directory> _defaultLibraryDirectory() async {

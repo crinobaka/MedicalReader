@@ -93,12 +93,14 @@ class _ReaderNotesPageState
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
             child: TextField(
               decoration: const InputDecoration(
                 hintText: '搜索笔记标题或正文',
                 prefixIcon: Icon(Icons.search),
                 border: OutlineInputBorder(),
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
               ),
               onChanged: (value) {
                 setState(() {
@@ -120,22 +122,29 @@ class _ReaderNotesPageState
                       final note = notes[index];
 
                       return ListTile(
+                        dense: true,
+                        visualDensity: const VisualDensity(vertical: -2, horizontal: 0),
+                        contentPadding:
+                            const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         leading: const Icon(
                           Icons.note_alt_outlined,
+                          size: 20,
                         ),
                         title: Text(
                           note.title.isEmpty
                               ? '第 ${note.pageIndex + 1} 页笔记'
                               : note.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                         subtitle: Text(
                           _preview(note.content),
                           maxLines: 2,
-                          overflow:
-                              TextOverflow.ellipsis,
+                          overflow: TextOverflow.ellipsis,
                         ),
                         trailing: Text(
                           '第 ${note.pageIndex + 1} 页',
+                          style: Theme.of(context).textTheme.bodySmall,
                         ),
                         onTap: () {
                           _openReaderAtPage(note);

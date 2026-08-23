@@ -692,17 +692,32 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           child: Listener(
             onPointerSignal: _handlePointerSignal,
             child: ReaderViewport(
-              loading: _pageLoading,
-              page: InteractiveViewer(
-                transformationController: _readerTransformationController,
-                minScale: 0.5,
-                maxScale: 4.0,
-                child: ReaderPageImage(
-                  image: image,
-                  overlay: ReaderSearchHighlight(hits: _searchHits),
+                  loading: _pageLoading,
+                  page: GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onHorizontalDragEnd: (details) {
+                      // 仅在未缩放（默认缩放接近 1.0）时启用横向翻页手势，避免与缩放/平移冲突
+                      final currentScale = _readerTransformationController.value.getMaxScaleOnAxis();
+                      if ((currentScale - 1.0).abs() > 0.01) return;
+                      final velocity = details.primaryVelocity ?? 0.0;
+                      // velocity < 0: 向左快速滑动 -> 下一页
+                      if (velocity < -300) {
+                        unawaited(_nextPage());
+                      } else if (velocity > 300) {
+                        unawaited(_previousPage());
+                      }
+                    },
+                    child: InteractiveViewer(
+                      transformationController: _readerTransformationController,
+                      minScale: 0.5,
+                      maxScale: 4.0,
+                      child: ReaderPageImage(
+                        image: image,
+                        overlay: ReaderSearchHighlight(hits: _searchHits),
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-            ),
           ),
         ),
         if (viewOptions.showPageControls) _buildPageControls(),
