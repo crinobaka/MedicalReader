@@ -1,8 +1,33 @@
 import 'dart:convert';
 
 enum CropTemplate { single, doubleColumn, tripleColumn, custom, bookTemplate }
-
 enum CropLayout { horizontal, grid }
+
+enum CropPageBasis { pdf, book }
+
+class CropPageRange {
+  final int start;
+  final int end;
+
+  const CropPageRange({required this.start, required this.end});
+
+  factory CropPageRange.fromJson(Map<String, dynamic> json) {
+    final rawStart = (json['start'] as num?)?.toInt() ?? 1;
+    final rawEnd = (json['end'] as num?)?.toInt() ?? rawStart;
+    final start = rawStart > 0 ? rawStart : 1;
+    final end = rawEnd > 0 ? rawEnd : start;
+    return CropPageRange(
+      start: start <= end ? start : end,
+      end: start <= end ? end : start,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {'start': start, 'end': end};
+
+  bool contains(int pageNumber) => pageNumber >= start && pageNumber <= end;
+
+  String get label => start == end ? '$start' : '$start-$end';
+}
 
 /// PDF 页面裁剪配置。所有坐标均为 0..1 的归一化坐标。
 class CropConfiguration {
@@ -11,6 +36,8 @@ class CropConfiguration {
   final List<CropRegion> regions;
   final int? pageStart;
   final int? pageEnd;
+  final CropPageBasis pageBasis;
+  final List<CropPageRange> pageRanges;
   final bool inheritPrevious;
   final CropAdjustment adjustment;
   final String? sourceDocumentId;
@@ -23,6 +50,8 @@ class CropConfiguration {
     this.regions = const [],
     this.pageStart,
     this.pageEnd,
+    this.pageBasis = CropPageBasis.pdf,
+    this.pageRanges = const [],
     this.inheritPrevious = false,
     this.adjustment = const CropAdjustment(),
     this.sourceDocumentId,
@@ -31,10 +60,7 @@ class CropConfiguration {
   });
 
   factory CropConfiguration.initial({String? sourceDocumentId}) {
-    return CropConfiguration(
-      sourceDocumentId: sourceDocumentId,
-      createdAt: DateTime.now(),
-    );
+    return CropConfiguration(sourceDocumentId: sourceDocumentId, createdAt: DateTime.now());
   }
 
   factory CropConfiguration.fromJson(Map<String, dynamic> json) {
@@ -42,16 +68,18 @@ class CropConfiguration {
     final rawEnd = (json['pageEnd'] as num?)?.toInt();
     final start = rawStart != null && rawStart > 0 ? rawStart : null;
     final end = rawEnd != null && rawEnd > 0 ? rawEnd : null;
+    final rawRanges = json['pageRanges'];
+
+    final ranges = rawRanges is List
+        ? rawRanges
+            .whereType<Map>()
+            .map((item) => CropPageRange.fromJson(Map<String, dynamic>.from(item)))
+            .toList()
+        : const <CropPageRange>[];
 
     return CropConfiguration(
-      template: CropTemplate.values.firstWhere(
-        (item) => item.name == json['template'],
-        orElse: () => CropTemplate.single,
-      ),
-      layout: CropLayout.values.firstWhere(
-        (item) => item.name == json['layout'],
-        orElse: () => CropLayout.horizontal,
-      ),
+      template: CropTemplate.values.firstWhere((item) => item.name == json['template'], orElse: () => CropTemplate.single),
+      layout: CropLayout.values.firstWhere((item) => item.name == json['layout'], orElse: () => CropLayout.horizontal),
       regions: (json['regions'] as List?)
               ?.whereType<Map>()
               .map((item) => CropRegion.fromJson(Map<String, dynamic>.from(item)))
@@ -59,10 +87,13 @@ class CropConfiguration {
           const [],
       pageStart: start != null && end != null && start > end ? end : start,
       pageEnd: start != null && end != null && start > end ? start : end,
-      inheritPrevious: json['inheritPrevious'] == true,
-      adjustment: CropAdjustment.fromJson(
-        Map<String, dynamic>.from(json['adjustment'] as Map? ?? const {}),
+      pageBasis: CropPageBasis.values.firstWhere(
+        (item) => item.name == json['pageBasis'],
+        orElse: () => CropPageBasis.pdf,
       ),
+      pageRanges: ranges,
+      inheritPrevious: json['inheritPrevious'] == true,
+      adjustment: CropAdjustment.fromJson(Map<String, dynamic>.from(json['adjustment'] as Map? ?? const {})),
       sourceDocumentId: json['sourceDocumentId'] as String?,
       temporarySessionId: json['temporarySessionId'] as String?,
       createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
@@ -75,6 +106,8 @@ class CropConfiguration {
         'regions': regions.map((region) => region.clamp().toJson()).toList(),
         if (pageStart != null) 'pageStart': pageStart,
         if (pageEnd != null) 'pageEnd': pageEnd,
+        'pageBasis': pageBasis.name,
+        if (pageRanges.isNotEmpty) 'pageRanges': pageRanges.map((range) => range.toJson()).toList(),
         'inheritPrevious': inheritPrevious,
         'adjustment': adjustment.toJson(),
         if (sourceDocumentId != null) 'sourceDocumentId': sourceDocumentId,
@@ -83,7 +116,6 @@ class CropConfiguration {
       };
 
   String encode() => const JsonEncoder.withIndent('  ').convert(toJson());
-
   String get cacheKey => jsonEncode(toJson());
 
   CropConfiguration copyWith({
@@ -92,6 +124,8 @@ class CropConfiguration {
     List<CropRegion>? regions,
     int? pageStart,
     int? pageEnd,
+    CropPageBasis? pageBasis,
+    List<CropPageRange>? pageRanges,
     bool? inheritPrevious,
     CropAdjustment? adjustment,
     String? sourceDocumentId,
@@ -104,6 +138,8 @@ class CropConfiguration {
       regions: regions ?? this.regions,
       pageStart: pageStart ?? this.pageStart,
       pageEnd: pageEnd ?? this.pageEnd,
+      pageBasis: pageBasis ?? this.pageBasis,
+      pageRanges: pageRanges ?? this.pageRanges,
       inheritPrevious: inheritPrevious ?? this.inheritPrevious,
       adjustment: adjustment ?? this.adjustment,
       sourceDocumentId: sourceDocumentId ?? this.sourceDocumentId,
@@ -113,10 +149,6 @@ class CropConfiguration {
   }
 }
 
-/// 页面被自然分隔出的一个候选区域。
-///
-/// excluded=true 表示“这块被分隔出来，但不参与最终编号/输出”。
-/// 这样一个页面可以保留完整的自然分隔信息，而不必强迫每块区域都成为阅读区域。
 class CropRegion {
   final double x;
   final double y;
@@ -124,13 +156,7 @@ class CropRegion {
   final double height;
   final bool excluded;
 
-  const CropRegion({
-    required this.x,
-    required this.y,
-    required this.width,
-    required this.height,
-    this.excluded = false,
-  });
+  const CropRegion({required this.x, required this.y, required this.width, required this.height, this.excluded = false});
 
   factory CropRegion.fromJson(Map<String, dynamic> json) {
     return CropRegion(
@@ -142,43 +168,18 @@ class CropRegion {
     ).clamp();
   }
 
-  Map<String, dynamic> toJson() => {
-        'x': x,
-        'y': y,
-        'width': width,
-        'height': height,
-        if (excluded) 'excluded': true,
-      };
+  Map<String, dynamic> toJson() => {'x': x, 'y': y, 'width': width, 'height': height, if (excluded) 'excluded': true};
 
   CropRegion clamp() {
     final nextX = x.clamp(0.0, 1.0).toDouble();
     final nextY = y.clamp(0.0, 1.0).toDouble();
     final nextWidth = width.clamp(0.001, 1.0 - nextX).toDouble();
     final nextHeight = height.clamp(0.001, 1.0 - nextY).toDouble();
-
-    return CropRegion(
-      x: nextX,
-      y: nextY,
-      width: nextWidth,
-      height: nextHeight,
-      excluded: excluded,
-    );
+    return CropRegion(x: nextX, y: nextY, width: nextWidth, height: nextHeight, excluded: excluded);
   }
 
-  CropRegion copyWith({
-    double? x,
-    double? y,
-    double? width,
-    double? height,
-    bool? excluded,
-  }) {
-    return CropRegion(
-      x: x ?? this.x,
-      y: y ?? this.y,
-      width: width ?? this.width,
-      height: height ?? this.height,
-      excluded: excluded ?? this.excluded,
-    ).clamp();
+  CropRegion copyWith({double? x, double? y, double? width, double? height, bool? excluded}) {
+    return CropRegion(x: x ?? this.x, y: y ?? this.y, width: width ?? this.width, height: height ?? this.height, excluded: excluded ?? this.excluded).clamp();
   }
 
   CropRegion adjust(CropAdjustment adjustment) {
@@ -192,20 +193,13 @@ class CropRegion {
   }
 }
 
-/// 当前裁剪基础上的增量调整。
-/// 正值表示从对应边继续向内裁，负值表示向外放宽。
 class CropAdjustment {
   final double left;
   final double right;
   final double top;
   final double bottom;
 
-  const CropAdjustment({
-    this.left = 0,
-    this.right = 0,
-    this.top = 0,
-    this.bottom = 0,
-  });
+  const CropAdjustment({this.left = 0, this.right = 0, this.top = 0, this.bottom = 0});
 
   factory CropAdjustment.fromJson(Map<String, dynamic> json) {
     return CropAdjustment(
@@ -216,10 +210,5 @@ class CropAdjustment {
     );
   }
 
-  Map<String, dynamic> toJson() => {
-        'left': left,
-        'right': right,
-        'top': top,
-        'bottom': bottom,
-      };
+  Map<String, dynamic> toJson() => {'left': left, 'right': right, 'top': top, 'bottom': bottom};
 }
