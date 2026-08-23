@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import '../models/crop_configuration.dart';
 import '../services/crop_engine_service.dart';
 
-/// 裁剪编辑器。
+/// 图形化裁剪编辑器。
 ///
-/// 页面分隔出来的区域可以独立标记为“排除”。排除区域仍保留在配置中，
-/// 但不会参与最终编号和拼接；长按区域即可在参与/排除之间切换。
+/// 页面区域可以独立标记为“排除”。排除区域保留几何信息，但不会参与
+/// 最终编号和输出；长按区域即可在参与/排除之间切换。
 class CropEditorDialog extends StatefulWidget {
   final CropConfiguration initial;
 
@@ -20,6 +20,7 @@ class _CropEditorDialogState extends State<CropEditorDialog> {
   final CropEngineService _engine = const CropEngineService();
   late CropTemplate _template;
   late CropLayout _layout;
+  late CropPageBasis _pageBasis;
   late bool _inheritPrevious;
   late double _left;
   late double _right;
@@ -27,10 +28,12 @@ class _CropEditorDialogState extends State<CropEditorDialog> {
   late double _bottom;
   late int? _pageStart;
   late int? _pageEnd;
+  late List<CropPageRange> _pageRanges;
   late List<CropRegion> _regions;
 
   final _pageStartController = TextEditingController();
   final _pageEndController = TextEditingController();
+  final _pageRangesController = TextEditingController();
 
   @override
   void initState() {
@@ -38,6 +41,7 @@ class _CropEditorDialogState extends State<CropEditorDialog> {
     final value = widget.initial;
     _template = value.template;
     _layout = value.layout;
+    _pageBasis = value.pageBasis;
     _inheritPrevious = value.inheritPrevious;
     _left = value.adjustment.left;
     _right = value.adjustment.right;
@@ -45,15 +49,18 @@ class _CropEditorDialogState extends State<CropEditorDialog> {
     _bottom = value.adjustment.bottom;
     _pageStart = value.pageStart;
     _pageEnd = value.pageEnd;
+    _pageRanges = List.of(value.pageRanges);
     _regions = List.of(value.regions);
     _pageStartController.text = value.pageStart?.toString() ?? '';
     _pageEndController.text = value.pageEnd?.toString() ?? '';
+    _pageRangesController.text = value.pageRanges.map((range) => range.label).join(', ');
   }
 
   @override
   void dispose() {
     _pageStartController.dispose();
     _pageEndController.dispose();
+    _pageRangesController.dispose();
     super.dispose();
   }
 
@@ -118,15 +125,38 @@ class _CropEditorDialogState extends State<CropEditorDialog> {
     }
   }
 
+  List<CropPageRange> _parseRanges(String text) {
+    final result = <CropPageRange>[];
+    for (final token in text.split(',')) {
+      final value = token.trim();
+      if (value.isEmpty) continue;
+      final parts = value.split(RegExp(r'[-~:]'));
+      final start = int.tryParse(parts.first.trim());
+      if (start == null || start <= 0) continue;
+      final end = parts.length > 1 ? int.tryParse(parts[1].trim()) : start;
+      if (end == null || end <= 0) continue;
+      result.add(CropPageRange(
+        start: start < end ? start : end,
+        end: start < end ? end : start,
+      ));
+    }
+    result.sort((a, b) => a.start.compareTo(b.start));
+    return result;
+  }
+
   void _submit() {
     _pageStart = int.tryParse(_pageStartController.text.trim());
     _pageEnd = int.tryParse(_pageEndController.text.trim());
+    _pageRanges = _parseRanges(_pageRangesController.text);
+
     Navigator.of(context).pop(CropConfiguration(
       template: _template,
       layout: _layout,
       regions: _regions.map((region) => region.clamp()).toList(),
       pageStart: _pageStart,
       pageEnd: _pageEnd,
+      pageBasis: _pageBasis,
+      pageRanges: _pageRanges,
       inheritPrevious: _inheritPrevious,
       adjustment: CropAdjustment(left: _left, right: _right, top: _top, bottom: _bottom),
       sourceDocumentId: widget.initial.sourceDocumentId,
@@ -150,7 +180,7 @@ class _CropEditorDialogState extends State<CropEditorDialog> {
               Text('长按区域：切换参与/排除。排除区域保留分隔线，但不编号、不输出。', style: Theme.of(context).textTheme.bodySmall),
               const SizedBox(height: 16),
               DropdownButtonFormField<CropTemplate>(
-                value: _template,
+                initialValue: _template,
                 decoration: const InputDecoration(labelText: '裁剪模板'),
                 items: const [
                   DropdownMenuItem(value: CropTemplate.single, child: Text('单栏')),
@@ -165,7 +195,7 @@ class _CropEditorDialogState extends State<CropEditorDialog> {
               Text(_templateDescription, style: Theme.of(context).textTheme.bodySmall),
               const SizedBox(height: 12),
               DropdownButtonFormField<CropLayout>(
-                value: _layout,
+                initialValue: _layout,
                 decoration: const InputDecoration(labelText: '多区域排列'),
                 items: const [
                   DropdownMenuItem(value: CropLayout.horizontal, child: Text('横向拼接')),
@@ -174,6 +204,26 @@ class _CropEditorDialogState extends State<CropEditorDialog> {
                 onChanged: (value) { if (value != null) setState(() => _layout = value); },
               ),
               const SizedBox(height: 12),
+              DropdownButtonFormField<CropPageBasis>(
+                initialValue: _pageBasis,
+                decoration: const InputDecoration(labelText: '页码依据'),
+                items: const [
+                  DropdownMenuItem(value: CropPageBasis.pdf, child: Text('PDF 页码')),
+                  DropdownMenuItem(value: CropPageBasis.book, child: Text('书籍页码')),
+                ],
+                onChanged: (value) { if (value != null) setState(() => _pageBasis = value); },
+              ),
+              const SizedBox(height: 6),
+              TextField(
+                controller: _pageRangesController,
+                keyboardType: TextInputType.text,
+                decoration: const InputDecoration(
+                  labelText: '指定组合页（可选）',
+                  hintText: '例如 12-15, 30-55, 80',
+                  helperText: '填写后优先使用这些范围；支持 PDF 页或书籍页。',
+                ),
+              ),
+              const SizedBox(height: 8),
               SwitchListTile.adaptive(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('套用上一页裁剪'),
@@ -279,7 +329,7 @@ class _CropEditorDialogState extends State<CropEditorDialog> {
         padding: const EdgeInsets.all(8),
         child: Column(children: [
           Row(children: [
-            Text(region.excluded ? '排除区域' : '区域 $index'),
+            Text(region.excluded ? '排除区域' : '区域 ${index + 1}'),
             const Spacer(),
             IconButton(tooltip: region.excluded ? '恢复区域' : '排除区域', onPressed: () => _toggleExcluded(index), icon: Icon(region.excluded ? Icons.check_box_outline_blank : Icons.block_outlined)),
             IconButton(tooltip: '删除区域', onPressed: () => _removeRegion(index), icon: const Icon(Icons.delete_outline)),
