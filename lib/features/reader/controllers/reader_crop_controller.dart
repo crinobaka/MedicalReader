@@ -23,7 +23,10 @@ class ReaderCropController extends ChangeNotifier {
   CropConfiguration get configuration => _configuration;
   CropTemplate get template => _configuration.template;
   CropLayout get layout => _configuration.layout;
+  CropPageBasis get pageBasis => _configuration.pageBasis;
+  bool get inheritPrevious => _configuration.inheritPrevious;
   List<CropRegion> get regions => List.unmodifiable(_configuration.regions);
+  List<CropPageRange> get pageRanges => List.unmodifiable(_configuration.pageRanges);
 
   Future<void> setDocument(String documentId) async {
     await _store.setCurrentDocument(documentId);
@@ -58,6 +61,32 @@ class ReaderCropController extends ChangeNotifier {
 
   Future<void> setRegions(List<CropRegion> regions) async {
     await apply(_configuration.copyWith(regions: regions));
+  }
+
+  Future<void> setPageBasis(CropPageBasis basis) async {
+    await apply(_configuration.copyWith(pageBasis: basis));
+  }
+
+  Future<void> setPageRanges(List<CropPageRange> ranges) async {
+    await apply(_configuration.copyWith(pageRanges: ranges));
+  }
+
+  Future<void> setPageRange(CropPageRange range) async {
+    await setPageRanges([..._configuration.pageRanges, range]);
+  }
+
+  Future<void> removePageRangeAt(int index) async {
+    if (index < 0 || index >= _configuration.pageRanges.length) return;
+    final ranges = [..._configuration.pageRanges]..removeAt(index);
+    await setPageRanges(ranges);
+  }
+
+  Future<void> setInheritPrevious(bool enabled) async {
+    await apply(_configuration.copyWith(inheritPrevious: enabled));
+  }
+
+  Future<void> setAdjustment(CropAdjustment adjustment) async {
+    await apply(_configuration.copyWith(adjustment: adjustment));
   }
 
   Future<void> reset() async {
