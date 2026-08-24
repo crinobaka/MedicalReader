@@ -6,13 +6,9 @@ import '../models/crop_configuration.dart';
 
 /// 可直接操作的裁剪区域画布。
 ///
-/// - 拖动区域：移动区域
-/// - 拖动右下角：调整区域大小
-/// - 长按：参与/排除
-/// - 排除区域使用斜线表示，不参与最终编号和输出
-///
-/// PDF 页面通常不会与手机屏幕保持相同宽高比，因此区域必须以
-/// `BoxFit.contain` 实际显示出来的页面矩形为坐标系，而不是整个画布。
+/// 区域坐标始终以 PDF 页面本身为基准，而不是以外层画布为基准。
+/// 这样在手机竖屏、桌面宽屏以及 BoxFit.contain 留白场景下，
+/// 裁剪框都会和实际 PDF 页面严格重合。
 class CropRegionCanvas extends StatelessWidget {
   final ui.Image? image;
   final List<CropRegion> regions;
@@ -29,49 +25,12 @@ class CropRegionCanvas extends StatelessWidget {
     this.minRegionSize = 0.04,
   });
 
-  Rect _imageRect(Size canvasSize) {
-    final currentImage = image;
-    if (currentImage == null ||
-        currentImage.width <= 0 ||
-        currentImage.height <= 0 ||
-        canvasSize.width <= 0 ||
-        canvasSize.height <= 0) {
-      return Offset.zero & canvasSize;
-    }
-
-    final imageAspect = currentImage.width / currentImage.height;
-    final canvasAspect = canvasSize.width / canvasSize.height;
-
-    if (imageAspect > canvasAspect) {
-      final width = canvasSize.width;
-      final height = width / imageAspect;
-      return Rect.fromLTWH(
-        0,
-        (canvasSize.height - height) / 2,
-        width,
-        height,
-      );
-    }
-
-    final height = canvasSize.height;
-    final width = height * imageAspect;
-    return Rect.fromLTWH(
-      (canvasSize.width - width) / 2,
-      0,
-      width,
-      height,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final canvasSize = Size(
-          constraints.maxWidth,
-          constraints.maxHeight,
-        );
-        final pageRect = _imageRect(canvasSize);
+        final canvasSize = Size(constraints.maxWidth, constraints.maxHeight);
+        final pageRect = _pageRect(canvasSize, image);
         var number = 0;
 
         return Stack(
@@ -82,97 +41,133 @@ class CropRegionCanvas extends StatelessWidget {
                   ? ColoredBox(
                       color: Theme.of(context).colorScheme.surface,
                     )
-                  : RawImage(image: image, fit: BoxFit.contain),
+                  : RawImage(
+                      image: image,
+                      fit: BoxFit.contain,
+                      alignment: Alignment.center,
+                    ),
             ),
-            Positioned.fill(
+            Positioned.fromRect(
+              rect: pageRect,
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   border: Border.all(color: Theme.of(context).dividerColor),
                 ),
               ),
             ),
-            if (image != null)
-              ...regions.asMap().entries.map((entry) {
-                final index = entry.key;
-                final region = entry.value.clamp();
-                final excluded = region.excluded;
-                final label = excluded ? '排除' : '区域 ${++number}';
+            ...regions.asMap().entries.map((entry) {
+              final index = entry.key;
+              final region = entry.value.clamp();
+              final excluded = region.excluded;
+              final label = excluded ? '排除' : '区域 ${++number}';
+              final regionRect = Rect.fromLTWH(
+                pageRect.left + region.x * pageRect.width,
+                pageRect.top + region.y * pageRect.height,
+                region.width * pageRect.width,
+                region.height * pageRect.height,
+              );
 
-                return Positioned(
-                  left: pageRect.left + region.x * pageRect.width,
-                  top: pageRect.top + region.y * pageRect.height,
-                  width: region.width * pageRect.width,
-                  height: region.height * pageRect.height,
-                  child: _RegionGesture(
-                    region: region,
-                    canvasSize: pageRect.size,
-                    minRegionSize: minRegionSize,
-                    onLongPress: () => onLongPressRegion(index),
-                    onChanged: (next) => onChanged(index, next),
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: excluded
-                              ? Theme.of(context).colorScheme.outline
-                              : Theme.of(context).colorScheme.primary,
-                          width: 2,
-                        ),
+              return Positioned.fromRect(
+                rect: regionRect,
+                child: _RegionGesture(
+                  region: region,
+                  pageSize: pageRect.size,
+                  minRegionSize: minRegionSize,
+                  onLongPress: () => onLongPressRegion(index),
+                  onChanged: (next) => onChanged(index, next),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      border: Border.all(
                         color: excluded
-                            ? Theme.of(context)
-                                .colorScheme
-                                .surfaceContainerHighest
-                                .withValues(alpha: 0.75)
-                            : Theme.of(context)
-                                .colorScheme
-                                .primary
-                                .withValues(alpha: 0.10),
+                            ? Theme.of(context).colorScheme.outline
+                            : Theme.of(context).colorScheme.primary,
+                        width: 2,
                       ),
-                      child: Stack(
-                        children: [
-                          if (excluded)
-                            Positioned.fill(
-                              child: CustomPaint(
-                                painter: _CropHatchPainter(
-                                  Theme.of(context)
-                                      .colorScheme
-                                      .outline
-                                      .withValues(alpha: 0.35),
-                                ),
-                              ),
-                            ),
-                          Center(
-                            child: Text(
-                              label,
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                decoration: excluded
-                                    ? TextDecoration.lineThrough
-                                    : null,
+                      color: excluded
+                          ? Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHighest
+                              .withValues(alpha: 0.75)
+                          : Theme.of(context)
+                              .colorScheme
+                              .primary
+                              .withValues(alpha: 0.10),
+                    ),
+                    child: Stack(
+                      children: [
+                        if (excluded)
+                          Positioned.fill(
+                            child: CustomPaint(
+                              painter: _CropHatchPainter(
+                                Theme.of(context)
+                                    .colorScheme
+                                    .outline
+                                    .withValues(alpha: 0.35),
                               ),
                             ),
                           ),
-                          if (!excluded)
-                            const Positioned(
-                              right: 2,
-                              bottom: 2,
-                              child: Icon(Icons.open_in_full, size: 14),
+                        Center(
+                          child: Text(
+                            label,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              decoration: excluded
+                                  ? TextDecoration.lineThrough
+                                  : null,
                             ),
-                        ],
-                      ),
+                          ),
+                        ),
+                        if (!excluded)
+                          const Positioned(
+                            right: 2,
+                            bottom: 2,
+                            child: Icon(Icons.open_in_full, size: 14),
+                          ),
+                      ],
                     ),
                   ),
-                );
-              }),
+                ),
+              );
+            }),
           ],
         );
       },
+    );
+  }
+
+  Rect _pageRect(Size canvas, ui.Image? image) {
+    if (image == null || canvas.isEmpty) {
+      return Offset.zero & canvas;
+    }
+
+    final imageAspect = image.width / image.height;
+    final canvasAspect = canvas.width / canvas.height;
+
+    if (imageAspect > canvasAspect) {
+      final width = canvas.width;
+      final height = width / imageAspect;
+      return Rect.fromLTWH(
+        0,
+        (canvas.height - height) / 2,
+        width,
+        height,
+      );
+    }
+
+    final height = canvas.height;
+    final width = height * imageAspect;
+    return Rect.fromLTWH(
+      (canvas.width - width) / 2,
+      0,
+      width,
+      height,
     );
   }
 }
 
 class _RegionGesture extends StatefulWidget {
   final CropRegion region;
-  final Size canvasSize;
+  final Size pageSize;
   final double minRegionSize;
   final VoidCallback onLongPress;
   final ValueChanged<CropRegion> onChanged;
@@ -180,7 +175,7 @@ class _RegionGesture extends StatefulWidget {
 
   const _RegionGesture({
     required this.region,
-    required this.canvasSize,
+    required this.pageSize,
     required this.minRegionSize,
     required this.onLongPress,
     required this.onChanged,
@@ -202,17 +197,16 @@ class _RegionGestureState extends State<_RegionGesture> {
       onPanStart: (details) {
         final local = details.localPosition;
         final size = context.size ?? Size.zero;
-        _resizing = local.dx >= size.width - 28 &&
-            local.dy >= size.height - 28;
+        _resizing = local.dx >= size.width - 28 && local.dy >= size.height - 28;
       },
       onPanUpdate: (details) {
-        if (widget.canvasSize.width <= 0 || widget.canvasSize.height <= 0) {
+        if (widget.pageSize.isEmpty) {
           return;
         }
 
         final region = widget.region;
-        final dx = details.delta.dx / widget.canvasSize.width;
-        final dy = details.delta.dy / widget.canvasSize.height;
+        final dx = details.delta.dx / widget.pageSize.width;
+        final dy = details.delta.dy / widget.pageSize.height;
 
         if (_resizing) {
           final nextWidth = (region.width + dx).clamp(
@@ -235,10 +229,7 @@ class _RegionGestureState extends State<_RegionGesture> {
         final nextX = (region.x + dx).clamp(0.0, 1.0 - region.width);
         final nextY = (region.y + dy).clamp(0.0, 1.0 - region.height);
         widget.onChanged(
-          region.copyWith(
-            x: nextX.toDouble(),
-            y: nextY.toDouble(),
-          ),
+          region.copyWith(x: nextX.toDouble(), y: nextY.toDouble()),
         );
       },
       child: widget.child,
