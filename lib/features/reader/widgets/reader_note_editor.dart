@@ -10,12 +10,14 @@ import 'reader_note_attachments.dart';
 
 class ReaderNoteEditor extends StatefulWidget {
   final ReaderAnnotation note;
+  final String? documentDirectory;
   final Future<String?> Function()? onInsertImage;
   final Future<String?> Function()? onInsertAudio;
 
   const ReaderNoteEditor({
     super.key,
     required this.note,
+    this.documentDirectory,
     this.onInsertImage,
     this.onInsertAudio,
   });
@@ -62,9 +64,44 @@ class ReaderNoteEditorState extends State<ReaderNoteEditor> {
     });
   }
 
-  Widget _buildMarkdownPreview(BuildContext context) {
+  String _resolvePath(String value) {
+    final directory = widget.documentDirectory;
+    if (directory == null || directory.isEmpty) return value;
+    return _noteService.resolveAttachmentPath(value, directory);
+  }
+
+  String _resolveMarkdown(String content) {
+    final imagePattern = RegExp(r'!\[([^\]]*)\]\(([^)]+)\)');
+    return content.replaceAllMapped(imagePattern, (match) {
+      final alt = match.group(1) ?? '图片';
+      final path = _resolvePath(match.group(2) ?? '');
+      return '![$alt](${Uri.file(path)})';
+    });
+  }
+
+  String _resolveHtml(String content) {
+    final srcPattern = RegExp(
+      r'((?:src|href)=["\'])([^"\']+)(["\'])',
+      caseSensitive: false,
+    );
+    return content.replaceAllMapped(srcPattern, (match) {
+      final path = _resolvePath(match.group(2) ?? '');
+      if (path == match.group(2)) return match.group(0)!;
+      return '${match.group(1)}${Uri.file(path)}${match.group(3)}';
+    });
+  }
+
+  Widget _missingImage(String? alt, String path) {
+    return ListTile(
+      leading: const Icon(Icons.broken_image_outlined),
+      title: Text(alt?.isNotEmpty == true ? alt! : '图片无法读取'),
+      subtitle: Text(path, maxLines: 2, overflow: TextOverflow.ellipsis),
+    );
+  }
+
+  Widget _buildMarkdownPreview() {
     return MarkdownBody(
-      data: _contentController.text,
+      data: _resolveMarkdown(_contentController.text),
       selectable: true,
       imageBuilder: (uri, title, alt) {
         final path = uri.scheme == 'file' ? uri.toFilePath() : uri.toString();
@@ -73,12 +110,12 @@ class ReaderNoteEditorState extends State<ReaderNoteEditor> {
         }
         final file = File(path);
         return file.existsSync()
-            ? Image.file(file, fit: BoxFit.contain)
-            : ListTile(
-                leading: const Icon(Icons.broken_image_outlined),
-                title: Text(alt?.isNotEmpty == true ? alt! : '图片无法读取'),
-                subtitle: Text(path, maxLines: 2, overflow: TextOverflow.ellipsis),
-              );
+            ? Image.file(
+                file,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => _missingImage(alt, path),
+              )
+            : _missingImage(alt, path);
       },
     );
   }
@@ -91,44 +128,51 @@ class ReaderNoteEditorState extends State<ReaderNoteEditor> {
         TextField(
           controller: _titleController,
           maxLines: 1,
-          decoration: const InputDecoration(labelText: '笔记标题', border: OutlineInputBorder()),
+          decoration: const InputDecoration(
+            labelText: '笔记标题',
+            border: OutlineInputBorder(),
+          ),
         ),
         const SizedBox(height: 10),
-        Wrap(
-          spacing: 4,
-          runSpacing: 4,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            SegmentedButton<ReaderNoteFormat>(
-              segments: const [
-                ButtonSegment(value: ReaderNoteFormat.markdown, label: Text('Markdown')),
-                ButtonSegment(value: ReaderNoteFormat.markdownHtml, label: Text('Markdown-HTML')),
-              ],
-              selected: {_format},
-              onSelectionChanged: (values) => setState(() => _format = values.first),
-            ),
-            IconButton(
-              tooltip: '插入图片',
-              onPressed: widget.onInsertImage == null ? null : () async {
-                final path = await widget.onInsertImage!();
-                if (path != null && path.isNotEmpty) _appendImage(path);
-              },
-              icon: const Icon(Icons.photo_camera),
-            ),
-            IconButton(
-              tooltip: '插入录音',
-              onPressed: widget.onInsertAudio == null ? null : () async {
-                final path = await widget.onInsertAudio!();
-                if (path != null && path.isNotEmpty) _appendAudio(path);
-              },
-              icon: const Icon(Icons.mic),
-            ),
-            IconButton(
-              tooltip: _preview ? '编辑' : '预览',
-              onPressed: () => setState(() => _preview = !_preview),
-              icon: Icon(_preview ? Icons.edit : Icons.preview),
-            ),
-          ],
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              SegmentedButton<ReaderNoteFormat>(
+                segments: const [
+                  ButtonSegment(value: ReaderNoteFormat.markdown, label: Text('Markdown')),
+                  ButtonSegment(value: ReaderNoteFormat.markdownHtml, label: Text('Markdown-HTML')),
+                ],
+                selected: {_format},
+                onSelectionChanged: (values) => setState(() => _format = values.first),
+              ),
+              IconButton(
+                tooltip: '插入图片',
+                onPressed: widget.onInsertImage == null
+                    ? null
+                    : () async {
+                        final path = await widget.onInsertImage!();
+                        if (path != null && path.isNotEmpty) _appendImage(path);
+                      },
+                icon: const Icon(Icons.photo_camera),
+              ),
+              IconButton(
+                tooltip: '插入录音',
+                onPressed: widget.onInsertAudio == null
+                    ? null
+                    : () async {
+                        final path = await widget.onInsertAudio!();
+                        if (path != null && path.isNotEmpty) _appendAudio(path);
+                      },
+                icon: const Icon(Icons.mic),
+              ),
+              IconButton(
+                tooltip: _preview ? '编辑' : '预览',
+                onPressed: () => setState(() => _preview = !_preview),
+                icon: Icon(_preview ? Icons.edit : Icons.preview),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 10),
         Expanded(
@@ -139,11 +183,13 @@ class ReaderNoteEditorState extends State<ReaderNoteEditor> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       if (_format == ReaderNoteFormat.markdown)
-                        _buildMarkdownPreview(context)
+                        _buildMarkdownPreview()
                       else
-                        Html(data: _contentController.text),
-                      const SizedBox(height: 8),
-                      ReaderNoteAttachments(content: _contentController.text),
+                        Html(data: _resolveHtml(_contentController.text)),
+                      ReaderNoteAttachments(
+                        content: _contentController.text,
+                        documentDirectory: widget.documentDirectory,
+                      ),
                     ],
                   ),
                 )
@@ -153,7 +199,9 @@ class ReaderNoteEditorState extends State<ReaderNoteEditor> {
                   expands: true,
                   textAlignVertical: TextAlignVertical.top,
                   decoration: InputDecoration(
-                    hintText: _format == ReaderNoteFormat.markdown ? '在这里输入 Markdown 笔记……' : '在这里输入 HTML 笔记……',
+                    hintText: _format == ReaderNoteFormat.markdown
+                        ? '在这里输入 Markdown 笔记……'
+                        : '在这里输入 HTML 笔记……',
                     border: const OutlineInputBorder(),
                   ),
                 ),
