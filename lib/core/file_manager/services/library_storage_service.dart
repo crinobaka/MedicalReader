@@ -17,16 +17,9 @@ class LibraryStorageService {
 
     if (configured != null && configured.isNotEmpty) {
       final externalAccess = await _ensureExternalStorageAccessIfNeeded(configured);
-
       if (externalAccess) {
         final directory = Directory(configured);
-
-        try {
-          await directory.create(recursive: true);
-          return directory;
-        } catch (_) {
-          // 自定义目录不可用时回退到默认目录。
-        }
+        if (await _verifyDirectoryAccess(directory)) return directory;
       }
     }
 
@@ -37,39 +30,28 @@ class LibraryStorageService {
 
   Future<Directory?> pickLibraryDirectory() async {
     final current = await getLibraryDirectory();
-
     final selected = await FilePicker.getDirectoryPath(
       dialogTitle: '选择 MedicalReader 文件库目录',
       initialDirectory: current.path,
     );
 
-    if (selected == null || selected.trim().isEmpty) {
-      return null;
-    }
+    if (selected == null || selected.trim().isEmpty) return null;
 
     final directory = Directory(selected);
-
     final externalAccess = await _ensureExternalStorageAccessIfNeeded(directory.path);
-    if (!externalAccess) {
-      // Android 会打开系统“所有文件访问权限”页面。
-      // 不把尚未可访问的目录写入配置，避免下次启动永久指向失效路径。
+    if (!externalAccess) return null;
+
+    if (!await _verifyDirectoryAccess(directory)) {
+      // 目录看起来存在，但当前进程没有真正的读写权限时不要保存配置。
       return null;
     }
-
-    await directory.create(recursive: true);
 
     final oldDirectory = current;
     await _saveConfiguredPath(directory.path);
 
-    // 保留库根目录级 metadata，避免切换 Library 后历史记录直接丢失。
     try {
-      final oldMeta = File(
-        '${oldDirectory.path}${Platform.pathSeparator}metadata.json',
-      );
-      final newMeta = File(
-        '${directory.path}${Platform.pathSeparator}metadata.json',
-      );
-
+      final oldMeta = File('${oldDirectory.path}${Platform.pathSeparator}metadata.json');
+      final newMeta = File('${directory.path}${Platform.pathSeparator}metadata.json');
       if (await oldMeta.exists() && !await newMeta.exists()) {
         await oldMeta.copy(newMeta.path);
       }
@@ -80,47 +62,44 @@ class LibraryStorageService {
     return directory;
   }
 
-  Future<Directory> getDefaultLibraryDirectory() async {
-    return _defaultLibraryDirectory();
-  }
+  Future<Directory> getDefaultLibraryDirectory() async => _defaultLibraryDirectory();
 
   Future<Directory> _defaultLibraryDirectory() async {
     if (Platform.isWindows) {
       final dDrive = Directory(r'D:\');
-      if (await dDrive.exists()) {
-        return Directory(r'D:\MedicalReader');
-      }
+      if (await dDrive.exists()) return Directory(r'D:\MedicalReader');
     }
 
     final documents = await getApplicationDocumentsDirectory();
+    return Directory('${documents.path}${Platform.pathSeparator}MedicalReader');
+  }
 
-    return Directory(
-      '${documents.path}${Platform.pathSeparator}MedicalReader',
-    );
+  Future<bool> _verifyDirectoryAccess(Directory directory) async {
+    try {
+      await directory.create(recursive: true);
+      final probe = File('${directory.path}${Platform.pathSeparator}.medicalreader_access_test');
+      await probe.writeAsString('ok', flush: true);
+      final readable = await probe.readAsString() == 'ok';
+      await probe.delete();
+      return readable;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<bool> _ensureExternalStorageAccessIfNeeded(String path) async {
-    if (!Platform.isAndroid) {
-      return true;
-    }
+    if (!Platform.isAndroid) return true;
 
-    // Android 应用私有目录不需要 MANAGE_EXTERNAL_STORAGE。
     final normalized = path.replaceAll('\\', '/');
     final isSharedStorage = normalized.startsWith('/storage/') ||
         normalized.startsWith('/sdcard/') ||
         normalized.startsWith('/mnt/media_rw/');
-
-    if (!isSharedStorage) {
-      return true;
-    }
+    if (!isSharedStorage) return true;
 
     try {
-      final result = await _storageChannel.invokeMethod<bool>(
-        'ensureExternalStorageAccess',
-      );
+      final result = await _storageChannel.invokeMethod<bool>('ensureExternalStorageAccess');
       return result ?? false;
     } on MissingPluginException {
-      // 非 Android 或旧安装没有原生桥接时，避免破坏原有私有存储流程。
       return false;
     } on PlatformException {
       return false;
@@ -130,27 +109,19 @@ class LibraryStorageService {
   Future<File> _configFile() async {
     final supportDirectory = await getApplicationSupportDirectory();
     await supportDirectory.create(recursive: true);
-
-    return File(
-      '${supportDirectory.path}${Platform.pathSeparator}$_configFileName',
-    );
+    return File('${supportDirectory.path}${Platform.pathSeparator}$_configFileName');
   }
 
   Future<String?> _loadConfiguredPath() async {
     try {
       final file = await _configFile();
       if (!await file.exists()) return null;
-
       final content = await file.readAsString();
       if (content.trim().isEmpty) return null;
-
       final json = jsonDecode(content);
       if (json is! Map) return null;
-
       final path = json['libraryPath'];
-      if (path is! String || path.trim().isEmpty) return null;
-
-      return path;
+      return path is String && path.trim().isNotEmpty ? path : null;
     } catch (_) {
       return null;
     }
@@ -158,9 +129,6 @@ class LibraryStorageService {
 
   Future<void> _saveConfiguredPath(String path) async {
     final file = await _configFile();
-
-    await file.writeAsString(
-      jsonEncode({'libraryPath': path}),
-    );
+    await file.writeAsString(jsonEncode({'libraryPath': path}));
   }
 }
