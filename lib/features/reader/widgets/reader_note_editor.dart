@@ -14,13 +14,7 @@ class ReaderNoteEditor extends StatefulWidget {
   final Future<String?> Function()? onInsertImage;
   final Future<String?> Function()? onInsertAudio;
 
-  const ReaderNoteEditor({
-    super.key,
-    required this.note,
-    this.documentDirectory,
-    this.onInsertImage,
-    this.onInsertAudio,
-  });
+  const ReaderNoteEditor({super.key, required this.note, this.documentDirectory, this.onInsertImage, this.onInsertAudio});
 
   @override
   ReaderNoteEditorState createState() => ReaderNoteEditorState();
@@ -80,10 +74,7 @@ class ReaderNoteEditorState extends State<ReaderNoteEditor> {
   }
 
   String _resolveHtml(String content) {
-    final srcPattern = RegExp(
-      r'((?:src|href)=["\'])([^"\']+)(["\'])',
-      caseSensitive: false,
-    );
+    final srcPattern = RegExp(r'((?:src|href)=["\'])([^"\']+)(["\'])', caseSensitive: false);
     return content.replaceAllMapped(srcPattern, (match) {
       final path = _resolvePath(match.group(2) ?? '');
       if (path == match.group(2)) return match.group(0)!;
@@ -110,11 +101,7 @@ class ReaderNoteEditorState extends State<ReaderNoteEditor> {
         }
         final file = File(path);
         return file.existsSync()
-            ? Image.file(
-                file,
-                fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => _missingImage(alt, path),
-              )
+            ? Image.file(file, fit: BoxFit.contain, errorBuilder: (_, __, ___) => _missingImage(alt, path))
             : _missingImage(alt, path);
       },
     );
@@ -125,14 +112,7 @@ class ReaderNoteEditorState extends State<ReaderNoteEditor> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        TextField(
-          controller: _titleController,
-          maxLines: 1,
-          decoration: const InputDecoration(
-            labelText: '笔记标题',
-            border: OutlineInputBorder(),
-          ),
-        ),
+        TextField(controller: _titleController, maxLines: 1, decoration: const InputDecoration(labelText: '笔记标题', border: OutlineInputBorder())),
         const SizedBox(height: 10),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -146,31 +126,9 @@ class ReaderNoteEditorState extends State<ReaderNoteEditor> {
                 selected: {_format},
                 onSelectionChanged: (values) => setState(() => _format = values.first),
               ),
-              IconButton(
-                tooltip: '插入图片',
-                onPressed: widget.onInsertImage == null
-                    ? null
-                    : () async {
-                        final path = await widget.onInsertImage!();
-                        if (path != null && path.isNotEmpty) _appendImage(path);
-                      },
-                icon: const Icon(Icons.photo_camera),
-              ),
-              IconButton(
-                tooltip: '插入录音',
-                onPressed: widget.onInsertAudio == null
-                    ? null
-                    : () async {
-                        final path = await widget.onInsertAudio!();
-                        if (path != null && path.isNotEmpty) _appendAudio(path);
-                      },
-                icon: const Icon(Icons.mic),
-              ),
-              IconButton(
-                tooltip: _preview ? '编辑' : '预览',
-                onPressed: () => setState(() => _preview = !_preview),
-                icon: Icon(_preview ? Icons.edit : Icons.preview),
-              ),
+              IconButton(tooltip: '插入图片', onPressed: widget.onInsertImage == null ? null : () async { final path = await widget.onInsertImage!(); if (path != null && path.isNotEmpty) _appendImage(path); }, icon: const Icon(Icons.photo_camera)),
+              IconButton(tooltip: '插入录音', onPressed: widget.onInsertAudio == null ? null : () async { final path = await widget.onInsertAudio!(); if (path != null && path.isNotEmpty) _appendAudio(path); }, icon: const Icon(Icons.mic)),
+              IconButton(tooltip: _preview ? '编辑' : '预览', onPressed: () => setState(() => _preview = !_preview), icon: Icon(_preview ? Icons.edit : Icons.preview)),
             ],
           ),
         ),
@@ -182,40 +140,16 @@ class ReaderNoteEditorState extends State<ReaderNoteEditor> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      if (_format == ReaderNoteFormat.markdown)
-                        _buildMarkdownPreview()
-                      else
-                        Html(data: _resolveHtml(_contentController.text)),
-                      ReaderNoteAttachments(
-                        content: _contentController.text,
-                        documentDirectory: widget.documentDirectory,
-                      ),
+                      if (_format == ReaderNoteFormat.markdown) _buildMarkdownPreview() else Html(data: _resolveHtml(_contentController.text)),
+                      ReaderNoteAttachments(content: _contentController.text),
                     ],
                   ),
                 )
-              : TextField(
-                  controller: _contentController,
-                  maxLines: null,
-                  expands: true,
-                  textAlignVertical: TextAlignVertical.top,
-                  decoration: InputDecoration(
-                    hintText: _format == ReaderNoteFormat.markdown
-                        ? '在这里输入 Markdown 笔记……'
-                        : '在这里输入 HTML 笔记……',
-                    border: const OutlineInputBorder(),
-                  ),
-                ),
+              : TextField(controller: _contentController, maxLines: null, expands: true, textAlignVertical: TextAlignVertical.top, decoration: InputDecoration(hintText: _format == ReaderNoteFormat.markdown ? '在这里输入 Markdown 笔记……' : '在这里输入 HTML 笔记……', border: const OutlineInputBorder())),
         ),
       ],
     );
   }
 
-  ReaderAnnotation buildAnnotation() {
-    return widget.note.copyWith(
-      title: _titleController.text.trim(),
-      content: _contentController.text,
-      noteFormat: _format,
-      updatedAt: DateTime.now(),
-    );
-  }
+  ReaderAnnotation buildAnnotation() => widget.note.copyWith(title: _titleController.text.trim(), content: _contentController.text, noteFormat: _format, updatedAt: DateTime.now());
 }
