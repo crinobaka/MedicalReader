@@ -23,9 +23,7 @@ class CropSessionService {
 
     await temporaryDirectory.create(recursive: true);
 
-    final id = sessionId ??
-        'crop-session-${DateTime.now().microsecondsSinceEpoch}';
-
+    final id = sessionId ?? 'crop-session-${DateTime.now().microsecondsSinceEpoch}';
     final sessionDirectory = Directory(
       '${temporaryDirectory.path}${Platform.pathSeparator}$id',
     );
@@ -40,10 +38,7 @@ class CropSessionService {
   }) async {
     final sessionId = configuration.temporarySessionId ??
         'crop-session-${DateTime.now().microsecondsSinceEpoch}';
-    final directory = await createSessionDirectory(
-      document,
-      sessionId: sessionId,
-    );
+    final directory = await createSessionDirectory(document, sessionId: sessionId);
 
     final nextConfiguration = configuration.copyWith(
       sourceDocumentId: document.id,
@@ -54,16 +49,19 @@ class CropSessionService {
       id: sessionId,
       sourceDocumentId: document.id,
       template: nextConfiguration.template.name,
-      regions: nextConfiguration.regions
-          .map((region) => region.toJson())
-          .toList(),
+      layout: nextConfiguration.layout.name,
+      pageBasis: nextConfiguration.pageBasis.name,
+      regions: nextConfiguration.regions.map((region) => region.toJson()).toList(),
+      pageRanges: nextConfiguration.pageRanges.map((range) => range.toJson()).toList(),
       pageStart: nextConfiguration.pageStart,
       pageEnd: nextConfiguration.pageEnd,
+      inheritPrevious: nextConfiguration.inheritPrevious,
+      adjustment: nextConfiguration.adjustment.toJson(),
       createdAt: nextConfiguration.createdAt,
       directoryPath: directory.path,
     );
 
-    await _manifestFile(directory).writeAsString(session.encode());
+    await _manifestFile(directory).writeAsString(session.encode(), flush: true);
     return session;
   }
 
@@ -109,16 +107,12 @@ class CropSessionService {
       '${Platform.pathSeparator}$sessionId${Platform.pathSeparator}manifest.json',
     );
 
-    if (!await file.exists()) {
-      return null;
-    }
+    if (!await file.exists()) return null;
 
     try {
       final content = await file.readAsString();
       final decoded = jsonDecode(content);
-      if (decoded is! Map) {
-        return null;
-      }
+      if (decoded is! Map) return null;
       return CropSession.fromJson(Map<String, dynamic>.from(decoded));
     } catch (_) {
       return null;
@@ -127,9 +121,7 @@ class CropSessionService {
 
   Future<void> deleteSession(CropSession session) async {
     final directory = Directory(session.directoryPath);
-    if (await directory.exists()) {
-      await directory.delete(recursive: true);
-    }
+    if (await directory.exists()) await directory.delete(recursive: true);
   }
 
   Future<void> cleanupStaleSessions(
@@ -141,19 +133,14 @@ class CropSessionService {
       '${bookDirectory.path}${Platform.pathSeparator}temporary',
     );
 
-    if (!await temporaryDirectory.exists()) {
-      return;
-    }
+    if (!await temporaryDirectory.exists()) return;
 
     final now = DateTime.now();
     await for (final entity in temporaryDirectory.list(
       recursive: false,
       followLinks: false,
     )) {
-      if (entity is! Directory) {
-        continue;
-      }
-
+      if (entity is! Directory) continue;
       final modified = (await entity.stat()).modified;
       if (now.difference(modified) > maxAge) {
         await entity.delete(recursive: true);
@@ -162,8 +149,6 @@ class CropSessionService {
   }
 
   File _manifestFile(Directory directory) {
-    return File(
-      '${directory.path}${Platform.pathSeparator}manifest.json',
-    );
+    return File('${directory.path}${Platform.pathSeparator}manifest.json');
   }
 }
