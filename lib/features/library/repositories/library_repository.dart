@@ -14,32 +14,17 @@ class LibraryRepository {
   Future<void>? _initializeFuture;
   Future<void> _writeQueue = Future<void>.value();
 
-  LibraryRepository({
-    required this.loadFiles,
-    required this.addFileAction,
-    required this.initializeFilesAction,
-    required this.metadataStorageFuture,
-  });
+  LibraryRepository({required this.loadFiles, required this.addFileAction, required this.initializeFilesAction, required this.metadataStorageFuture});
 
-  Future<void> addFile() async {
-    await initializeFilesAction();
-    await addFileAction();
-  }
-
-  Future<void> initialize() {
-    return _initializeFuture ??= _loadMetadata();
-  }
+  Future<void> addFile() async { await initializeFilesAction(); await addFileAction(); }
+  Future<void> initialize() => _initializeFuture ??= _loadMetadata();
 
   List<LibraryDocument> getDocuments() {
     final files = loadFiles();
     return files.map((file) {
       final storedJson = _documentJsonById[file.id];
       if (storedJson == null) return LibraryDocument.fromFile(file);
-      try {
-        return LibraryDocument.fromJson(storedJson, file);
-      } catch (_) {
-        return LibraryDocument.fromFile(file);
-      }
+      try { return LibraryDocument.fromJson(storedJson, file); } catch (_) { return LibraryDocument.fromFile(file); }
     }).toList();
   }
 
@@ -49,9 +34,7 @@ class LibraryRepository {
     _documentJsonById.clear();
     for (final document in documents) {
       final id = document['id'];
-      if (id is String && id.isNotEmpty) {
-        _documentJsonById[id] = Map<String, dynamic>.from(document);
-      }
+      if (id is String && id.isNotEmpty) _documentJsonById[id] = Map<String, dynamic>.from(document);
     }
   }
 
@@ -60,38 +43,27 @@ class LibraryRepository {
     final document = _documentJsonById[documentId];
     if (document == null) return null;
     final metadata = document['metadata'];
-    if (metadata is! Map) return null;
-    return Map<String, dynamic>.from(metadata);
+    return metadata is Map ? Map<String, dynamic>.from(metadata) : null;
   }
 
-  Future<void> updateDocumentMetadata({
-    required String documentId,
-    required Map<String, dynamic> metadata,
-  }) async {
+  Future<void> updateDocumentMetadata({required String documentId, required Map<String, dynamic> metadata}) async {
     await initialize();
     final document = _documentJsonById[documentId];
     if (document == null) return;
-
-    final mergedMetadata = <String, dynamic>{};
-    final existingMetadata = document['metadata'];
-    if (existingMetadata is Map) {
-      mergedMetadata.addAll(Map<String, dynamic>.from(existingMetadata));
-    }
-    mergedMetadata.addAll(metadata);
-    document['metadata'] = mergedMetadata;
+    final merged = <String, dynamic>{};
+    final existing = document['metadata'];
+    if (existing is Map) merged.addAll(Map<String, dynamic>.from(existing));
+    merged.addAll(metadata);
+    document['metadata'] = merged;
     await _persist();
   }
 
   Future<void> saveDocuments(List<LibraryDocument> documents) async {
     await initialize();
-
-    // 不因为一次文件系统扫描失败/权限暂时失效，就把历史 metadata 清空。
-    // 真正删除文档必须经过 removeDocument()，避免 Android 外部存储恢复权限后
-    // 出现“PDF 和 metadata 都消失”的数据丢失问题。
+    // 扫描不到文件时不能清空历史记录；外部存储权限可能只是暂时失效。
     for (final document in documents) {
       _documentJsonById[document.id] = document.toJson();
     }
-
     await _persist();
   }
 
@@ -104,29 +76,26 @@ class LibraryRepository {
   Future<void> _persist() async {
     final storage = await metadataStorageFuture;
     final files = loadFiles();
-    final fileById = <String, DocumentFile>{
-      for (final file in files) file.id: file,
-    };
+    final fileIds = files.map((file) => file.id).toSet();
+    final output = <Map<String, dynamic>>[];
 
-    final documents = <LibraryDocument>[];
-
-    // 只把当前确实存在的 PDF 写回 metadata；暂时不可访问的历史记录保留在
-    // 内存映射中，不参与本次序列化，下一次恢复访问后即可重新显示。
+    // 保留所有已知 metadata，而不是只序列化本次扫描到的 PDF。
+    // 这样 Android 外部存储暂时不可访问时，重启不会把历史记录永久抹掉。
     for (final json in _documentJsonById.values) {
       final id = json['id'];
-      if (id is! String) continue;
-
-      final file = fileById[id];
-      if (file == null) continue;
-
-      try {
-        documents.add(LibraryDocument.fromJson(json, file));
-      } catch (_) {
-        continue;
+      if (id is String && id.isNotEmpty) {
+        output.add(Map<String, dynamic>.from(json));
       }
     }
 
-    final operation = _writeQueue.then((_) => storage.save(documents));
+    // 当前文件系统中出现的新 PDF 也进入 metadata，保持后续 metadata API 一致。
+    for (final file in files) {
+      if (fileIds.contains(file.id) && !_documentJsonById.containsKey(file.id)) {
+        output.add(LibraryDocument.fromFile(file).toJson());
+      }
+    }
+
+    final operation = _writeQueue.then((_) => storage.saveJson(output));
     _writeQueue = operation.then<void>((_) {}, onError: (_, __) {});
     await operation;
   }
