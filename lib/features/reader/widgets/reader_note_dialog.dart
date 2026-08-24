@@ -5,12 +5,14 @@ import 'reader_note_editor.dart';
 
 class ReaderNoteDialog extends StatefulWidget {
   final ReaderAnnotation note;
+  final String? documentDirectory;
   final Future<String?> Function()? onInsertImage;
   final Future<String?> Function()? onInsertAudio;
 
   const ReaderNoteDialog({
     super.key,
     required this.note,
+    this.documentDirectory,
     this.onInsertImage,
     this.onInsertAudio,
   });
@@ -55,6 +57,7 @@ class _ReaderNoteDialogState extends State<ReaderNoteDialog> {
               child: _ReaderNoteEditorDialogStateful(
                 key: _editorKey,
                 note: widget.note,
+                documentDirectory: widget.documentDirectory,
                 onInsertImage: widget.onInsertImage,
                 onInsertAudio: widget.onInsertAudio,
               ),
@@ -68,12 +71,14 @@ class _ReaderNoteDialogState extends State<ReaderNoteDialog> {
 
 class _ReaderNoteEditorDialogStateful extends StatefulWidget {
   final ReaderAnnotation note;
+  final String? documentDirectory;
   final Future<String?> Function()? onInsertImage;
   final Future<String?> Function()? onInsertAudio;
 
   const _ReaderNoteEditorDialogStateful({
     super.key,
     required this.note,
+    this.documentDirectory,
     this.onInsertImage,
     this.onInsertAudio,
   });
@@ -92,6 +97,7 @@ class _ReaderNoteEditorDialogState extends State<_ReaderNoteEditorDialogStateful
       child: ReaderNoteEditor(
         key: _editorKey,
         note: widget.note,
+        documentDirectory: widget.documentDirectory,
         onInsertImage: widget.onInsertImage,
         onInsertAudio: widget.onInsertAudio,
       ),
