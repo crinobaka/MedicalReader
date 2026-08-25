@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../providers/reader_view_options_provider.dart';
 import '../services/reader_ui_theme.dart';
 
-class ReaderToolbar extends StatelessWidget implements PreferredSizeWidget {
+class ReaderToolbar extends ConsumerWidget implements PreferredSizeWidget {
   final Widget? title;
   final bool showBookTree;
   final bool showSearch;
@@ -11,8 +13,8 @@ class ReaderToolbar extends StatelessWidget implements PreferredSizeWidget {
   final bool bookmarked;
   final bool cropEnabled;
   final bool disabled;
-  final bool floating;
-  final String themePreset;
+  final bool? floating;
+  final String? themePreset;
   final VoidCallback? onBookTree;
   final VoidCallback? onSearch;
   final VoidCallback? onPageJump;
@@ -31,8 +33,8 @@ class ReaderToolbar extends StatelessWidget implements PreferredSizeWidget {
     required this.bookmarked,
     required this.cropEnabled,
     required this.disabled,
-    this.floating = true,
-    this.themePreset = 'google',
+    this.floating,
+    this.themePreset,
     this.onBookTree,
     this.onSearch,
     this.onPageJump,
@@ -46,26 +48,29 @@ class ReaderToolbar extends StatelessWidget implements PreferredSizeWidget {
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final options = ref.watch(readerViewOptionsProvider);
     final compact = MediaQuery.sizeOf(context).width < 600;
-    final theme = ReaderUiTheme.resolve(themePreset, Theme.of(context).brightness);
+    final effectiveFloating = floating ?? options.floatingControls;
+    final effectivePreset = themePreset ?? options.themePreset;
+    final theme = ReaderUiTheme.resolve(effectivePreset, Theme.of(context).brightness);
     final bar = AppBar(
       title: title,
-      backgroundColor: floating ? theme.surface : null,
-      foregroundColor: floating ? theme.foreground : null,
-      elevation: floating ? theme.elevation : null,
-      scrolledUnderElevation: floating ? theme.elevation : null,
-      shape: floating ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(theme.radius)) : null,
-      actions: compact ? _mobileActions(theme) : _desktopActions(theme),
+      backgroundColor: effectiveFloating ? theme.surface : null,
+      foregroundColor: effectiveFloating ? theme.foreground : null,
+      elevation: effectiveFloating ? theme.elevation : null,
+      scrolledUnderElevation: effectiveFloating ? theme.elevation : null,
+      shape: effectiveFloating ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(theme.radius)) : null,
+      actions: compact ? _mobileActions() : _desktopActions(),
     );
-    if (!floating) return bar;
+    if (!effectiveFloating) return bar;
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
       child: ClipRRect(borderRadius: BorderRadius.circular(theme.radius), child: bar),
     );
   }
 
-  List<Widget> _mobileActions(ReaderUiTheme theme) => [
+  List<Widget> _mobileActions() => [
         if (showSearch) IconButton(tooltip: '搜索 PDF', onPressed: disabled ? null : onSearch, icon: const Icon(Icons.search)),
         IconButton(tooltip: bookmarked ? '取消书签' : '添加书签', onPressed: disabled ? null : onBookmark, icon: Icon(bookmarked ? Icons.bookmark : Icons.bookmark_border)),
         IconButton(tooltip: '添加笔记', onPressed: disabled ? null : onNote, icon: const Icon(Icons.note_alt_outlined)),
@@ -88,7 +93,7 @@ class ReaderToolbar extends StatelessWidget implements PreferredSizeWidget {
         ),
       ];
 
-  List<Widget> _desktopActions(ReaderUiTheme theme) => [
+  List<Widget> _desktopActions() => [
         if (showBookTree) IconButton(tooltip: '目录', onPressed: disabled ? null : onBookTree, icon: const Icon(Icons.menu_book)),
         if (showSearch) IconButton(tooltip: '搜索 PDF (Ctrl+F)', onPressed: disabled ? null : onSearch, icon: const Icon(Icons.search)),
         if (showPageJump) IconButton(tooltip: '跳转到页码 (G)', onPressed: disabled ? null : onPageJump, icon: const Icon(Icons.find_in_page)),
