@@ -26,13 +26,13 @@ class ReaderNoteAttachments extends StatelessWidget {
       add('image', match.group(1)!);
     }
 
-    final markdownAudio = RegExp(r'\[录音\]\(([^)]+)\)');
+    final markdownAudio = RegExp(r'''\[录音\]\(([^)]+)\)''');
     for (final match in markdownAudio.allMatches(content)) {
       add('audio', match.group(1)!);
     }
 
     final htmlImage = RegExp(
-      r'<img[^>]+src=["\']([^"\']+)["\'][^>]*>',
+      r'''<img[^>]+src=["\']([^"\']+)["\'][^>]*>''',
       caseSensitive: false,
     );
     for (final match in htmlImage.allMatches(content)) {
@@ -40,7 +40,7 @@ class ReaderNoteAttachments extends StatelessWidget {
     }
 
     final htmlAudio = RegExp(
-      r'<(?:audio|source)[^>]+src=["\']([^"\']+)["\'][^>]*>',
+      r'''<(?:audio|source)[^>]+src=["\']([^"\']+)["\'][^>]*>''',
       caseSensitive: false,
     );
     for (final match in htmlAudio.allMatches(content)) {

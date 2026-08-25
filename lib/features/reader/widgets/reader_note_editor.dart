@@ -74,7 +74,7 @@ class ReaderNoteEditorState extends State<ReaderNoteEditor> {
   }
 
   String _resolveHtml(String content) {
-    final srcPattern = RegExp(r'((?:src|href)=["\'])([^"\']+)(["\'])', caseSensitive: false);
+    final srcPattern = RegExp(r'''((?:src|href)=["\'])([^"\']+)(["\'])''', caseSensitive: false);
     return content.replaceAllMapped(srcPattern, (match) {
       final path = _resolvePath(match.group(2) ?? '');
       if (path == match.group(2)) return match.group(0)!;
