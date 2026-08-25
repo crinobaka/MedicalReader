@@ -1,30 +1,29 @@
 /// 阅读器界面的显示配置。
 ///
-/// 这里只描述“显示什么”，不负责保存设置，也不负责构建 Widget。
-/// 后续 Settings 页面只需要修改这个对象，ReaderPage 不需要知道设置页面的存在。
+/// 除了开关，也保留主题、浮层和画布背景等 DIY 接口。
 class ReaderViewOptions {
-  /// 是否显示顶部当前位置。
   final bool showLocationBar;
-
-  /// 是否显示搜索命中位置。
-  ///
-  /// false 时仍然可以搜索和定位，只是不在顶部显示搜索位置。
   final bool showSearchLocation;
-
-  /// 是否显示底部页码控制栏。
   final bool showPageControls;
-
-  /// 是否显示目录按钮。
   final bool showBookTreeButton;
-
-  /// 是否显示搜索按钮。
   final bool showSearchButton;
-
-  /// 是否显示 PDF 页码跳转按钮。
   final bool showPageJumpButton;
-
-  /// 是否显示裁边开关。
   final bool showCropMargins;
+
+  /// google / apple / github / custom
+  final String themePreset;
+
+  /// 是否使用悬浮式阅读控件。
+  final bool floatingControls;
+
+  /// top / bottom / auto
+  final String toolbarPosition;
+
+  /// inherit / paper / dark / custom
+  final String canvasBackground;
+
+  /// DIY 背景色，ARGB 十六进制，例如 0xFFF4F1EA。
+  final int? customCanvasColor;
 
   const ReaderViewOptions({
     this.showLocationBar = true,
@@ -34,6 +33,11 @@ class ReaderViewOptions {
     this.showSearchButton = true,
     this.showPageJumpButton = true,
     this.showCropMargins = true,
+    this.themePreset = 'google',
+    this.floatingControls = true,
+    this.toolbarPosition = 'auto',
+    this.canvasBackground = 'inherit',
+    this.customCanvasColor,
   });
 
   ReaderViewOptions copyWith({
@@ -44,6 +48,11 @@ class ReaderViewOptions {
     bool? showSearchButton,
     bool? showPageJumpButton,
     bool? showCropMargins,
+    String? themePreset,
+    bool? floatingControls,
+    String? toolbarPosition,
+    String? canvasBackground,
+    int? customCanvasColor,
   }) {
     return ReaderViewOptions(
       showLocationBar: showLocationBar ?? this.showLocationBar,
@@ -53,20 +62,28 @@ class ReaderViewOptions {
       showSearchButton: showSearchButton ?? this.showSearchButton,
       showPageJumpButton: showPageJumpButton ?? this.showPageJumpButton,
       showCropMargins: showCropMargins ?? this.showCropMargins,
+      themePreset: themePreset ?? this.themePreset,
+      floatingControls: floatingControls ?? this.floatingControls,
+      toolbarPosition: toolbarPosition ?? this.toolbarPosition,
+      canvasBackground: canvasBackground ?? this.canvasBackground,
+      customCanvasColor: customCanvasColor ?? this.customCanvasColor,
     );
   }
 
-  Map<String, dynamic> toJson() {
-    return {
-      'showLocationBar': showLocationBar,
-      'showSearchLocation': showSearchLocation,
-      'showPageControls': showPageControls,
-      'showBookTreeButton': showBookTreeButton,
-      'showSearchButton': showSearchButton,
-      'showPageJumpButton': showPageJumpButton,
-      'showCropMargins': showCropMargins,
-    };
-  }
+  Map<String, dynamic> toJson() => {
+        'showLocationBar': showLocationBar,
+        'showSearchLocation': showSearchLocation,
+        'showPageControls': showPageControls,
+        'showBookTreeButton': showBookTreeButton,
+        'showSearchButton': showSearchButton,
+        'showPageJumpButton': showPageJumpButton,
+        'showCropMargins': showCropMargins,
+        'themePreset': themePreset,
+        'floatingControls': floatingControls,
+        'toolbarPosition': toolbarPosition,
+        'canvasBackground': canvasBackground,
+        if (customCanvasColor != null) 'customCanvasColor': customCanvasColor,
+      };
 
   factory ReaderViewOptions.fromJson(Map<String, dynamic> json) {
     return ReaderViewOptions(
@@ -77,6 +94,11 @@ class ReaderViewOptions {
       showSearchButton: json['showSearchButton'] as bool? ?? true,
       showPageJumpButton: json['showPageJumpButton'] as bool? ?? true,
       showCropMargins: json['showCropMargins'] as bool? ?? true,
+      themePreset: json['themePreset'] as String? ?? 'google',
+      floatingControls: json['floatingControls'] as bool? ?? true,
+      toolbarPosition: json['toolbarPosition'] as String? ?? 'auto',
+      canvasBackground: json['canvasBackground'] as String? ?? 'inherit',
+      customCanvasColor: json['customCanvasColor'] as int?,
     );
   }
 }
