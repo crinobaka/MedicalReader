@@ -23,29 +23,10 @@ class ReaderToolbar extends ConsumerWidget implements PreferredSizeWidget {
   final ValueChanged<bool>? onCropChanged;
   final VoidCallback? onSettings;
 
-  const ReaderToolbar({
-    super.key,
-    this.title,
-    required this.showBookTree,
-    required this.showSearch,
-    required this.showPageJump,
-    required this.showCrop,
-    required this.bookmarked,
-    required this.cropEnabled,
-    required this.disabled,
-    this.floating,
-    this.themePreset,
-    this.onBookTree,
-    this.onSearch,
-    this.onPageJump,
-    this.onBookmark,
-    this.onNote,
-    this.onCropChanged,
-    this.onSettings,
-  });
+  const ReaderToolbar({super.key, this.title, required this.showBookTree, required this.showSearch, required this.showPageJump, required this.showCrop, required this.bookmarked, required this.cropEnabled, required this.disabled, this.floating, this.themePreset, this.onBookTree, this.onSearch, this.onPageJump, this.onBookmark, this.onNote, this.onCropChanged, this.onSettings});
 
   @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+  Size get preferredSize => Size.fromHeight(floating == false ? kToolbarHeight : kToolbarHeight + 8);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -64,10 +45,7 @@ class ReaderToolbar extends ConsumerWidget implements PreferredSizeWidget {
       actions: compact ? _mobileActions() : _desktopActions(),
     );
     if (!effectiveFloating) return bar;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-      child: ClipRRect(borderRadius: BorderRadius.circular(theme.radius), child: bar),
-    );
+    return Padding(padding: const EdgeInsets.fromLTRB(8, 8, 8, 0), child: ClipRRect(borderRadius: BorderRadius.circular(theme.radius), child: bar));
   }
 
   List<Widget> _mobileActions() => [
@@ -76,13 +54,7 @@ class ReaderToolbar extends ConsumerWidget implements PreferredSizeWidget {
         IconButton(tooltip: '添加笔记', onPressed: disabled ? null : onNote, icon: const Icon(Icons.note_alt_outlined)),
         PopupMenuButton<String>(
           tooltip: '更多阅读操作',
-          onSelected: (value) {
-            switch (value) {
-              case 'tree': onBookTree?.call(); break;
-              case 'jump': onPageJump?.call(); break;
-              case 'settings': onSettings?.call(); break;
-            }
-          },
+          onSelected: (value) { switch (value) { case 'tree': onBookTree?.call(); case 'jump': onPageJump?.call(); case 'settings': onSettings?.call(); } },
           itemBuilder: (context) => [
             if (showBookTree) const PopupMenuItem(value: 'tree', child: ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.menu_book), title: Text('目录'))),
             if (showPageJump) const PopupMenuItem(value: 'jump', child: ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.find_in_page), title: Text('跳转到页码'))),
