@@ -3,15 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/reader_view_options.dart';
 import '../services/reader_settings_service.dart';
 
-final readerSettingsServiceProvider =
-    Provider<ReaderSettingsService>((ref) {
-  return ReaderSettingsService();
-});
-
-final readerViewOptionsProvider =
-    NotifierProvider<ReaderViewOptionsNotifier, ReaderViewOptions>(
-  ReaderViewOptionsNotifier.new,
-);
+final readerSettingsServiceProvider = Provider<ReaderSettingsService>((ref) => ReaderSettingsService());
+final readerViewOptionsProvider = NotifierProvider<ReaderViewOptionsNotifier, ReaderViewOptions>(ReaderViewOptionsNotifier.new);
 
 class ReaderViewOptionsNotifier extends Notifier<ReaderViewOptions> {
   late final ReaderSettingsService _settingsService;
@@ -19,22 +12,15 @@ class ReaderViewOptionsNotifier extends Notifier<ReaderViewOptions> {
   @override
   ReaderViewOptions build() {
     _settingsService = ref.read(readerSettingsServiceProvider);
-
     _loadSavedOptions();
-
     return const ReaderViewOptions();
   }
 
-  Future<void> _loadSavedOptions() async {
-    final options = await _settingsService.load();
-
-    state = options;
-  }
+  Future<void> _loadSavedOptions() async => state = await _settingsService.load();
 
   void update(ReaderViewOptions options) {
     state = options;
-
-    _save(options);
+    _settingsService.save(options);
   }
 
   void updatePartial({
@@ -45,8 +31,13 @@ class ReaderViewOptionsNotifier extends Notifier<ReaderViewOptions> {
     bool? showSearchButton,
     bool? showPageJumpButton,
     bool? showCropMargins,
+    String? themePreset,
+    bool? floatingControls,
+    String? toolbarPosition,
+    String? canvasBackground,
+    int? customCanvasColor,
   }) {
-    final options = state.copyWith(
+    update(state.copyWith(
       showLocationBar: showLocationBar,
       showSearchLocation: showSearchLocation,
       showPageControls: showPageControls,
@@ -54,22 +45,16 @@ class ReaderViewOptionsNotifier extends Notifier<ReaderViewOptions> {
       showSearchButton: showSearchButton,
       showPageJumpButton: showPageJumpButton,
       showCropMargins: showCropMargins,
-    );
-
-    state = options;
-
-    _save(options);
+      themePreset: themePreset,
+      floatingControls: floatingControls,
+      toolbarPosition: toolbarPosition,
+      canvasBackground: canvasBackground,
+      customCanvasColor: customCanvasColor,
+    ));
   }
 
   Future<void> reset() async {
-    const options = ReaderViewOptions();
-
-    state = options;
-
+    state = const ReaderViewOptions();
     await _settingsService.clear();
-  }
-
-  void _save(ReaderViewOptions options) {
-    _settingsService.save(options);
   }
 }
