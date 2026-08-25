@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 
 /// Bottom navigation controls for the Reader page.
 ///
-/// The control row becomes horizontally scrollable on narrow screens so the
-/// page/location/search labels can never force the controls outside the phone
-/// viewport.
+/// The row is deliberately scrollable on narrow screens. The page/location
+/// block is a real tap target rather than decorative text, so users can always
+/// reach page navigation even when chapter names are long.
 class ReaderPageControls extends StatelessWidget {
   final bool canGoPrevious;
   final bool canGoNext;
@@ -32,61 +32,114 @@ class ReaderPageControls extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final enabled = !pageLoading;
+    final width = MediaQuery.sizeOf(context).width;
+    final labelWidth = (width - 128).clamp(140.0, 320.0).toDouble();
 
     return SafeArea(
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              tooltip: 'Previous page',
-              onPressed: enabled && canGoPrevious ? onPrevious : null,
-              icon: const Icon(Icons.chevron_left),
-            ),
-            const SizedBox(width: 8),
-            InkWell(
-              borderRadius: BorderRadius.circular(6),
-              onTap: enabled ? onPageTap : null,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 280),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        pageLabel,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+      top: false,
+      child: Material(
+        elevation: 1,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.fromLTRB(8, 4, 8, 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _NavigationButton(
+                tooltip: '上一页',
+                icon: Icons.chevron_left,
+                enabled: enabled && canGoPrevious,
+                onPressed: onPrevious,
+              ),
+              const SizedBox(width: 6),
+              Semantics(
+                button: true,
+                label: '当前页码，点击跳转',
+                child: Material(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(12),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: enabled ? onPageTap : null,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: labelWidth),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              pageLabel,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                            ),
+                            if (locationLabel != null)
+                              Text(
+                                locationLabel!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            if (searchLabel != null)
+                              Text(
+                                searchLabel!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                          ],
+                        ),
                       ),
-                      if (locationLabel != null)
-                        Text(
-                          locationLabel!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      if (searchLabel != null)
-                        Text(
-                          searchLabel!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                    ],
+                    ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            IconButton(
-              tooltip: 'Next page',
-              onPressed: enabled && canGoNext ? onNext : null,
-              icon: const Icon(Icons.chevron_right),
-            ),
-          ],
+              const SizedBox(width: 6),
+              _NavigationButton(
+                tooltip: '下一页',
+                icon: Icons.chevron_right,
+                enabled: enabled && canGoNext,
+                onPressed: onNext,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NavigationButton extends StatelessWidget {
+  final String tooltip;
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback? onPressed;
+
+  const _NavigationButton({
+    required this.tooltip,
+    required this.icon,
+    required this.enabled,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: SizedBox(
+        width: 52,
+        height: 52,
+        child: IconButton.filledTonal(
+          onPressed: enabled ? onPressed : null,
+          icon: Icon(icon, size: 30),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 52, minHeight: 52),
         ),
       ),
     );
