@@ -6,12 +6,17 @@ import '../services/crop_configuration_store.dart';
 import '../services/reader_ui_theme.dart';
 import 'crop_editor_dialog.dart';
 
-/// 阅读器设置内容。弹层只保留一个纵向滚动面，用户从内容任意位置都可拖动。
+/// 阅读器设置内容。
+///
+/// 使用真正的 ListView，而不是由内容高度决定的 SingleChildScrollView。
+/// 这样在手机 bottom sheet 中整个内容区域都是滚动热区，用户不需要抓住
+/// 边缘或滚动条才能移动设置页。
 class ReaderSettingsPanel extends StatelessWidget {
   final ReaderViewOptions options;
   final ValueChanged<ReaderViewOptions> onChanged;
   final VoidCallback onReset;
   final Future<void> Function()? onCropConfigurationChanged;
+  final dynamic previewImage;
 
   const ReaderSettingsPanel({
     super.key,
@@ -19,6 +24,7 @@ class ReaderSettingsPanel extends StatelessWidget {
     required this.onChanged,
     required this.onReset,
     this.onCropConfigurationChanged,
+    this.previewImage,
   });
 
   Future<void> _editCropConfiguration(BuildContext context) async {
@@ -29,6 +35,7 @@ class ReaderSettingsPanel extends StatelessWidget {
       context: context,
       builder: (context) => CropEditorDialog(
         initial: current ?? CropConfiguration.initial(),
+        previewImage: previewImage,
       ),
     );
     if (result == null) return;
@@ -43,11 +50,13 @@ class ReaderSettingsPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
-    return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(16, 8, 16, 24 + bottomInset),
-      physics: const ClampingScrollPhysics(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Scrollbar(
+      thumbVisibility: MediaQuery.sizeOf(context).width >= 700,
+      interactive: true,
+      child: ListView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: EdgeInsets.fromLTRB(16, 8, 16, 24 + bottomInset),
+        physics: const ClampingScrollPhysics(),
         children: [
           _section(context, '阅读器外观', '先选整体气质，再按习惯微调', [
             _ThemePresetSelector(
@@ -84,7 +93,7 @@ class ReaderSettingsPanel extends StatelessWidget {
           ]),
           _section(context, '页面裁剪', '设置这里只负责入口和显示控制', [
             _switch(context, Icons.crop_outlined, '显示裁剪控制', null, options.showCropMargins, (v) => onChanged(options.copyWith(showCropMargins: v))),
-            _selectRow(context, Icons.view_column_outlined, '裁剪模板', '编辑当前文档模板', () => _editCropConfiguration(context)),
+            _selectRow(context, Icons.view_column_outlined, '裁剪模板', '打开当前页可视化编辑器', () => _editCropConfiguration(context)),
           ]),
           _section(context, 'DIY', '普通用户可以忽略；高级用户保留自由度', [
             ExpansionTile(
