@@ -59,9 +59,12 @@ class ReaderToolbar extends ConsumerWidget implements PreferredSizeWidget {
       iconButtonTheme: IconButtonThemeData(
         style: IconButton.styleFrom(
           foregroundColor: theme.foreground,
-          backgroundColor: theme.accent.withValues(alpha: effectivePreset == 'github' ? 0.08 : 0.10),
+          backgroundColor: theme.accent.withValues(alpha: theme.buttonOpacity),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(theme.buttonRadius),
+            side: effectivePreset == 'github'
+                ? BorderSide(color: theme.border)
+                : BorderSide.none,
           ),
           minimumSize: const Size(44, 44),
         ),
@@ -81,7 +84,12 @@ class ReaderToolbar extends ConsumerWidget implements PreferredSizeWidget {
         elevation: effectiveFloating ? theme.elevation : null,
         scrolledUnderElevation: effectiveFloating ? theme.elevation : null,
         shape: effectiveFloating
-            ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(theme.radius))
+            ? RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(theme.radius),
+                side: effectivePreset == 'github'
+                    ? BorderSide(color: theme.border)
+                    : BorderSide.none,
+              )
             : null,
         titleSpacing: compact ? 12 : 16,
         actionsPadding: EdgeInsets.symmetric(horizontal: compact ? 4 : 8),
@@ -120,33 +128,16 @@ class ReaderToolbar extends ConsumerWidget implements PreferredSizeWidget {
           tooltip: '更多阅读操作',
           onSelected: (value) {
             switch (value) {
-              case 'tree':
-                onBookTree?.call();
-              case 'jump':
-                onPageJump?.call();
-              case 'settings':
-                onSettings?.call();
+              case 'tree': onBookTree?.call();
+              case 'jump': onPageJump?.call();
+              case 'settings': onSettings?.call();
             }
           },
           itemBuilder: (context) => [
             if (showBookTree)
-              const PopupMenuItem(
-                value: 'tree',
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.menu_book),
-                  title: Text('目录'),
-                ),
-              ),
+              const PopupMenuItem(value: 'tree', child: ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.menu_book), title: Text('目录'))),
             if (showPageJump)
-              const PopupMenuItem(
-                value: 'jump',
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.find_in_page),
-                  title: Text('跳转到页码'),
-                ),
-              ),
+              const PopupMenuItem(value: 'jump', child: ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.find_in_page), title: Text('跳转到页码'))),
             if (showCrop)
               PopupMenuItem(
                 enabled: false,
@@ -154,73 +145,30 @@ class ReaderToolbar extends ConsumerWidget implements PreferredSizeWidget {
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.crop),
                   title: const Text('裁边'),
-                  trailing: Switch(
-                    value: cropEnabled,
-                    onChanged: disabled ? null : onCropChanged,
-                  ),
+                  trailing: Switch(value: cropEnabled, onChanged: disabled ? null : onCropChanged),
                 ),
               ),
             const PopupMenuDivider(),
-            const PopupMenuItem(
-              value: 'settings',
-              child: ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.tune),
-                title: Text('阅读器设置'),
-              ),
-            ),
+            const PopupMenuItem(value: 'settings', child: ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.tune), title: Text('阅读器设置'))),
           ],
         ),
       ];
 
   List<Widget> _desktopActions(ReaderUiTheme theme) => [
-        if (showBookTree)
-          IconButton(
-            tooltip: '目录',
-            onPressed: disabled ? null : onBookTree,
-            icon: const Icon(Icons.menu_book),
-          ),
-        if (showSearch)
-          IconButton(
-            tooltip: '搜索 PDF (Ctrl+F)',
-            onPressed: disabled ? null : onSearch,
-            icon: const Icon(Icons.search),
-          ),
-        if (showPageJump)
-          IconButton(
-            tooltip: '跳转到页码 (G)',
-            onPressed: disabled ? null : onPageJump,
-            icon: const Icon(Icons.find_in_page),
-          ),
-        IconButton(
-          tooltip: bookmarked ? '取消书签' : '添加书签',
-          onPressed: disabled ? null : onBookmark,
-          icon: Icon(bookmarked ? Icons.bookmark : Icons.bookmark_border),
-        ),
-        IconButton(
-          tooltip: '添加笔记',
-          onPressed: disabled ? null : onNote,
-          icon: const Icon(Icons.note_alt_outlined),
-        ),
+        if (showBookTree) IconButton(tooltip: '目录', onPressed: disabled ? null : onBookTree, icon: const Icon(Icons.menu_book)),
+        if (showSearch) IconButton(tooltip: '搜索 PDF (Ctrl+F)', onPressed: disabled ? null : onSearch, icon: const Icon(Icons.search)),
+        if (showPageJump) IconButton(tooltip: '跳转到页码 (G)', onPressed: disabled ? null : onPageJump, icon: const Icon(Icons.find_in_page)),
+        IconButton(tooltip: bookmarked ? '取消书签' : '添加书签', onPressed: disabled ? null : onBookmark, icon: Icon(bookmarked ? Icons.bookmark : Icons.bookmark_border)),
+        IconButton(tooltip: '添加笔记', onPressed: disabled ? null : onNote, icon: const Icon(Icons.note_alt_outlined)),
         if (showCrop)
           Padding(
             padding: EdgeInsets.symmetric(horizontal: theme.controlPadding.horizontal / 2),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('裁边', style: TextStyle(color: theme.muted)),
-                Switch(
-                  value: cropEnabled,
-                  onChanged: disabled ? null : onCropChanged,
-                ),
-              ],
-            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Text('裁边', style: TextStyle(color: theme.muted)),
+              Switch(value: cropEnabled, onChanged: disabled ? null : onCropChanged),
+            ]),
           ),
-        IconButton(
-          tooltip: '阅读器设置',
-          onPressed: disabled ? null : onSettings,
-          icon: const Icon(Icons.tune),
-        ),
+        IconButton(tooltip: '阅读器设置', onPressed: disabled ? null : onSettings, icon: const Icon(Icons.tune)),
         const SizedBox(width: 8),
       ];
 }

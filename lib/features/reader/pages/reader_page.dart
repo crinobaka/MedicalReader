@@ -453,25 +453,47 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     final existing = _currentPageAnnotations.where(
       (annotation) => annotation.type == ReaderAnnotationType.note,
     );
+    final note = existing.isNotEmpty
+        ? existing.first
+        : ReaderAnnotation(
+            id: 'note_${widget.document.id}_$_currentPage',
+            bookId: widget.document.id,
+            pageIndex: _currentPage,
+            type: ReaderAnnotationType.note,
+            title: 'PDF 第 ${_currentPage + 1} 页笔记',
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+          );
     final result = await showDialog<ReaderAnnotation>(
       context: context,
       builder: (context) => ReaderNoteDialog(
-        pageIndex: _currentPage,
-        initial: existing.isEmpty ? null : existing.first,
+        note: note,
+        onInsertImage: () async {
+          final files = await FilePicker.pickFiles(type: FileType.image);
+          if (files.isEmpty) return null;
+          final path = files.first.path;
+          if (path == null || path.isEmpty) return null;
+          return const ReaderAnnotationService().importAttachment(widget.document, path);
+        },
+        onInsertAudio: _recordNoteAudio,
       ),
     );
-    if (result == null || !mounted) return;
-    if (existing.isNotEmpty) {
-      await notifier.remove(existing.first.id);
-    }
+    if (result == null) return;
     await notifier.add(result);
   }
 
   Future<String?> _recordNoteAudio() async {
-    if (!await _noteAudioRecorder.hasPermission()) return null;
-    final directory = Directory.systemTemp;
-    final path = '${directory.path}/medical_reader_note_${DateTime.now().millisecondsSinceEpoch}.m4a';
-    await _noteAudioRecorder.start(const RecordConfig(), path: path);
+    final hasPermission = await _noteAudioRecorder.hasPermission();
+    if (!hasPermission) return null;
+    final service = const ReaderAnnotationService();
+    final directory = await service.ensureAttachmentsDirectory(widget.document);
+    final timestamp = DateTime.now().microsecondsSinceEpoch;
+    final path = '${directory.path}${Platform.pathSeparator}audio_$timestamp.wav';
+    await _noteAudioRecorder.start(
+      const RecordConfig(encoder: AudioEncoder.wav),
+      path: path,
+    );
+    if (!mounted) return null;
     final shouldStop = await showDialog<bool>(
           context: context,
           barrierDismissible: false,
@@ -479,7 +501,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             title: const Text('正在录音'),
             content: const Text('录音完成后点击“停止”。'),
             actions: [
-              FilledButton(
+              FilledButton.icon(
                 onPressed: () => Navigator.of(context).pop(true),
                 icon: const Icon(Icons.stop),
                 label: const Text('停止'),
@@ -496,71 +518,64 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   }
 
   Future<void> _showReaderSettings() async {
-    final width = MediaQuery.sizeOf(context).width;
-    final isPhone = width < 600;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: false,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      clipBehavior: Clip.antiAlias,
-      builder: (context) {
-        final sheetContent = Consumer(
-          builder: (context, ref, _) {
-            final options = ref.watch(readerViewOptionsProvider);
-            return ReaderSettingsPanel(
+      showDragHandle: true,
+      builder: (context) => Consumer(
+        builder: (context, ref, _) {
+          final options = ref.watch(readerViewOptionsProvider);
+          return SafeArea(
+            child: ReaderSettingsPanel(
               options: options,
               onChanged: (nextOptions) => ref
                   .read(readerViewOptionsProvider.notifier)
                   .update(nextOptions),
               onReset: () => ref.read(readerViewOptionsProvider.notifier).reset(),
-            );
-          },
-        );
-
-        if (!isPhone) {
-          return Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 720, maxHeight: 760),
-              child: Material(
-                color: Theme.of(context).colorScheme.surface,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                clipBehavior: Clip.antiAlias,
-                child: Column(
-                  children: [
-                    const _SettingsSheetHeader(),
-                    Expanded(child: ListView(physics: const ClampingScrollPhysics(), children: [sheetContent])),
-                  ],
-                ),
-              ),
             ),
           );
-        }
-
-        return DraggableScrollableSheet(
-          expand: false,
-          initialChildSize: 0.92,
-          minChildSize: 0.60,
-          maxChildSize: 0.98,
-          snap: true,
-          snapSizes: const [0.92, 0.98],
-          builder: (context, controller) => Material(
-            color: Theme.of(context).colorScheme.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-            clipBehavior: Clip.antiAlias,
-            child: CustomScrollView(
-              controller: controller,
-              physics: const ClampingScrollPhysics(),
-              slivers: [
-                const SliverToBoxAdapter(child: _SettingsSheetHeader()),
-                SliverToBoxAdapter(child: sheetContent),
-              ],
-            ),
-          ),
-        );
-      },
+        },
+      ),
     );
+  }
+
+  Future<void> _toggleCropMargins(bool enabled) async {
+    if (_cropMargins == enabled || _pageLoading) return;
+    final document = _document;
+    if (document == null) return;
+    setState(() {
+      _cropMargins = enabled;
+      _pageLoading = true;
+      _error = null;
+    });
+    _readerEngine.clearPageCache(keepImage: _image);
+    try {
+      final image = await _readerEngine.renderPage(
+        document: document,
+        pageIndex: _currentPage,
+        dpi: 150,
+        cropMargins: enabled,
+      );
+      _replaceImage(image);
+      if (!mounted) return;
+      setState(() {
+        _image = image;
+        _pageLoading = false;
+        _error = null;
+      });
+      await _saveProgress(_currentPage);
+      _pagePreloader.preloadAround(
+        document: document,
+        currentPage: _currentPage,
+        pageCount: _pageCount,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _pageLoading = false;
+        _error = error;
+      });
+    }
   }
 
   void _handleKeyEvent(KeyEvent event) {
@@ -677,30 +692,32 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           child: Listener(
             onPointerSignal: _handlePointerSignal,
             child: ReaderViewport(
-              loading: _pageLoading,
-              page: GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onHorizontalDragEnd: (details) {
-                  final currentScale = _readerTransformationController.value.getMaxScaleOnAxis();
-                  if ((currentScale - 1.0).abs() > 0.01) return;
-                  final velocity = details.primaryVelocity ?? 0.0;
-                  if (velocity < -300) {
-                    unawaited(_nextPage());
-                  } else if (velocity > 300) {
-                    unawaited(_previousPage());
-                  }
-                },
-                child: InteractiveViewer(
-                  transformationController: _readerTransformationController,
-                  minScale: 0.5,
-                  maxScale: 4.0,
-                  child: ReaderPageImage(
-                    image: image,
-                    overlay: ReaderSearchHighlight(hits: _searchHits),
+                  loading: _pageLoading,
+                  page: GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onHorizontalDragEnd: (details) {
+                      // 仅在未缩放（默认缩放接近 1.0）时启用横向翻页手势，避免与缩放/平移冲突
+                      final currentScale = _readerTransformationController.value.getMaxScaleOnAxis();
+                      if ((currentScale - 1.0).abs() > 0.01) return;
+                      final velocity = details.primaryVelocity ?? 0.0;
+                      // velocity < 0: 向左快速滑动 -> 下一页
+                      if (velocity < -300) {
+                        unawaited(_nextPage());
+                      } else if (velocity > 300) {
+                        unawaited(_previousPage());
+                      }
+                    },
+                    child: InteractiveViewer(
+                      transformationController: _readerTransformationController,
+                      minScale: 0.5,
+                      maxScale: 4.0,
+                      child: ReaderPageImage(
+                        image: image,
+                        overlay: ReaderSearchHighlight(hits: _searchHits),
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
           ),
         ),
         if (viewOptions.showPageControls) _buildPageControls(),
@@ -753,49 +770,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     if (oldImage != null && !identical(oldImage, image)) {
       WidgetsBinding.instance.addPostFrameCallback((_) => oldImage.dispose());
     }
-  }
-}
-
-class _SettingsSheetHeader extends StatelessWidget {
-  const _SettingsSheetHeader();
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
-      child: Column(
-        children: [
-          Container(
-            width: 36,
-            height: 4,
-            decoration: BoxDecoration(
-              color: scheme.onSurfaceVariant.withValues(alpha: 0.45),
-              borderRadius: BorderRadius.circular(99),
-            ),
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Icon(Icons.tune_rounded, color: scheme.primary),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  '阅读器设置',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-                ),
-              ),
-              IconButton(
-                tooltip: '关闭',
-                onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.close_rounded),
-              ),
-            ],
-          ),
-          const Divider(height: 1),
-        ],
-      ),
-    );
   }
 }
 

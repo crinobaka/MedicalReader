@@ -3,11 +3,10 @@ import 'package:flutter/material.dart';
 import '../models/crop_configuration.dart';
 import '../models/reader_view_options.dart';
 import '../services/crop_configuration_store.dart';
+import '../services/reader_ui_theme.dart';
 import 'crop_editor_dialog.dart';
 
-/// Settings content only. It deliberately does not create its own ScrollView.
-/// The host (SettingsPage or a modal sheet) owns scrolling, so a user can drag
-/// anywhere on the sheet/page instead of having to catch the edge of a nested list.
+/// 阅读器设置内容。弹层只保留一个纵向滚动面，用户从内容任意位置都可拖动。
 class ReaderSettingsPanel extends StatelessWidget {
   final ReaderViewOptions options;
   final ValueChanged<ReaderViewOptions> onChanged;
@@ -43,175 +42,171 @@ class ReaderSettingsPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+    final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
+    return SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(16, 8, 16, 24 + bottomInset),
+      physics: const ClampingScrollPhysics(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _sectionTitle(context, '阅读器外观'),
-          const SizedBox(height: 10),
-          SegmentedButton<String>(
-            showSelectedIcon: false,
-            segments: const [
-              ButtonSegment(
-                value: 'google',
-                label: Text('Google'),
-                icon: Icon(Icons.auto_awesome),
-              ),
-              ButtonSegment(
-                value: 'apple',
-                label: Text('Apple'),
-                icon: Icon(Icons.apple),
-              ),
-              ButtonSegment(
-                value: 'github',
-                label: Text('GitHub'),
-                icon: Icon(Icons.code),
-              ),
-            ],
-            selected: {
-              if (['google', 'apple', 'github'].contains(options.themePreset))
-                options.themePreset
-              else
-                'google',
-            },
-            onSelectionChanged: (value) =>
-                onChanged(options.copyWith(themePreset: value.first)),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            '三套预设会同时改变颜色、圆角、按钮密度和工具栏质感。',
-            style: TextStyle(fontSize: 12),
-          ),
-          SwitchListTile.adaptive(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('悬浮式控件'),
-            subtitle: const Text('工具栏浮在页面上方，内容区域更完整'),
-            value: options.floatingControls,
-            onChanged: (value) =>
-                onChanged(options.copyWith(floatingControls: value)),
-          ),
-          DropdownButtonFormField<String>(
-            value: options.toolbarPosition,
-            decoration: const InputDecoration(labelText: '工具栏位置'),
-            items: const [
-              DropdownMenuItem(value: 'auto', child: Text('自动（推荐）')),
-              DropdownMenuItem(value: 'top', child: Text('顶部')),
-              DropdownMenuItem(value: 'bottom', child: Text('底部')),
-            ],
-            onChanged: (value) => value == null
-                ? null
-                : onChanged(options.copyWith(toolbarPosition: value)),
-          ),
-          const SizedBox(height: 10),
-          DropdownButtonFormField<String>(
-            value: options.canvasBackground,
-            decoration: const InputDecoration(labelText: '阅读画布背景'),
-            items: const [
-              DropdownMenuItem(value: 'inherit', child: Text('跟随系统')),
-              DropdownMenuItem(value: 'paper', child: Text('纸张')),
-              DropdownMenuItem(value: 'dark', child: Text('暗色')),
-              DropdownMenuItem(value: 'custom', child: Text('自定义颜色（API）')),
-            ],
-            onChanged: (value) => value == null
-                ? null
-                : onChanged(options.copyWith(canvasBackground: value)),
-          ),
-          const Divider(height: 32),
-          _sectionTitle(context, '显示控件'),
-          SwitchListTile.adaptive(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('显示当前位置'),
-            subtitle: const Text('章节、书籍页码和 PDF 页码'),
-            value: options.showLocationBar,
-            onChanged: (v) => onChanged(options.copyWith(showLocationBar: v)),
-          ),
-          SwitchListTile.adaptive(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('显示搜索位置'),
-            subtitle: const Text('显示最近一次搜索命中位置'),
-            value: options.showSearchLocation,
-            onChanged: options.showLocationBar
-                ? (v) => onChanged(options.copyWith(showSearchLocation: v))
-                : null,
-          ),
-          SwitchListTile.adaptive(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('显示目录按钮'),
-            value: options.showBookTreeButton,
-            onChanged: (v) => onChanged(options.copyWith(showBookTreeButton: v)),
-          ),
-          SwitchListTile.adaptive(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('显示搜索按钮'),
-            value: options.showSearchButton,
-            onChanged: (v) => onChanged(options.copyWith(showSearchButton: v)),
-          ),
-          SwitchListTile.adaptive(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('显示页码跳转按钮'),
-            value: options.showPageJumpButton,
-            onChanged: (v) => onChanged(options.copyWith(showPageJumpButton: v)),
-          ),
-          SwitchListTile.adaptive(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('显示底部控制栏'),
-            value: options.showPageControls,
-            onChanged: (v) => onChanged(options.copyWith(showPageControls: v)),
-          ),
-          const Divider(height: 32),
-          _sectionTitle(context, '页面裁剪'),
-          const SizedBox(height: 4),
-          const Text('裁剪模板决定 PDF 页面实际显示哪些区域。'),
-          SwitchListTile.adaptive(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('显示裁剪控制'),
-            value: options.showCropMargins,
-            onChanged: (v) => onChanged(options.copyWith(showCropMargins: v)),
-          ),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.view_column_outlined),
-            title: const Text('编辑并应用裁剪模板'),
-            subtitle: const Text('实时预览单栏、双栏、三栏和自定义区域'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => _editCropConfiguration(context),
-          ),
-          const Divider(height: 32),
-          ExpansionTile(
-            tilePadding: EdgeInsets.zero,
-            leading: const Icon(Icons.tune),
-            title: const Text('DIY 指南'),
-            children: const [
-              Padding(
-                padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: Text(
-                  '主题：google / apple / github / custom。\n'
-                  '工具栏：floatingControls 控制悬浮，toolbarPosition 控制位置。\n'
-                  '画布：canvasBackground 可设 inherit / paper / dark / custom。\n'
-                  'customCanvasColor 使用 ARGB 整数。\n\n'
-                  '设计原则：普通用户只需要选择预设；DIY 用户再修改配置。不要为了隐藏一个按钮去改 ReaderPage。',
+          _section(context, '阅读器外观', '先选整体气质，再按习惯微调', [
+            _ThemePresetSelector(
+              value: options.themePreset,
+              onChanged: (value) => onChanged(options.copyWith(themePreset: value)),
+            ),
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('悬浮式控件'),
+              subtitle: const Text('工具栏悬浮在页面上方，不挤占正文空间'),
+              value: options.floatingControls,
+              onChanged: (value) => onChanged(options.copyWith(floatingControls: value)),
+            ),
+            _selectRow(context, Icons.vertical_align_top_rounded, '工具栏位置', _toolbarLabel(options.toolbarPosition), () async {
+              final value = await _choose(context, '工具栏位置', options.toolbarPosition, const {
+                'auto': '自动（推荐）', 'top': '顶部', 'bottom': '底部',
+              });
+              if (value != null) onChanged(options.copyWith(toolbarPosition: value));
+            }),
+            _selectRow(context, Icons.wallpaper_outlined, '阅读画布', _canvasLabel(options.canvasBackground), () async {
+              final value = await _choose(context, '阅读画布', options.canvasBackground, const {
+                'inherit': '跟随系统', 'paper': '纸张', 'dark': '暗色', 'custom': '自定义颜色（DIY）',
+              });
+              if (value != null) onChanged(options.copyWith(canvasBackground: value));
+            }),
+          ]),
+          _section(context, '阅读时显示什么', '只留下真正需要的控件，减少长时间阅读的视觉噪音', [
+            _switch(context, Icons.location_on_outlined, '当前位置', '章节、书籍页码和 PDF 页码', options.showLocationBar, (v) => onChanged(options.copyWith(showLocationBar: v))),
+            _switch(context, Icons.manage_search_outlined, '搜索命中位置', '显示最近一次搜索命中的章节与页码', options.showSearchLocation, (v) => onChanged(options.copyWith(showSearchLocation: v)), enabled: options.showLocationBar),
+            _switch(context, Icons.menu_book_outlined, '目录按钮', null, options.showBookTreeButton, (v) => onChanged(options.copyWith(showBookTreeButton: v))),
+            _switch(context, Icons.search_rounded, '搜索按钮', null, options.showSearchButton, (v) => onChanged(options.copyWith(showSearchButton: v))),
+            _switch(context, Icons.find_in_page_outlined, '页码跳转按钮', null, options.showPageJumpButton, (v) => onChanged(options.copyWith(showPageJumpButton: v))),
+            _switch(context, Icons.swap_horiz_rounded, '底部翻页栏', '显示上一页、下一页和当前页码', options.showPageControls, (v) => onChanged(options.copyWith(showPageControls: v))),
+          ]),
+          _section(context, '页面裁剪', '设置这里只负责入口和显示控制', [
+            _switch(context, Icons.crop_outlined, '显示裁剪控制', null, options.showCropMargins, (v) => onChanged(options.copyWith(showCropMargins: v))),
+            _selectRow(context, Icons.view_column_outlined, '裁剪模板', '编辑当前文档模板', () => _editCropConfiguration(context)),
+          ]),
+          _section(context, 'DIY', '普通用户可以忽略；高级用户保留自由度', [
+            ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              leading: const Icon(Icons.tune_rounded),
+              title: const Text('怎么看懂这些选项？'),
+              subtitle: const Text('不用懂 Flutter，也能按说明改配置'),
+              children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '主题：${options.themePreset}\n悬浮控件：${options.floatingControls ? '开启' : '关闭'}\n工具栏：${options.toolbarPosition}\n画布：${options.canvasBackground}\n\n默认值负责“打开就能读”，DIY 负责满足特殊习惯。主题、工具栏、画布和显示控件都对应 ReaderViewOptions，不需要修改 ReaderPage。',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.5),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.restore),
-            title: const Text('恢复默认设置'),
-            onTap: onReset,
-          ),
+              ],
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.restore_rounded),
+              title: const Text('恢复默认设置'),
+              subtitle: const Text('恢复推荐的 Google 风格与阅读布局'),
+              onTap: onReset,
+            ),
+          ]),
         ],
       ),
     );
   }
 
-  Widget _sectionTitle(BuildContext context, String title) {
-    return Text(
-      title,
-      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
+  Widget _section(BuildContext context, String title, String subtitle, List<Widget> children) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.55)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 4),
+            Text(subtitle, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+            const SizedBox(height: 8),
+            ...children,
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _switch(BuildContext context, IconData icon, String title, String? subtitle, bool value, ValueChanged<bool> onChanged, {bool enabled = true}) {
+    return SwitchListTile.adaptive(contentPadding: EdgeInsets.zero, secondary: Icon(icon), title: Text(title), subtitle: subtitle == null ? null : Text(subtitle), value: value, onChanged: enabled ? onChanged : null);
+  }
+
+  Widget _selectRow(BuildContext context, IconData icon, String title, String value, VoidCallback onTap) {
+    return ListTile(contentPadding: EdgeInsets.zero, leading: Icon(icon), title: Text(title), subtitle: Text(value), trailing: const Icon(Icons.chevron_right_rounded), onTap: onTap);
+  }
+
+  Future<String?> _choose(BuildContext context, String title, String value, Map<String, String> items) {
+    return showDialog<String>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: Text(title),
+        children: [for (final entry in items.entries) RadioListTile<String>(value: entry.key, groupValue: value, title: Text(entry.value), onChanged: (next) => Navigator.of(context).pop(next))],
+      ),
+    );
+  }
+
+  String _toolbarLabel(String value) => const {'auto': '自动（推荐）', 'top': '顶部', 'bottom': '底部'}[value] ?? '自动（推荐）';
+  String _canvasLabel(String value) => const {'inherit': '跟随系统', 'paper': '纸张', 'dark': '暗色', 'custom': '自定义颜色（DIY）'}[value] ?? '跟随系统';
+}
+
+class _ThemePresetSelector extends StatelessWidget {
+  final String value;
+  final ValueChanged<String> onChanged;
+  const _ThemePresetSelector({required this.value, required this.onChanged});
+
+  static const presets = [
+    (id: 'google', name: 'Google', description: 'Material：清晰、亲和、强调层级', icon: Icons.auto_awesome_rounded),
+    (id: 'apple', name: 'Apple', description: '轻量、留白、圆润、少干扰', icon: Icons.phone_iphone_rounded),
+    (id: 'github', name: 'GitHub', description: '紧凑、直接、适合长时间桌面使用', icon: Icons.code_rounded),
+  ];
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [for (final preset in presets) Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: _ThemePresetCard(preset: preset, selected: value == preset.id, onTap: () => onChanged(preset.id)),
+    )],
+  );
+}
+
+class _ThemePresetCard extends StatelessWidget {
+  final ({String id, String name, String description, IconData icon}) preset;
+  final bool selected;
+  final VoidCallback onTap;
+  const _ThemePresetCard({required this.preset, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final preview = ReaderUiTheme.resolve(preset.id, Theme.of(context).brightness);
+    return Material(
+      color: selected ? scheme.primaryContainer : scheme.surfaceContainerHighest.withValues(alpha: 0.65),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(children: [
+            Container(width: 48, height: 48, decoration: BoxDecoration(color: preview.surface, borderRadius: BorderRadius.circular(preview.buttonRadius)), child: Icon(preset.icon, color: preview.accent)),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(preset.name, style: const TextStyle(fontWeight: FontWeight.w700)), const SizedBox(height: 2), Text(preset.description, style: Theme.of(context).textTheme.bodySmall)])),
+            Radio<String>(value: preset.id, groupValue: selected ? preset.id : null, onChanged: (_) => onTap()),
+          ]),
+        ),
+      ),
     );
   }
 }
