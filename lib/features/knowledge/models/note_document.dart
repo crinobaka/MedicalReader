@@ -1,16 +1,13 @@
 import '../../reader/models/reader_annotation.dart';
 
-/// Knowledge 层使用的 Note 文档模型。
+/// 独立知识笔记模型。
 ///
-/// Markdown 与 Markdown-HTML 是两种互斥的正文格式：
-/// - markdown: 正文按照 Markdown 解析。
-/// - markdownHtml: 正文直接作为 HTML 交给 HTML renderer。
-///
-/// 注意：这里不把 HTML 再转回 Markdown，也不会对 markdownHtml 做 Markdown 二次解析。
+/// bookId/pageIndex 可为空：为空表示笔记已经与书籍解绑，
+/// 解绑后的笔记仍然可以保存、编辑和导出，不依赖 LibraryDocument 生命周期。
 class NoteDocument {
   final String id;
-  final String bookId;
-  final int pageIndex;
+  final String? bookId;
+  final int? pageIndex;
   final String title;
   final String body;
   final ReaderNoteFormat format;
@@ -20,8 +17,8 @@ class NoteDocument {
 
   const NoteDocument({
     required this.id,
-    required this.bookId,
-    required this.pageIndex,
+    this.bookId,
+    this.pageIndex,
     required this.title,
     required this.body,
     required this.format,
@@ -29,6 +26,18 @@ class NoteDocument {
     required this.createdAt,
     required this.updatedAt,
   });
+
+  bool get isDetached => bookId == null || pageIndex == null;
+
+  NoteDocument detach() => NoteDocument(
+        id: id,
+        title: title,
+        body: body,
+        format: format,
+        attachments: attachments,
+        createdAt: createdAt,
+        updatedAt: updatedAt,
+      );
 
   factory NoteDocument.fromAnnotation(ReaderAnnotation annotation) {
     return NoteDocument(
@@ -45,10 +54,13 @@ class NoteDocument {
   }
 
   ReaderAnnotation toAnnotation() {
+    if (isDetached) {
+      throw StateError('Detached notes cannot be converted to ReaderAnnotation.');
+    }
     return ReaderAnnotation(
       id: id,
-      bookId: bookId,
-      pageIndex: pageIndex,
+      bookId: bookId!,
+      pageIndex: pageIndex!,
       type: ReaderAnnotationType.note,
       title: title,
       content: body,
