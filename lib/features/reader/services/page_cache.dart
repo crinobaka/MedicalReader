@@ -89,6 +89,11 @@ class PageCache {
     );
 
     final existing = _pages.remove(key);
+    if (identical(existing, image)) {
+      _pages[key] = image;
+      return;
+    }
+
     if (existing != null) {
       _estimatedBytes -= _estimateBytes(existing);
       existing.dispose();
@@ -120,7 +125,8 @@ class PageCache {
   List<ui.Image> trim() {
     final removed = <ui.Image>[];
 
-    while (_pages.length > capacity || _estimatedBytes > maxBytes) {
+    while (_pages.length > capacity ||
+        (_pages.length > 1 && _estimatedBytes > maxBytes)) {
       final oldestKey = _pages.keys.first;
       final image = _pages.remove(oldestKey);
       if (image != null) {
