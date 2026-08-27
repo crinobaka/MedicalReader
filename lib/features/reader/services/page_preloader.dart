@@ -7,7 +7,6 @@ class PagePreloader {
   final ReaderEngineService _readerEngine;
 
   bool _running = false;
-
   int _generation = 0;
 
   PagePreloader({required ReaderEngineService readerEngine})
@@ -19,35 +18,22 @@ class PagePreloader {
     required int pageCount,
     int dpi = 150,
     bool cropMargins = false,
+    int radius = 3,
   }) async {
     if (_running) {
       return;
     }
 
     _running = true;
-
     final generation = ++_generation;
 
     try {
-      // ------------------------------------------------------------
-      // L2 预加载策略：
-      //
-      // 当前页前后各 5 页。
-      //
-      // 例如当前页 = 100：
-      //
-      // 95 96 97 98 99
-      //       ↓
-      //      100
-      //       ↑
-      // 101 102 103 104 105
-      //
-      // 当前页本身不需要重复渲染，
-      // 因为 ReaderPage 已经负责首屏渲染。
-      // ------------------------------------------------------------
+      // 预加载只服务于“下一次操作”，不应该为了追求命中率把 GPU
+      // 内存提前塞满。默认当前页前后各 3 页，并允许调用方按设备能力调整。
+      final safeRadius = radius.clamp(1, 5);
       final pages = <int>[];
 
-      for (var offset = 1; offset <= 5; offset++) {
+      for (var offset = 1; offset <= safeRadius; offset++) {
         pages.add(currentPage - offset);
         pages.add(currentPage + offset);
       }
@@ -69,8 +55,8 @@ class PagePreloader {
             cropMargins: cropMargins,
           );
 
-          // renderPage() 返回的是 clone。
-          // 预加载器自己不需要持有它，所以立即释放。
+          // renderPage() 返回的是调用方所有的 clone；缓存中的 L2 image
+          // 仍由 ReaderEngineService 持有，因此这里只释放预加载结果。
           image.dispose();
         } catch (error, stackTrace) {
           if (generation != _generation) {
@@ -78,11 +64,8 @@ class PagePreloader {
           }
 
           debugPrint(
-            'Page preload failed: '
-            'page=$pageIndex, '
-            'error=$error',
+            'Page preload failed: page=$pageIndex, error=$error',
           );
-
           debugPrintStack(stackTrace: stackTrace);
         }
       }
