@@ -135,21 +135,32 @@ class ReaderToolbar extends ConsumerWidget implements PreferredSizeWidget {
           },
           itemBuilder: (context) => [
             if (showBookTree)
-              const PopupMenuItem(value: 'tree', child: ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.menu_book), title: Text('目录'))),
+              const PopupMenuItem(
+                value: 'tree',
+                child: Row(children: [Icon(Icons.menu_book), SizedBox(width: 12), Text('目录')]),
+              ),
             if (showPageJump)
-              const PopupMenuItem(value: 'jump', child: ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.find_in_page), title: Text('跳转到页码'))),
+              const PopupMenuItem(
+                value: 'jump',
+                child: Row(children: [Icon(Icons.find_in_page), SizedBox(width: 12), Text('跳转到页码')]),
+              ),
             if (showCrop)
               PopupMenuItem(
                 enabled: false,
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.crop),
-                  title: const Text('裁边'),
-                  trailing: Switch(value: cropEnabled, onChanged: disabled ? null : onCropChanged),
+                child: Row(
+                  children: [
+                    const Icon(Icons.crop),
+                    const SizedBox(width: 12),
+                    const Expanded(child: Text('裁边')),
+                    Switch(value: cropEnabled, onChanged: disabled ? null : onCropChanged),
+                  ],
                 ),
               ),
             const PopupMenuDivider(),
-            const PopupMenuItem(value: 'settings', child: ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.tune), title: Text('阅读器设置'))),
+            const PopupMenuItem(
+              value: 'settings',
+              child: Row(children: [Icon(Icons.tune), SizedBox(width: 12), Text('阅读器设置')]),
+            ),
           ],
         ),
       ];
