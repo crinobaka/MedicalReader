@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -16,34 +16,38 @@ class NoteExportService {
   }
 
   Future<String?> exportMarkdown(NoteDocument note) async {
-    final path = await FilePicker.platform.saveFile(
+    final bytes = utf8.encode(toMarkdown(note));
+    return FilePicker.saveFile(
       dialogTitle: '导出 Markdown 笔记',
       fileName: '${_safeName(note.title)}.md',
       type: FileType.custom,
       allowedExtensions: const ['md'],
+      bytes: bytes,
     );
-    if (path == null) return null;
-    await File(path).writeAsString(toMarkdown(note));
-    return path;
   }
 
   Future<String?> exportPdf(NoteDocument note) async {
-    final path = await FilePicker.platform.saveFile(
+    final document = pw.Document();
+    document.addPage(
+      pw.MultiPage(
+        build: (_) => [
+          pw.Header(
+            level: 0,
+            text: note.title.trim().isEmpty ? 'Untitled Note' : note.title.trim(),
+          ),
+          pw.Paragraph(text: note.body),
+        ],
+      ),
+    );
+
+    final bytes = await document.save();
+    return FilePicker.saveFile(
       dialogTitle: '导出 PDF 笔记',
       fileName: '${_safeName(note.title)}.pdf',
       type: FileType.custom,
       allowedExtensions: const ['pdf'],
+      bytes: bytes,
     );
-    if (path == null) return null;
-    final document = pw.Document();
-    document.addPage(pw.MultiPage(
-      build: (_) => [
-        pw.Header(level: 0, text: note.title.trim().isEmpty ? 'Untitled Note' : note.title.trim()),
-        pw.Paragraph(text: note.body),
-      ],
-    ));
-    await File(path).writeAsBytes(await document.save());
-    return path;
   }
 
   String _safeName(String value) {
