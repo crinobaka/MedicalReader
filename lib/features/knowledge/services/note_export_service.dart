@@ -17,13 +17,13 @@ class NoteExportService {
 
   Future<String?> exportMarkdown(NoteDocument note) async {
     final bytes = utf8.encode(toMarkdown(note));
-    return FilePicker.saveFile(
+    return (await FilePicker.saveFile(
       dialogTitle: '导出 Markdown 笔记',
       fileName: '${_safeName(note.title)}.md',
       type: FileType.custom,
       allowedExtensions: const ['md'],
       bytes: bytes,
-    );
+    ))?.toFilePath();
   }
 
   Future<String?> exportPdf(NoteDocument note) async {
@@ -41,13 +41,13 @@ class NoteExportService {
     );
 
     final bytes = await document.save();
-    return FilePicker.saveFile(
+    return (await FilePicker.saveFile(
       dialogTitle: '导出 PDF 笔记',
       fileName: '${_safeName(note.title)}.pdf',
       type: FileType.custom,
       allowedExtensions: const ['pdf'],
       bytes: bytes,
-    );
+    ))?.toFilePath();
   }
 
   String _safeName(String value) {
