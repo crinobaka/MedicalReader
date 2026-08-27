@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../library/models/library_document.dart';
 import '../library/providers/library_provider.dart';
+import '../reader/pages/reader_page.dart';
 import 'services/search_history_service.dart';
 
 class SearchPage extends ConsumerStatefulWidget {
@@ -43,11 +44,11 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   List<LibraryDocument> _results(List<LibraryDocument> documents) {
     final q = _query.toLowerCase();
     if (q.isEmpty) return const [];
-    return documents.where((document) {
-      return document.title.toLowerCase().contains(q) ||
-          document.file.name.toLowerCase().contains(q) ||
-          document.metadata.values.any((value) => value.toString().toLowerCase().contains(q));
-    }).toList(growable: false);
+    return documents.where((document) =>
+      document.title.toLowerCase().contains(q) ||
+      document.file.name.toLowerCase().contains(q) ||
+      document.metadata.values.any((value) => value.toString().toLowerCase().contains(q))
+    ).toList(growable: false);
   }
 
   @override
@@ -102,7 +103,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                     leading: const Icon(Icons.picture_as_pdf_outlined),
                     title: Text(document.title),
                     subtitle: Text(document.file.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                    onTap: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('已定位：${document.title}'))),
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ReaderPage(document: document))),
                   );
                 },
               ),
