@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 
 import '../models/crop_configuration.dart';
@@ -16,7 +18,7 @@ class ReaderSettingsPanel extends StatelessWidget {
   final ValueChanged<ReaderViewOptions> onChanged;
   final VoidCallback onReset;
   final Future<void> Function()? onCropConfigurationChanged;
-  final dynamic previewImage;
+  final ui.Image? previewImage;
 
   const ReaderSettingsPanel({
     super.key,
