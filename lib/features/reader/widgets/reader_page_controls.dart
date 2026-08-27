@@ -16,6 +16,8 @@ class ReaderPageControls extends StatelessWidget {
   final VoidCallback? onNext;
   final VoidCallback? onPageTap;
   final bool floating;
+  final double? progress;
+  final ValueChanged<double>? onProgressChanged;
 
   const ReaderPageControls({
     super.key,
@@ -29,6 +31,8 @@ class ReaderPageControls extends StatelessWidget {
     this.onNext,
     this.onPageTap,
     this.floating = false,
+    this.progress,
+    this.onProgressChanged,
   });
 
   @override
@@ -66,10 +70,7 @@ class ReaderPageControls extends StatelessWidget {
                 child: ConstrainedBox(
                   constraints: BoxConstraints(maxWidth: labelWidth),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -79,6 +80,27 @@ class ReaderPageControls extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           textAlign: TextAlign.center,
                         ),
+                        if (progress != null && onProgressChanged != null) ...[
+                          const SizedBox(height: 2),
+                          SizedBox(
+                            width: (labelWidth - 28).clamp(112.0, 280.0).toDouble(),
+                            child: SliderTheme(
+                              data: SliderTheme.of(context).copyWith(
+                                trackHeight: 2,
+                                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+                                overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+                              ),
+                              child: Slider(
+                                value: progress!.clamp(0.0, 1.0),
+                                min: 0,
+                                max: 1,
+                                onChanged: enabled ? onProgressChanged : null,
+                                semanticFormatterCallback: (value) =>
+                                    '阅读进度 ${(value * 100).round()}%',
+                              ),
+                            ),
+                          ),
+                        ],
                         if (locationLabel != null)
                           Text(
                             locationLabel!,
@@ -166,10 +188,7 @@ class _NavigationButton extends StatelessWidget {
           constraints: const BoxConstraints(minWidth: 52, minHeight: 52),
           style: floating
               ? IconButton.styleFrom(
-                  backgroundColor: Theme.of(context)
-                      .colorScheme
-                      .surface
-                      .withValues(alpha: 0.88),
+                  backgroundColor: Theme.of(context).colorScheme.surface.withValues(alpha: 0.88),
                 )
               : null,
         ),
