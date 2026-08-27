@@ -26,25 +26,31 @@ class PageCacheKey {
   }
 
   @override
-  int get hashCode {
-    return Object.hash(
-      pageIndex,
-      dpi,
-      cropMargins,
-      cropSignature,
-    );
-  }
+  int get hashCode => Object.hash(
+        pageIndex,
+        dpi,
+        cropMargins,
+        cropSignature,
+      );
 }
 
 /// Reader Engine 的 L2 页面缓存。
 ///
-/// 当前页前后各 5 页，总容量默认 11 页。
-/// 使用 LRU：最近访问的页面放到 Map 尾部，超过容量淘汰最旧页面。
+/// 同时使用“页数上限”和“估算像素内存上限”。
+/// 仅限制页数在高 DPI 页面上并不可靠：一张 300 DPI 的医学扫描页
+/// 就可能占用几十 MB。这里按 RGBA 4 bytes/pixel 做保守估算，
+/// 超出预算时从最旧页面开始淘汰。
 class PageCache {
   final int capacity;
+  final int maxBytes;
   final Map<PageCacheKey, ui.Image> _pages = {};
+  int _estimatedBytes = 0;
 
-  PageCache({this.capacity = 11}) : assert(capacity > 0);
+  PageCache({
+    this.capacity = 11,
+    this.maxBytes = 64 * 1024 * 1024,
+  })  : assert(capacity > 0),
+        assert(maxBytes > 0);
 
   ui.Image? get({
     required int pageIndex,
@@ -83,13 +89,13 @@ class PageCache {
     );
 
     final existing = _pages.remove(key);
-    if (identical(existing, image)) {
-      _pages[key] = image;
-      return;
+    if (existing != null) {
+      _estimatedBytes -= _estimateBytes(existing);
+      existing.dispose();
     }
 
-    existing?.dispose();
     _pages[key] = image;
+    _estimatedBytes += _estimateBytes(image);
   }
 
   ui.Image? remove({
@@ -98,23 +104,27 @@ class PageCache {
     required bool cropMargins,
     String cropSignature = '',
   }) {
-    return _pages.remove(
-      PageCacheKey(
-        pageIndex: pageIndex,
-        dpi: dpi,
-        cropMargins: cropMargins,
-        cropSignature: cropSignature,
-      ),
+    final key = PageCacheKey(
+      pageIndex: pageIndex,
+      dpi: dpi,
+      cropMargins: cropMargins,
+      cropSignature: cropSignature,
     );
+    final image = _pages.remove(key);
+    if (image != null) {
+      _estimatedBytes -= _estimateBytes(image);
+    }
+    return image;
   }
 
   List<ui.Image> trim() {
     final removed = <ui.Image>[];
 
-    while (_pages.length > capacity) {
+    while (_pages.length > capacity || _estimatedBytes > maxBytes) {
       final oldestKey = _pages.keys.first;
       final image = _pages.remove(oldestKey);
       if (image != null) {
+        _estimatedBytes -= _estimateBytes(image);
         removed.add(image);
       }
     }
@@ -127,16 +137,19 @@ class PageCache {
       image.dispose();
     }
     _pages.clear();
+    _estimatedBytes = 0;
   }
 
   void clearExcept(ui.Image? keepImage) {
     final entries = _pages.entries.toList();
     _pages.clear();
+    _estimatedBytes = 0;
 
     for (final entry in entries) {
       final image = entry.value;
       if (identical(image, keepImage)) {
         _pages[entry.key] = image;
+        _estimatedBytes += _estimateBytes(image);
       } else {
         image.dispose();
       }
@@ -161,7 +174,11 @@ class PageCache {
 
   int get length => _pages.length;
 
+  int get estimatedBytes => _estimatedBytes;
+
   Iterable<PageCacheKey> get keys => _pages.keys;
 
   void dispose() => clear();
+
+  int _estimateBytes(ui.Image image) => image.width * image.height * 4;
 }
