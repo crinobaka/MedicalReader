@@ -145,21 +145,22 @@ class CropRegionCanvas extends StatelessWidget {
       return best;
     }
 
-    final left = snap(next.x, guidesX);
-    final top = snap(next.y, guidesY);
-    final right = snap(next.x + next.width, guidesX);
-    final bottom = snap(next.y + next.height, guidesY);
-
-    final x = left.clamp(0.0, 1.0);
-    final y = top.clamp(0.0, 1.0);
-    final rightEdge = right.clamp(x + minRegionSize, 1.0);
-    final bottomEdge = bottom.clamp(y + minRegionSize, 1.0);
+    final left = snap(next.x, guidesX).clamp(0.0, 1.0 - minRegionSize).toDouble();
+    final top = snap(next.y, guidesY).clamp(0.0, 1.0 - minRegionSize).toDouble();
+    final rawRight = snap(next.x + next.width, guidesX).clamp(0.0, 1.0).toDouble();
+    final rawBottom = snap(next.y + next.height, guidesY).clamp(0.0, 1.0).toDouble();
+    final right = rawRight < left + minRegionSize
+        ? (left + minRegionSize).clamp(0.0, 1.0).toDouble()
+        : rawRight;
+    final bottom = rawBottom < top + minRegionSize
+        ? (top + minRegionSize).clamp(0.0, 1.0).toDouble()
+        : rawBottom;
 
     return next.copyWith(
-      x: x.toDouble(),
-      y: y.toDouble(),
-      width: (rightEdge - x).toDouble(),
-      height: (bottomEdge - y).toDouble(),
+      x: left,
+      y: top,
+      width: right - left,
+      height: bottom - top,
     ).clamp();
   }
 
