@@ -19,10 +19,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   String _query = '';
 
   @override
-  void initState() {
-    super.initState();
-    _loadHistory();
-  }
+  void initState() { super.initState(); _loadHistory(); }
 
   Future<void> _loadHistory() async {
     final history = await _historyService.load();
@@ -54,10 +51,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   }
 
   @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+  void dispose() { _controller.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
@@ -85,15 +79,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             ),
           ),
           if (_query.isEmpty && _history.isNotEmpty) ...[
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 16, 4),
-                child: Row(children: [
-                  const Expanded(child: Text('最近搜索', style: TextStyle(fontWeight: FontWeight.w600))),
-                  TextButton(onPressed: _clearHistory, child: const Text('清空')),
-                ]),
-              ),
-            ),
+            SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.fromLTRB(20, 16, 16, 4), child: Row(children: [const Expanded(child: Text('最近搜索', style: TextStyle(fontWeight: FontWeight.w600))), TextButton(onPressed: _clearHistory, child: const Text('清空'))]))),
             SliverList.builder(
               itemCount: _history.length,
               itemBuilder: (context, index) => ListTile(
@@ -104,9 +90,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
               ),
             ),
           ] else if (_query.isNotEmpty) ...[
-            SliverToBoxAdapter(
-              child: Padding(padding: const EdgeInsets.fromLTRB(20, 16, 20, 8), child: Text('找到 ${results.length} 项')),
-            ),
+            SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.fromLTRB(20, 16, 20, 8), child: Text('找到 ${results.length} 项'))),
             if (results.isEmpty)
               const SliverFillRemaining(hasScrollBody: false, child: Center(child: Text('没有找到匹配内容')))
             else
@@ -118,11 +102,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                     leading: const Icon(Icons.picture_as_pdf_outlined),
                     title: Text(document.title),
                     subtitle: Text(document.file.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                    onTap: () {
-                      // Search owns discovery; opening is intentionally left to the
-                      // same reader route used by Library to avoid a second reader.
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('已定位：${document.title}')));
-                    },
+                    onTap: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('已定位：${document.title}'))),
                   );
                 },
               ),
