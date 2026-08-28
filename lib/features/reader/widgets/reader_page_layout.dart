@@ -7,7 +7,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../controllers/reader_interaction_controller.dart';
 import '../models/book_tree_node.dart';
-import '../models/reader_view_options.dart';
 import '../providers/reader_view_options_provider.dart';
 import 'reader_error_view.dart';
 import 'reader_location_bar.dart';
@@ -20,7 +19,7 @@ import 'reader_viewport.dart';
 /// ReaderPage 的纯展示层。
 ///
 /// 页面状态、PDF 生命周期和业务命令由宿主负责；这里仅负责布局、输入
-/// 呈现以及控件的浮层组合。这样 ReaderPage 可以逐步退化为注册器/连接器。
+/// 呈现以及控件的浮层组合。
 class ReaderPageLayout extends ConsumerStatefulWidget {
   final String locationLabel;
   final String? searchLocationLabel;
@@ -97,10 +96,41 @@ class ReaderPageLayout extends ConsumerStatefulWidget {
 class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
   static const _interaction = ReaderInteractionController();
   bool _controlsVisible = true;
+  double _gestureDistanceX = 0;
+  bool _gestureStartedZooming = false;
+  double _gestureStartScale = 1;
 
   void _toggleControls() {
     if (!mounted) return;
     setState(() => _controlsVisible = !_controlsVisible);
+  }
+
+  void _onInteractionStart(ScaleStartDetails details) {
+    _gestureDistanceX = 0;
+    _gestureStartScale = widget.transformationController.value.getMaxScaleOnAxis();
+    _gestureStartedZooming = false;
+  }
+
+  void _onInteractionUpdate(ScaleUpdateDetails details) {
+    _gestureDistanceX += details.focalPointDelta.dx;
+    if ((details.scale - 1).abs() > 0.01 || (_gestureStartScale - 1).abs() > 0.01) {
+      _gestureStartedZooming = true;
+    }
+  }
+
+  void _onInteractionEnd(ScaleEndDetails details) {
+    if (widget.pageLoading || _gestureStartedZooming) return;
+    final scale = widget.transformationController.value.getMaxScaleOnAxis();
+    if ((scale - 1).abs() > 0.01) return;
+    final intent = _interaction.resolveHorizontalSwipe(
+      distance: _gestureDistanceX,
+      velocity: details.velocity.pixelsPerSecond.dx,
+    );
+    if (intent == ReaderGestureIntent.nextPage) {
+      unawaited(widget.onNext());
+    } else if (intent == ReaderGestureIntent.previousPage) {
+      unawaited(widget.onPrevious());
+    }
   }
 
   @override
@@ -109,9 +139,7 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
     final title = options.showLocationBar
         ? ReaderLocationBar(
             location: widget.locationLabel,
-            searchLocation: options.showSearchLocation
-                ? widget.searchLocationLabel
-                : null,
+            searchLocation: options.showSearchLocation ? widget.searchLocationLabel : null,
           )
         : null;
 
@@ -134,41 +162,27 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
       onSettings: widget.onSettings,
     );
 
-    if (widget.loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
+    if (widget.loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
     if (widget.error != null && widget.image == null) {
       return Scaffold(body: ReaderErrorView(error: widget.error!, onRetry: widget.onRetry));
     }
     final currentImage = widget.image;
-    if (currentImage == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
+    if (currentImage == null) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
     final canvas = Listener(
-      onPointerSignal: (event) => _handlePointerSignal(event),
+      onPointerSignal: _handlePointerSignal,
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onTap: options.floatingControls ? _toggleControls : null,
-        onHorizontalDragEnd: (details) {
-          final scale = widget.transformationController.value.getMaxScaleOnAxis();
-          if ((scale - 1.0).abs() > 0.01) return;
-          final intent = _interaction.resolveHorizontalSwipe(
-            distance: 0,
-            velocity: details.primaryVelocity ?? 0,
-          );
-          if (intent == ReaderGestureIntent.nextPage) {
-            widget.onNext();
-          } else if (intent == ReaderGestureIntent.previousPage) {
-            widget.onPrevious();
-          }
-        },
         child: ReaderViewport(
           loading: widget.pageLoading,
           page: InteractiveViewer(
             transformationController: widget.transformationController,
             minScale: 0.5,
             maxScale: 4.0,
+            onInteractionStart: _onInteractionStart,
+            onInteractionUpdate: _onInteractionUpdate,
+            onInteractionEnd: _onInteractionEnd,
             child: ReaderPageImage(
               image: currentImage,
               overlay: ReaderSearchHighlight(hits: widget.searchHits),
@@ -202,34 +216,14 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
             children: [
               canvas,
               if (_controlsVisible)
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: IgnorePointer(
-                    ignoring: false,
-                    child: SafeArea(child: toolbar),
-                  ),
-                ),
+                Positioned(top: 0, left: 0, right: 0, child: SafeArea(child: toolbar)),
               if (_controlsVisible && controls != null)
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: SafeArea(child: controls),
-                ),
+                Positioned(left: 0, right: 0, bottom: 0, child: SafeArea(child: controls)),
             ],
           )
-        : Column(
-            children: [
-              toolbar,
-              Expanded(child: canvas),
-              if (controls != null) controls,
-            ],
-          );
+        : Column(children: [toolbar, Expanded(child: canvas), if (controls != null) controls]);
 
     return Scaffold(
-      appBar: options.floatingControls ? null : null,
       body: KeyboardListener(
         focusNode: widget.keyboardFocusNode,
         onKeyEvent: _handleKeyEvent,
@@ -240,11 +234,9 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
 
   void _handleKeyEvent(KeyEvent event) {
     if (event is! KeyDownEvent) return;
-    if (event.logicalKey == LogicalKeyboardKey.arrowLeft ||
-        event.logicalKey == LogicalKeyboardKey.pageUp) {
+    if (event.logicalKey == LogicalKeyboardKey.arrowLeft || event.logicalKey == LogicalKeyboardKey.pageUp) {
       widget.onPrevious();
-    } else if (event.logicalKey == LogicalKeyboardKey.arrowRight ||
-        event.logicalKey == LogicalKeyboardKey.pageDown) {
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowRight || event.logicalKey == LogicalKeyboardKey.pageDown) {
       widget.onNext();
     } else if (event.logicalKey == LogicalKeyboardKey.home) {
       widget.onFirst();
@@ -277,8 +269,7 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
         final targetScale = (currentScale * factor).clamp(0.5, 4.0).toDouble();
         final actualFactor = targetScale / currentScale;
         if (actualFactor != 1.0) {
-          widget.transformationController.value =
-              (widget.transformationController.value.clone()..scale(actualFactor));
+          widget.transformationController.value = widget.transformationController.value.clone()..scale(actualFactor);
         }
         break;
       case ReaderPointerIntent.none:
