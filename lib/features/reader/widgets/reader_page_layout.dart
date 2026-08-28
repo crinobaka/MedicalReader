@@ -95,6 +95,7 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
   static const _interaction = ReaderInteractionController();
   bool _controlsVisible = true;
   double _gestureDistanceX = 0;
+  double _gestureDistanceY = 0;
   bool _gestureStartedZooming = false;
   double _gestureStartScale = 1;
 
@@ -105,12 +106,14 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
 
   void _onInteractionStart(ScaleStartDetails details) {
     _gestureDistanceX = 0;
+    _gestureDistanceY = 0;
     _gestureStartScale = widget.transformationController.value.getMaxScaleOnAxis();
     _gestureStartedZooming = false;
   }
 
   void _onInteractionUpdate(ScaleUpdateDetails details) {
     _gestureDistanceX += details.focalPointDelta.dx;
+    _gestureDistanceY += details.focalPointDelta.dy;
     if ((details.scale - 1).abs() > 0.01 || (_gestureStartScale - 1).abs() > 0.01) {
       _gestureStartedZooming = true;
     }
@@ -120,6 +123,15 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
     if (widget.pageLoading || _gestureStartedZooming) return;
     final scale = widget.transformationController.value.getMaxScaleOnAxis();
     if ((scale - 1).abs() > 0.01) return;
+
+    // A page-turn gesture should feel intentional. InteractiveViewer also
+    // receives vertical pans, so require horizontal dominance before treating
+    // the gesture as navigation. This prevents small-screen readers from
+    // accidentally changing pages while trying to pan/scroll.
+    final horizontal = _gestureDistanceX.abs();
+    final vertical = _gestureDistanceY.abs();
+    if (horizontal < 48 || horizontal <= vertical * 1.2) return;
+
     final intent = _interaction.resolveHorizontalSwipe(
       distance: _gestureDistanceX,
       velocity: details.velocity.pixelsPerSecond.dx,
