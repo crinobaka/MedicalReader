@@ -130,6 +130,7 @@ class ReaderToolbar extends ConsumerWidget implements PreferredSizeWidget {
             switch (value) {
               case 'tree': onBookTree?.call();
               case 'jump': onPageJump?.call();
+              case 'crop': onCropChanged?.call(!cropEnabled);
               case 'settings': onSettings?.call();
             }
           },
@@ -146,13 +147,14 @@ class ReaderToolbar extends ConsumerWidget implements PreferredSizeWidget {
               ),
             if (showCrop)
               PopupMenuItem(
-                enabled: false,
+                value: 'crop',
+                enabled: !disabled,
                 child: Row(
                   children: [
                     const Icon(Icons.crop),
                     const SizedBox(width: 12),
-                    const Expanded(child: Text('裁边')),
-                    Switch(value: cropEnabled, onChanged: disabled ? null : onCropChanged),
+                    Expanded(child: Text(cropEnabled ? '关闭裁边' : '开启裁边')),
+                    Icon(cropEnabled ? Icons.check : Icons.crop_outlined, size: 20),
                   ],
                 ),
               ),
