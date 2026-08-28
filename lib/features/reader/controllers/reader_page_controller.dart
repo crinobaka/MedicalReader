@@ -1,10 +1,11 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 import '../../../core/ffi/medical_core.dart';
 import '../../library/models/library_document.dart';
-import '../../library/providers/library_repository_provider.dart';
+import '../../library/repositories/library_repository.dart';
 import '../models/book_manifest.dart';
 import '../models/book_page_mapping.dart';
 import '../models/book_template.dart';
@@ -28,20 +29,21 @@ class ReaderPageController extends ChangeNotifier {
     required this.initialPage,
     required LibraryRepository libraryRepository,
     ReaderEngineService? readerEngine,
-    PagePreloader? pagePreloader,
     BookTemplateService? bookTemplateService,
     BookManifestService? bookManifestService,
   })  : _readerEngine = readerEngine ?? ReaderEngineService(),
-        _pagePreloader = pagePreloader ?? PagePreloader(readerEngine: readerEngine ?? ReaderEngineService()),
         _bookTemplateService = bookTemplateService ?? BookTemplateService(),
         _bookManifestService = bookManifestService ?? const BookManifestService(),
-        _readerProgressService = ReaderProgressService(libraryRepository: libraryRepository);
+        _readerProgressService = ReaderProgressService(libraryRepository: libraryRepository) {
+    _pagePreloader = PagePreloader(readerEngine: _readerEngine);
+    currentPage = initialPage;
+  }
 
   final LibraryDocument documentInfo;
   final int initialPage;
 
   final ReaderEngineService _readerEngine;
-  final PagePreloader _pagePreloader;
+  late final PagePreloader _pagePreloader;
   final BookTemplateService _bookTemplateService;
   final BookManifestService _bookManifestService;
   final ReaderProgressService _readerProgressService;
@@ -127,7 +129,6 @@ class ReaderPageController extends ChangeNotifier {
       notifyListeners();
 
       await renderCurrent(notify: false);
-      if (loading) return;
       notifyListeners();
     } catch (e) {
       opened?.close();
@@ -170,7 +171,7 @@ class ReaderPageController extends ChangeNotifier {
     if (notify) notifyListeners();
   }
 
-  Future<void> goToPage(int pageIndex, {bool clearSearch = true}) async {
+  Future<void> goToPage(int pageIndex) async {
     if (pageLoading || pageIndex < 0 || pageIndex >= pageCount || pageIndex == currentPage) return;
     currentPage = pageIndex;
     await renderCurrent();
@@ -208,7 +209,7 @@ class ReaderPageController extends ChangeNotifier {
     document = null;
     image?.dispose();
     image = null;
-    currentPage = 0;
+    currentPage = initialPage;
     pageCount = 0;
     loading = true;
     pageLoading = false;
@@ -220,10 +221,19 @@ class ReaderPageController extends ChangeNotifier {
   @override
   void dispose() {
     _pagePreloader.cancel();
+    unawaitedSaveProgress();
     document?.close();
     _readerEngine.dispose();
     image?.dispose();
     image = null;
     super.dispose();
+  }
+
+  void unawaitedSaveProgress() {
+    _readerProgressService.save(
+      documentId: documentInfo.id,
+      lastPage: currentPage,
+      cropMargins: cropMargins,
+    );
   }
 }
