@@ -19,7 +19,7 @@ MedicalReader 的目标不是做一个“能打开 PDF”的播放器，而是�
 - 书签、标注、Markdown / HTML 笔记
 - 图片与音频附件
 - 书籍目录树与页码映射
-- 搜索结果定位
+- 搜索结果定位与最近搜索记录暂存
 - Google / Apple / GitHub 三套阅读器视觉预设
 - 悬浮阅读工具栏与可配置画布背景
 - 手机 / 平板 / 桌面自适应主导航
@@ -47,6 +47,14 @@ flutter analyze
 flutter test
 flutter run -d windows
 ```
+
+也可以使用统一的 Windows 验证脚本：
+
+```powershell
+.\tools\verify_release.ps1
+```
+
+它会依次执行依赖、analyze、test，并检查发布所需的关键工程文件。
 
 Android：
 
@@ -77,13 +85,13 @@ MedicalReader/
 │       ├── library/          # 书库
 │       ├── reader/           # 阅读器、裁切、模板、缓存、标注
 │       ├── knowledge/        # 笔记与知识页面
-│       ├── search/           # 搜索入口
+│       ├── search/           # 搜索入口与搜索历史
 │       └── settings/         # 设置与用户模板
 ├── core/medical_core/        # Rust PDF / FFI 核心
 ├── assets/                   # 内置模板与品牌资源
 ├── doc/                      # 产品、技术、数据、工程设计文档
 ├── docs/                     # 实施、验收、DIY 与 API 文档
-└── tools/                    # 桌面端模板 / 目录生成工具
+└── tools/                    # PowerShell 模板 / 目录生成与发布验证工具
 ```
 
 ## DIY 与扩展
@@ -97,7 +105,7 @@ MedicalReader/
 - `CropConfiguration`：裁切区域与布局
 - `PageCache`：缓存容量与估算内存预算
 
-详细操作请阅读 `docs/用户与DIY指南.md`；开发者 API、参数、继承与引用关系见 `docs/代码API与依赖关系.md`。
+详细操作请阅读 `docs/用户与DIY指南.md`；开发者 API、参数、继承与引用关系见 `docs/代码API与依赖关系.md`；B/C 阶段的工程验收边界见 `docs/BC收尾验收.md`。
 
 ## 设计边界
 
@@ -118,6 +126,7 @@ v0.1 明确不为了“看起来高级”加入高风险依赖。以下功能保
 
 - `doc/技术路线/`：PRD、ER、TDD、CAD、DSS、MRKL、MSE 等设计资料
 - `docs/v0.1收尾验收与未完成项对照.md`：v0.1 验收边界
+- `docs/BC收尾验收.md`：Reader B/C 阶段工程与交互验收
 - `docs/用户与DIY指南.md`：普通用户操作与 DIY
 - `docs/ui_ux_principles.md`：交互原则
 - `docs/代码API与依赖关系.md`：代码入口、函数参数、引用关系与预留接口
