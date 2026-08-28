@@ -11,31 +11,21 @@ import '../../library/models/library_document.dart';
 import '../../library/providers/library_repository_provider.dart';
 import '../controllers/reader_page_controller.dart';
 import '../models/reader_annotation.dart';
-import '../models/reader_view_options.dart';
 import '../services/reader_annotation_service.dart';
 import '../services/reader_search_service.dart';
 import '../widgets/book_tree_panel.dart';
 import '../widgets/reader_note_dialog.dart';
 import '../widgets/reader_page_layout.dart';
-import '../widgets/reader_search_dialog.dart';
+import '../widgets/reader_serch_dialog.dart';
 import '../widgets/reader_settings_panel.dart';
 import '../providers/reader_annotation_provider.dart';
 import '../providers/reader_view_options_provider.dart';
 
-/// 阅读器入口。
-///
-/// 这里刻意只保留组装依赖、生命周期和用户 command；PDF 生命周期、渲染、
-/// 进度和预加载由 [ReaderPageController] 管理，展示由 [ReaderPageLayout] 管理。
+/// 阅读器入口：组装状态、命令和展示层，不直接管理 PDF 生命周期。
 class ReaderPageV2 extends ConsumerStatefulWidget {
-  const ReaderPageV2({
-    super.key,
-    required this.document,
-    this.initialPage = 0,
-  });
-
+  const ReaderPageV2({super.key, required this.document, this.initialPage = 0});
   final LibraryDocument document;
   final int initialPage;
-
   @override
   ConsumerState<ReaderPageV2> createState() => _ReaderPageV2State();
 }
@@ -46,6 +36,7 @@ class _ReaderPageV2State extends ConsumerState<ReaderPageV2> {
   final AudioRecorder _audioRecorder = AudioRecorder();
   late final FocusNode _focusNode;
   late final TransformationController _transformationController;
+  List<ReaderSearchHit> _searchHits = const [];
 
   @override
   void initState() {
@@ -64,31 +55,25 @@ class _ReaderPageV2State extends ConsumerState<ReaderPageV2> {
       .where((item) => item.pageIndex == _controller.currentPage)
       .toList(growable: false);
 
-  bool get _bookmarked => _annotations.any(
-        (item) => item.type == ReaderAnnotationType.bookmark,
-      );
+  bool get _bookmarked => _annotations.any((item) => item.type == ReaderAnnotationType.bookmark);
 
   Future<void> _toggleBookmark() async {
     if (_controller.pageLoading) return;
     final notifier = ref.read(readerAnnotationsProvider(widget.document).notifier);
-    final existing = _annotations.where(
-      (item) => item.type == ReaderAnnotationType.bookmark,
-    );
+    final existing = _annotations.where((item) => item.type == ReaderAnnotationType.bookmark);
     if (existing.isNotEmpty) {
       for (final item in existing) await notifier.remove(item.id);
       return;
     }
     final now = DateTime.now();
-    await notifier.add(
-      ReaderAnnotation(
-        id: 'bookmark_${widget.document.id}_${_controller.currentPage}',
-        bookId: widget.document.id,
-        pageIndex: _controller.currentPage,
-        type: ReaderAnnotationType.bookmark,
-        createdAt: now,
-        updatedAt: now,
-      ),
-    );
+    await notifier.add(ReaderAnnotation(
+      id: 'bookmark_${widget.document.id}_${_controller.currentPage}',
+      bookId: widget.document.id,
+      pageIndex: _controller.currentPage,
+      type: ReaderAnnotationType.bookmark,
+      createdAt: now,
+      updatedAt: now,
+    ));
   }
 
   Future<void> _showSearch() async {
@@ -109,12 +94,12 @@ class _ReaderPageV2State extends ConsumerState<ReaderPageV2> {
       ),
     );
     if (result == null || !mounted) return;
+    setState(() => _searchHits = result.hits);
     await _controller.goToPage(result.pageIndex);
     _focusNode.requestFocus();
   }
 
   Future<void> _showBookTree() async {
-    if (!mounted) return;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -189,7 +174,11 @@ class _ReaderPageV2State extends ConsumerState<ReaderPageV2> {
           ),
         ) ??
         false;
-    return stop ? _audioRecorder.stop() : _audioRecorder.stop();
+    if (!stop) {
+      await _audioRecorder.stop();
+      return null;
+    }
+    return _audioRecorder.stop();
   }
 
   Future<void> _showSettings() async {
@@ -215,10 +204,7 @@ class _ReaderPageV2State extends ConsumerState<ReaderPageV2> {
   Future<void> _showPageJump() async {
     final value = await showDialog<int>(
       context: context,
-      builder: (context) => _PageJumpDialog(
-        currentPage: _controller.currentPage + 1,
-        pageCount: _controller.pageCount,
-      ),
+      builder: (context) => _PageJumpDialog(currentPage: _controller.currentPage + 1, pageCount: _controller.pageCount),
     );
     if (value != null) await _controller.goToPage(value - 1);
   }
@@ -230,8 +216,7 @@ class _ReaderPageV2State extends ConsumerState<ReaderPageV2> {
     );
     if (value == null) return;
     final page = _controller.bookPageMapping.pdfPageForBookPage(value);
-    if (page == null || !mounted) return;
-    await _controller.goToPage(page);
+    if (page != null) await _controller.goToPage(page);
   }
 
   @override
@@ -240,17 +225,14 @@ class _ReaderPageV2State extends ConsumerState<ReaderPageV2> {
       animation: _controller,
       builder: (context, _) {
         final path = _controller.currentBookTreePath;
-        final searchLocation = path.isEmpty
-            ? null
-            : '命中 · ${path.map((node) => node.name).join(' / ')}';
         return ReaderPageLayout(
           locationLabel: _controller.currentLocationLabel,
-          searchLocationLabel: searchLocation,
+          searchLocationLabel: path.isEmpty ? null : '命中 · ${path.map((node) => node.name).join(' / ')}',
           loading: _controller.loading,
           pageLoading: _controller.pageLoading,
           error: _controller.error,
           image: _controller.image,
-          searchHits: const [],
+          searchHits: _searchHits,
           bookmarked: _bookmarked,
           cropEnabled: _controller.cropMargins,
           canGoPrevious: _controller.currentPage > 0,
@@ -309,14 +291,7 @@ class _PageJumpDialogState extends State<_PageJumpDialog> {
   @override
   Widget build(BuildContext context) => AlertDialog(
         title: const Text('跳转到页码'),
-        content: TextField(
-          controller: _controller,
-          autofocus: true,
-          keyboardType: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          decoration: InputDecoration(hintText: '1 - ${widget.pageCount}', suffixText: '/ ${widget.pageCount}'),
-          onSubmitted: (_) => _submit(),
-        ),
+        content: TextField(controller: _controller, autofocus: true, keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly], decoration: InputDecoration(hintText: '1 - ${widget.pageCount}', suffixText: '/ ${widget.pageCount}'), onSubmitted: (_) => _submit()),
         actions: [
           TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('取消')),
           FilledButton(onPressed: _submit, child: const Text('跳转')),
