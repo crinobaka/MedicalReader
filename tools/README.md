@@ -5,7 +5,7 @@
 ## 目录生成器
 
 ```powershell
-.	ools\directory_generator.ps1 -InputFile .\my-book.txt -OutputFile .\book.json
+.\tools\directory_generator.ps1 -InputFile .\my-book.txt -OutputFile .\book.json
 ```
 
 输入使用 2 个空格表示一级缩进；空行和 `#` 开头的行会忽略。
@@ -21,7 +21,7 @@
 ## 阅读模板生成器
 
 ```powershell
-.	ools\reader_template_generator.ps1
+.\tools\reader_template_generator.ps1
 ```
 
 PowerShell 脚本可以直接在 Windows Terminal 中运行，不需要把 `tools/` 当作 Dart package，也不参与 App 的 Dart 编译。
