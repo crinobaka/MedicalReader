@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
@@ -17,9 +18,6 @@ import 'reader_toolbar.dart';
 import 'reader_viewport.dart';
 
 /// ReaderPage 的纯展示层。
-///
-/// 页面状态、PDF 生命周期和业务命令由宿主负责；这里仅负责布局、输入
-/// 呈现以及控件的浮层组合。
 class ReaderPageLayout extends ConsumerStatefulWidget {
   final String locationLabel;
   final String? searchLocationLabel;
