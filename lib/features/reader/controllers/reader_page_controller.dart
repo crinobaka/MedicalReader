@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -20,9 +21,6 @@ import '../services/reader_engine_service.dart';
 import '../services/reader_progress_service.dart';
 
 /// ReaderPage 的状态与文档生命周期控制器。
-///
-/// View 只负责呈现状态和发出 command；PDF 打开、渲染、进度保存、预加载
-/// 等有副作用的工作集中在这里，避免 ReaderPage 继续膨胀成业务逻辑容器。
 class ReaderPageController extends ChangeNotifier {
   ReaderPageController({
     required this.documentInfo,
@@ -41,7 +39,6 @@ class ReaderPageController extends ChangeNotifier {
 
   final LibraryDocument documentInfo;
   final int initialPage;
-
   final ReaderEngineService _readerEngine;
   late final PagePreloader _pagePreloader;
   final BookTemplateService _bookTemplateService;
@@ -49,6 +46,7 @@ class ReaderPageController extends ChangeNotifier {
   final ReaderProgressService _readerProgressService;
   late BookTemplateMatcher _bookTemplateMatcher;
   late BookTreeService _bookTreeService;
+  bool _disposed = false;
 
   MedicalCoreDocument? document;
   ui.Image? image;
@@ -69,9 +67,7 @@ class ReaderPageController extends ChangeNotifier {
   BookTreeNode? get currentBookTreeNode => bookTreeIndex.isNotEmpty
       ? bookTreeIndex.findNodeForPage(currentPage)
       : null;
-
   int? get currentBookPage => bookPageMapping.bookPageForPdfPage(currentPage);
-
   List<BookTreeNode> get currentBookTreePath => bookTreeIndex.isNotEmpty
       ? bookTreeIndex.findPathForPage(currentPage)
       : const [];
@@ -88,31 +84,39 @@ class ReaderPageController extends ChangeNotifier {
   }
 
   Future<void> open() async {
+    if (_disposed) return;
     MedicalCoreDocument? opened;
     try {
       await _bookTemplateService.loadAvailableTemplates();
+      if (_disposed) return;
       _bookTemplateMatcher = BookTemplateMatcher(templates: _bookTemplateService.templates);
       _bookTreeService = BookTreeService(manifestService: _bookManifestService);
 
-      opened = _readerEngine.openDocument(
-        id: documentInfo.file.id,
-        path: documentInfo.file.path,
-      );
+      opened = _readerEngine.openDocument(id: documentInfo.file.id, path: documentInfo.file.path);
       final count = opened.pageCount;
       if (count <= 0) throw StateError('PDF contains no pages.');
 
       final progress = await _readerProgressService.load(documentInfo.id);
+      if (_disposed) {
+        opened.close();
+        return;
+      }
       final manifest = await _bookManifestService.loadForDocument(documentInfo);
+      if (_disposed) {
+        opened.close();
+        return;
+      }
       final template = _bookTemplateMatcher.match(documentInfo, manifest: manifest);
       final tree = await _bookTreeService.loadIndexForDocument(
         documentInfo,
         pageCount: count,
         manifest: manifest,
       );
-      final mappingConfig = {
-        ...?template?.bookPageMapping,
-        ...?manifest?.bookPageMapping,
-      };
+      if (_disposed) {
+        opened.close();
+        return;
+      }
+      final mappingConfig = {...?template?.bookPageMapping, ...?manifest?.bookPageMapping};
       final mapping = BookPageMapping.fromTemplate(index: tree, config: mappingConfig);
       final restored = progress.lastPage.clamp(0, count - 1);
 
@@ -129,9 +133,11 @@ class ReaderPageController extends ChangeNotifier {
       notifyListeners();
 
       await renderCurrent(notify: false);
+      if (_disposed) return;
       notifyListeners();
     } catch (e) {
       opened?.close();
+      if (_disposed) return;
       document = null;
       loading = false;
       pageLoading = false;
@@ -142,11 +148,11 @@ class ReaderPageController extends ChangeNotifier {
 
   Future<void> renderCurrent({bool notify = true, bool clearCache = false}) async {
     final doc = document;
-    if (doc == null || currentPage < 0 || currentPage >= pageCount || pageLoading) return;
+    if (_disposed || doc == null || currentPage < 0 || currentPage >= pageCount || pageLoading) return;
     if (clearCache) _readerEngine.clearPageCache(keepImage: image);
     pageLoading = true;
     error = null;
-    if (notify) notifyListeners();
+    if (notify && !_disposed) notifyListeners();
     try {
       final nextImage = await _readerEngine.renderPage(
         document: doc,
@@ -154,9 +160,14 @@ class ReaderPageController extends ChangeNotifier {
         dpi: 150,
         cropMargins: cropMargins,
       );
+      if (_disposed) {
+        nextImage.dispose();
+        return;
+      }
       _replaceImage(nextImage);
       pageLoading = false;
       await saveProgress();
+      if (_disposed) return;
       _pagePreloader.preloadAround(
         document: doc,
         currentPage: currentPage,
@@ -165,14 +176,15 @@ class ReaderPageController extends ChangeNotifier {
         cropMargins: cropMargins,
       );
     } catch (e) {
+      if (_disposed) return;
       pageLoading = false;
       error = e;
     }
-    if (notify) notifyListeners();
+    if (notify && !_disposed) notifyListeners();
   }
 
   Future<void> goToPage(int pageIndex) async {
-    if (pageLoading || pageIndex < 0 || pageIndex >= pageCount || pageIndex == currentPage) return;
+    if (_disposed || pageLoading || pageIndex < 0 || pageIndex >= pageCount || pageIndex == currentPage) return;
     currentPage = pageIndex;
     await renderCurrent();
   }
@@ -183,7 +195,7 @@ class ReaderPageController extends ChangeNotifier {
   Future<void> lastPage() => goToPage(pageCount - 1);
 
   Future<void> setCropMargins(bool enabled) async {
-    if (cropMargins == enabled || pageLoading || document == null) return;
+    if (_disposed || cropMargins == enabled || pageLoading || document == null) return;
     cropMargins = enabled;
     await renderCurrent(clearCache: true);
   }
@@ -198,11 +210,14 @@ class ReaderPageController extends ChangeNotifier {
     final previous = image;
     image = next;
     if (previous != null && !identical(previous, next)) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => previous.dispose());
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!identical(image, previous)) previous.dispose();
+      });
     }
   }
 
   Future<void> retry() async {
+    if (_disposed) return;
     _pagePreloader.cancel();
     _readerEngine.clearPageCache();
     document?.close();
@@ -220,6 +235,7 @@ class ReaderPageController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _pagePreloader.cancel();
     unawaitedSaveProgress();
     document?.close();
@@ -230,10 +246,10 @@ class ReaderPageController extends ChangeNotifier {
   }
 
   void unawaitedSaveProgress() {
-    _readerProgressService.save(
+    unawaited(_readerProgressService.save(
       documentId: documentInfo.id,
       lastPage: currentPage,
       cropMargins: cropMargins,
-    );
+    ));
   }
 }
