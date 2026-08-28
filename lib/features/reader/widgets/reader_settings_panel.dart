@@ -136,21 +136,25 @@ class ReaderSettingsPanel extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.only(bottom: 18),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: scheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.55)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 4),
-            Text(subtitle, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
-            const SizedBox(height: 8),
-            ...children,
-          ]),
+      child: Material(
+        type: MaterialType.transparency,
+        clipBehavior: Clip.antiAlias,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.55)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 4),
+              Text(subtitle, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+              const SizedBox(height: 8),
+              ...children,
+            ]),
+          ),
         ),
       ),
     );
