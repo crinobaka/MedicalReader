@@ -10,10 +10,9 @@ import 'crop_editor_dialog.dart';
 
 /// Reader settings content.
 ///
-/// The panel owns its vertical constraint so it remains a real scrolling
-/// surface when embedded directly in a modal bottom sheet. This prevents the
-/// ListView from receiving unbounded height and makes the whole sheet touch
-/// area scrollable on phones.
+/// The panel owns a finite height so the embedded ListView always receives a
+/// bounded viewport. The entire panel is therefore a touch-scroll surface,
+/// rather than relying on a narrow scrollbar gesture area on phones.
 class ReaderSettingsPanel extends StatelessWidget {
   final ReaderViewOptions options;
   final ValueChanged<ReaderViewOptions> onChanged;
@@ -55,12 +54,13 @@ class ReaderSettingsPanel extends StatelessWidget {
     final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
     final maxHeight = MediaQuery.sizeOf(context).height * 0.88;
 
-    return ConstrainedBox(
-      constraints: BoxConstraints(maxHeight: maxHeight),
+    return SizedBox(
+      height: maxHeight,
       child: Scrollbar(
         thumbVisibility: MediaQuery.sizeOf(context).width >= 700,
         interactive: true,
         child: ListView(
+          primary: true,
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: EdgeInsets.fromLTRB(16, 8, 16, 24 + bottomInset),
           physics: const ClampingScrollPhysics(),
