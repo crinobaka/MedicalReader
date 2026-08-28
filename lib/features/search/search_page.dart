@@ -92,7 +92,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                         onPressed: () => _search(),
                       ),
                     ],
-                    onSubmitted: _search,
+                    onSubmitted: (value) => _search(value),
                   ),
                 ),
               ),
