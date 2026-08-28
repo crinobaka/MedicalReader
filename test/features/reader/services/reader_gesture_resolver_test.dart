@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:medical_reader/features/reader/models/reader_gesture_action.dart';
-import 'package:medical_reader/features/reader/services/reader_gesture_resolver.dart';
+import 'package:medicalreader/features/reader/models/reader_gesture_action.dart';
+import 'package:medicalreader/features/reader/services/reader_gesture_resolver.dart';
 
 void main() {
   const resolver = ReaderGestureResolver();
@@ -28,17 +28,8 @@ void main() {
   });
 
   test('wheel resolves to navigation unless zooming', () {
-    expect(
-      resolver.wheel(delta: 20, zooming: false).action,
-      ReaderGestureAction.nextPage,
-    );
-    expect(
-      resolver.wheel(delta: -20, zooming: false).action,
-      ReaderGestureAction.previousPage,
-    );
-    expect(
-      resolver.wheel(delta: -2, zooming: true).action,
-      ReaderGestureAction.zoom,
-    );
+    expect(resolver.wheel(delta: 20, zooming: false).action, ReaderGestureAction.nextPage);
+    expect(resolver.wheel(delta: -20, zooming: false).action, ReaderGestureAction.previousPage);
+    expect(resolver.wheel(delta: -2, zooming: true).action, ReaderGestureAction.zoom);
   });
 }
