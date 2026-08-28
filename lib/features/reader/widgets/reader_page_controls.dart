@@ -2,11 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/reader_view_options_provider.dart';
+import '../services/reader_ui_theme.dart';
 
 /// Bottom navigation controls for the Reader page.
-///
-/// The control surface follows the reader layout preference automatically.
-/// When [floating] is omitted, the global ReaderViewOptions value is used.
 class ReaderPageControls extends ConsumerWidget {
   final bool canGoPrevious;
   final bool canGoNext;
@@ -39,11 +37,15 @@ class ReaderPageControls extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final effectiveFloating = floating ?? ref.watch(readerViewOptionsProvider).floatingControls;
+    final options = ref.watch(readerViewOptionsProvider);
+    final effectiveFloating = floating ?? options.floatingControls;
     final enabled = !pageLoading;
     final width = MediaQuery.sizeOf(context).width;
     final labelWidth = (width - 128).clamp(140.0, 320.0).toDouble();
-    final scheme = Theme.of(context).colorScheme;
+    final theme = ReaderUiTheme.resolve(options.themePreset, Theme.of(context).brightness);
+    final labelSurface = effectiveFloating
+        ? theme.surface.withValues(alpha: theme.buttonOpacity < 0.08 ? 0.96 : 0.90)
+        : Theme.of(context).colorScheme.surfaceContainerHighest;
 
     final content = SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -57,18 +59,17 @@ class ReaderPageControls extends ConsumerWidget {
             enabled: enabled && canGoPrevious,
             onPressed: onPrevious,
             floating: effectiveFloating,
+            theme: theme,
           ),
           const SizedBox(width: 6),
           Semantics(
             button: true,
             label: '当前页码，点击跳转',
             child: Material(
-              color: effectiveFloating
-                  ? scheme.surface.withValues(alpha: 0.88)
-                  : scheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(effectiveFloating ? 16 : 12),
+              color: labelSurface,
+              borderRadius: BorderRadius.circular(theme.buttonRadius),
               child: InkWell(
-                borderRadius: BorderRadius.circular(effectiveFloating ? 16 : 12),
+                borderRadius: BorderRadius.circular(theme.buttonRadius),
                 onTap: enabled ? onPageTap : null,
                 child: ConstrainedBox(
                   constraints: BoxConstraints(maxWidth: labelWidth),
@@ -84,6 +85,8 @@ class ReaderPageControls extends ConsumerWidget {
                             width: (labelWidth - 28).clamp(112.0, 280.0).toDouble(),
                             child: SliderTheme(
                               data: SliderTheme.of(context).copyWith(
+                                activeTrackColor: theme.accent,
+                                thumbColor: theme.accent,
                                 trackHeight: 2,
                                 thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
                                 overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
@@ -99,9 +102,9 @@ class ReaderPageControls extends ConsumerWidget {
                           ),
                         ],
                         if (locationLabel != null)
-                          Text(locationLabel!, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
+                          Text(locationLabel!, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: theme.muted)),
                         if (searchLabel != null)
-                          Text(searchLabel!, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
+                          Text(searchLabel!, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: theme.muted)),
                       ],
                     ),
                   ),
@@ -116,6 +119,7 @@ class ReaderPageControls extends ConsumerWidget {
             enabled: enabled && canGoNext,
             onPressed: onNext,
             floating: effectiveFloating,
+            theme: theme,
           ),
         ],
       ),
@@ -124,10 +128,9 @@ class ReaderPageControls extends ConsumerWidget {
     if (effectiveFloating) {
       return SafeArea(
         top: false,
-        child: Align(alignment: Alignment.bottomCenter, child: Material(color: Colors.transparent, child: content)),
+        child: Align(alignment: Alignment.bottomCenter, child: content),
       );
     }
-
     return SafeArea(top: false, child: Material(elevation: 1, child: content));
   }
 }
@@ -138,8 +141,16 @@ class _NavigationButton extends StatelessWidget {
   final bool enabled;
   final VoidCallback? onPressed;
   final bool floating;
+  final ReaderUiTheme theme;
 
-  const _NavigationButton({required this.tooltip, required this.icon, required this.enabled, required this.onPressed, required this.floating});
+  const _NavigationButton({
+    required this.tooltip,
+    required this.icon,
+    required this.enabled,
+    required this.onPressed,
+    required this.floating,
+    required this.theme,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -153,7 +164,16 @@ class _NavigationButton extends StatelessWidget {
           icon: Icon(icon, size: 30),
           padding: EdgeInsets.zero,
           constraints: const BoxConstraints(minWidth: 52, minHeight: 52),
-          style: floating ? IconButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.surface.withValues(alpha: 0.88)) : null,
+          style: IconButton.styleFrom(
+            foregroundColor: theme.foreground,
+            backgroundColor: floating ? theme.surface.withValues(alpha: 0.90) : null,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(theme.buttonRadius),
+              side: floating && theme.border != Colors.transparent
+                  ? BorderSide(color: theme.border)
+                  : BorderSide.none,
+            ),
+          ),
         ),
       ),
     );
