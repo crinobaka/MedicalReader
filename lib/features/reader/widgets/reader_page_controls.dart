@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../providers/reader_view_options_provider.dart';
 
 /// Bottom navigation controls for the Reader page.
 ///
-/// The row is deliberately scrollable on narrow screens. In floating mode it
-/// becomes an overlay surface and does not add visual chrome intended for a
-/// fixed app bar.
-class ReaderPageControls extends StatelessWidget {
+/// The control surface follows the reader layout preference automatically.
+/// When [floating] is omitted, the global ReaderViewOptions value is used.
+class ReaderPageControls extends ConsumerWidget {
   final bool canGoPrevious;
   final bool canGoNext;
   final bool pageLoading;
@@ -15,7 +17,7 @@ class ReaderPageControls extends StatelessWidget {
   final VoidCallback? onPrevious;
   final VoidCallback? onNext;
   final VoidCallback? onPageTap;
-  final bool floating;
+  final bool? floating;
   final double? progress;
   final ValueChanged<double>? onProgressChanged;
 
@@ -30,13 +32,14 @@ class ReaderPageControls extends StatelessWidget {
     this.onPrevious,
     this.onNext,
     this.onPageTap,
-    this.floating = false,
+    this.floating,
     this.progress,
     this.onProgressChanged,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final effectiveFloating = floating ?? ref.watch(readerViewOptionsProvider).floatingControls;
     final enabled = !pageLoading;
     final width = MediaQuery.sizeOf(context).width;
     final labelWidth = (width - 128).clamp(140.0, 320.0).toDouble();
@@ -44,7 +47,7 @@ class ReaderPageControls extends StatelessWidget {
 
     final content = SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      padding: EdgeInsets.fromLTRB(8, floating ? 6 : 4, 8, 6),
+      padding: EdgeInsets.fromLTRB(8, effectiveFloating ? 6 : 4, 8, 6),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -53,19 +56,19 @@ class ReaderPageControls extends StatelessWidget {
             icon: Icons.chevron_left,
             enabled: enabled && canGoPrevious,
             onPressed: onPrevious,
-            floating: floating,
+            floating: effectiveFloating,
           ),
           const SizedBox(width: 6),
           Semantics(
             button: true,
             label: '当前页码，点击跳转',
             child: Material(
-              color: floating
+              color: effectiveFloating
                   ? scheme.surface.withValues(alpha: 0.88)
                   : scheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(floating ? 16 : 12),
+              borderRadius: BorderRadius.circular(effectiveFloating ? 16 : 12),
               child: InkWell(
-                borderRadius: BorderRadius.circular(floating ? 16 : 12),
+                borderRadius: BorderRadius.circular(effectiveFloating ? 16 : 12),
                 onTap: enabled ? onPageTap : null,
                 child: ConstrainedBox(
                   constraints: BoxConstraints(maxWidth: labelWidth),
@@ -74,12 +77,7 @@ class ReaderPageControls extends StatelessWidget {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          pageLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                        ),
+                        Text(pageLabel, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center),
                         if (progress != null && onProgressChanged != null) ...[
                           const SizedBox(height: 2),
                           SizedBox(
@@ -95,28 +93,15 @@ class ReaderPageControls extends StatelessWidget {
                                 min: 0,
                                 max: 1,
                                 onChanged: enabled ? onProgressChanged : null,
-                                semanticFormatterCallback: (value) =>
-                                    '阅读进度 ${(value * 100).round()}%',
+                                semanticFormatterCallback: (value) => '阅读进度 ${(value * 100).round()}%',
                               ),
                             ),
                           ),
                         ],
                         if (locationLabel != null)
-                          Text(
-                            locationLabel!,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
+                          Text(locationLabel!, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
                         if (searchLabel != null)
-                          Text(
-                            searchLabel!,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
+                          Text(searchLabel!, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
                       ],
                     ),
                   ),
@@ -130,32 +115,20 @@ class ReaderPageControls extends StatelessWidget {
             icon: Icons.chevron_right,
             enabled: enabled && canGoNext,
             onPressed: onNext,
-            floating: floating,
+            floating: effectiveFloating,
           ),
         ],
       ),
     );
 
-    if (floating) {
+    if (effectiveFloating) {
       return SafeArea(
         top: false,
-        child: Align(
-          alignment: Alignment.bottomCenter,
-          child: Material(
-            color: Colors.transparent,
-            child: content,
-          ),
-        ),
+        child: Align(alignment: Alignment.bottomCenter, child: Material(color: Colors.transparent, child: content)),
       );
     }
 
-    return SafeArea(
-      top: false,
-      child: Material(
-        elevation: 1,
-        child: content,
-      ),
-    );
+    return SafeArea(top: false, child: Material(elevation: 1, child: content));
   }
 }
 
@@ -166,13 +139,7 @@ class _NavigationButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final bool floating;
 
-  const _NavigationButton({
-    required this.tooltip,
-    required this.icon,
-    required this.enabled,
-    required this.onPressed,
-    required this.floating,
-  });
+  const _NavigationButton({required this.tooltip, required this.icon, required this.enabled, required this.onPressed, required this.floating});
 
   @override
   Widget build(BuildContext context) {
@@ -186,11 +153,7 @@ class _NavigationButton extends StatelessWidget {
           icon: Icon(icon, size: 30),
           padding: EdgeInsets.zero,
           constraints: const BoxConstraints(minWidth: 52, minHeight: 52),
-          style: floating
-              ? IconButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.surface.withValues(alpha: 0.88),
-                )
-              : null,
+          style: floating ? IconButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.surface.withValues(alpha: 0.88)) : null,
         ),
       ),
     );
