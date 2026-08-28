@@ -1,3 +1,6 @@
+import 'dart:ui' as ui;
+
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/book_tree_node.dart';
 import '../models/reader_view_options.dart';
 import '../providers/reader_view_options_provider.dart';
+import '../services/reader_search_service.dart';
 import 'reader_error_view.dart';
 import 'reader_location_bar.dart';
 import 'reader_page_controls.dart';
@@ -24,8 +28,8 @@ class ReaderPageLayout extends ConsumerWidget {
   final bool loading;
   final bool pageLoading;
   final Object? error;
-  final Image? image;
-  final List<dynamic> searchHits;
+  final ui.Image? image;
+  final List<ReaderSearchHit> searchHits;
   final bool bookmarked;
   final bool cropEnabled;
   final bool canGoPrevious;
@@ -37,6 +41,7 @@ class ReaderPageLayout extends ConsumerWidget {
   final List<BookTreeNode> searchResultPath;
   final FocusNode keyboardFocusNode;
   final TransformationController transformationController;
+  final void Function(PointerSignalEvent event)? onPointerSignal;
 
   final Future<void> Function() onPrevious;
   final Future<void> Function() onNext;
@@ -85,6 +90,7 @@ class ReaderPageLayout extends ConsumerWidget {
     required this.onSettings,
     required this.onRetry,
     this.searchLocationLabel,
+    this.onPointerSignal,
   });
 
   @override
@@ -125,7 +131,7 @@ class ReaderPageLayout extends ConsumerWidget {
     }
 
     final canvas = Listener(
-      onPointerSignal: _handlePointerSignal,
+      onPointerSignal: onPointerSignal,
       child: ReaderViewport(
         loading: pageLoading,
         page: GestureDetector(
@@ -162,7 +168,7 @@ class ReaderPageLayout extends ConsumerWidget {
                 ? 'PDF P${currentPage + 1} / $pageCount'
                 : '书籍 P$bookPage · PDF P${currentPage + 1} / $pageCount',
             locationLabel: currentBookTreeNode?.name,
-            searchLabel: searchResultPath.isNotEmpty && searchResultPath.isNotEmpty
+            searchLabel: searchResultPath.isNotEmpty
                 ? '搜索命中 · ${searchResultPath.map((node) => node.name).join(' › ')}'
                 : null,
             onPrevious: onPrevious,
@@ -226,10 +232,5 @@ class ReaderPageLayout extends ConsumerWidget {
     } else if (event.logicalKey == LogicalKeyboardKey.keyB) {
       onBookPageJump();
     }
-  }
-
-  void _handlePointerSignal(PointerSignalEvent event) {
-    // 鼠标滚轮由 ReaderPage 的命令层继续负责；这里不再把滚轮行为
-    // 绑定到页面实现细节，后续可直接替换为统一 GestureResolver。
   }
 }
