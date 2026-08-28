@@ -187,17 +187,24 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (context) => Consumer(
-        builder: (context, ref, _) {
-          final options = ref.watch(readerViewOptionsProvider);
-          return SafeArea(
-            child: ReaderSettingsPanel(
-              options: options,
-              onChanged: (value) => ref.read(readerViewOptionsProvider.notifier).update(value),
-              onReset: () => ref.read(readerViewOptionsProvider.notifier).reset(),
-            ),
-          );
-        },
+      builder: (context) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.82,
+        minChildSize: 0.45,
+        maxChildSize: 0.96,
+        builder: (context, scrollController) => Consumer(
+          builder: (context, ref, _) {
+            final options = ref.watch(readerViewOptionsProvider);
+            return SafeArea(
+              child: ReaderSettingsPanel(
+                options: options,
+                onChanged: (value) => ref.read(readerViewOptionsProvider.notifier).update(value),
+                onReset: () => ref.read(readerViewOptionsProvider.notifier).reset(),
+                scrollController: scrollController,
+              ),
+            );
+          },
+        ),
       ),
     );
   }
