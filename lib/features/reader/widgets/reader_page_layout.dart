@@ -245,17 +245,17 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
   void _handleKeyEvent(KeyEvent event) {
     if (event is! KeyDownEvent) return;
     if (event.logicalKey == LogicalKeyboardKey.arrowLeft || event.logicalKey == LogicalKeyboardKey.pageUp) {
-      widget.onPrevious();
+      unawaited(widget.onPrevious());
     } else if (event.logicalKey == LogicalKeyboardKey.arrowRight || event.logicalKey == LogicalKeyboardKey.pageDown) {
-      widget.onNext();
+      unawaited(widget.onNext());
     } else if (event.logicalKey == LogicalKeyboardKey.home) {
-      widget.onFirst();
+      unawaited(widget.onFirst());
     } else if (event.logicalKey == LogicalKeyboardKey.end) {
-      widget.onLast();
+      unawaited(widget.onLast());
     } else if (event.logicalKey == LogicalKeyboardKey.keyG) {
-      widget.onPageJump();
+      unawaited(widget.onPageJump());
     } else if (event.logicalKey == LogicalKeyboardKey.keyB) {
-      widget.onBookPageJump();
+      unawaited(widget.onBookPageJump());
     }
   }
 
@@ -267,10 +267,10 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
     );
     switch (intent) {
       case ReaderPointerIntent.previousPage:
-        widget.onPrevious();
+        unawaited(widget.onPrevious());
         break;
       case ReaderPointerIntent.nextPage:
-        widget.onNext();
+        unawaited(widget.onNext());
         break;
       case ReaderPointerIntent.zoomIn:
       case ReaderPointerIntent.zoomOut:
