@@ -10,15 +10,16 @@ import 'crop_editor_dialog.dart';
 
 /// Reader settings content.
 ///
-/// The panel owns a finite height so the embedded ListView always receives a
-/// bounded viewport. The entire panel is therefore a touch-scroll surface,
-/// rather than relying on a narrow scrollbar gesture area on phones.
+/// When embedded in a draggable sheet, the sheet owns the viewport and passes
+/// its ScrollController here. Otherwise the panel supplies its own bounded
+/// viewport for safe standalone use.
 class ReaderSettingsPanel extends StatelessWidget {
   final ReaderViewOptions options;
   final ValueChanged<ReaderViewOptions> onChanged;
   final VoidCallback onReset;
   final Future<void> Function()? onCropConfigurationChanged;
   final ui.Image? previewImage;
+  final ScrollController? scrollController;
 
   const ReaderSettingsPanel({
     super.key,
@@ -27,6 +28,7 @@ class ReaderSettingsPanel extends StatelessWidget {
     required this.onReset,
     this.onCropConfigurationChanged,
     this.previewImage,
+    this.scrollController,
   });
 
   Future<void> _editCropConfiguration(BuildContext context) async {
@@ -53,83 +55,85 @@ class ReaderSettingsPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
     final maxHeight = MediaQuery.sizeOf(context).height * 0.88;
+    final width = MediaQuery.sizeOf(context).width;
 
-    return SizedBox(
-      height: maxHeight,
-      child: Scrollbar(
-        thumbVisibility: MediaQuery.sizeOf(context).width >= 700,
-        interactive: true,
-        child: ListView(
-          primary: true,
-          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          padding: EdgeInsets.fromLTRB(16, 8, 16, 24 + bottomInset),
-          physics: const ClampingScrollPhysics(),
-          children: [
-            _section(context, '阅读器外观', '先选整体气质，再按习惯微调', [
-              _ThemePresetSelector(
-                value: options.themePreset,
-                onChanged: (value) => onChanged(options.copyWith(themePreset: value)),
-              ),
-              SwitchListTile.adaptive(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('悬浮式控件'),
-                subtitle: const Text('工具栏悬浮在页面上方，不挤占正文空间'),
-                value: options.floatingControls,
-                onChanged: (value) => onChanged(options.copyWith(floatingControls: value)),
-              ),
-              _selectRow(context, Icons.vertical_align_top_rounded, '工具栏位置', _toolbarLabel(options.toolbarPosition), () async {
-                final value = await _choose(context, '工具栏位置', options.toolbarPosition, const {
-                  'auto': '自动（推荐）', 'top': '顶部', 'bottom': '底部',
-                });
-                if (value != null) onChanged(options.copyWith(toolbarPosition: value));
-              }),
-              _selectRow(context, Icons.wallpaper_outlined, '阅读画布', _canvasLabel(options.canvasBackground), () async {
-                final value = await _choose(context, '阅读画布', options.canvasBackground, const {
-                  'inherit': '跟随系统', 'paper': '纸张', 'dark': '暗色', 'custom': '自定义颜色（DIY）',
-                });
-                if (value != null) onChanged(options.copyWith(canvasBackground: value));
-              }),
-            ]),
-            _section(context, '阅读时显示什么', '只留下真正需要的控件，减少长时间阅读的视觉噪音', [
-              _switch(context, Icons.location_on_outlined, '当前位置', '章节、书籍页码和 PDF 页码', options.showLocationBar, (v) => onChanged(options.copyWith(showLocationBar: v))),
-              _switch(context, Icons.manage_search_outlined, '搜索命中位置', '显示最近一次搜索命中的章节与页码', options.showSearchLocation, (v) => onChanged(options.copyWith(showSearchLocation: v)), enabled: options.showLocationBar),
-              _switch(context, Icons.menu_book_outlined, '目录按钮', null, options.showBookTreeButton, (v) => onChanged(options.copyWith(showBookTreeButton: v))),
-              _switch(context, Icons.search_rounded, '搜索按钮', null, options.showSearchButton, (v) => onChanged(options.copyWith(showSearchButton: v))),
-              _switch(context, Icons.find_in_page_outlined, '页码跳转按钮', null, options.showPageJumpButton, (v) => onChanged(options.copyWith(showPageJumpButton: v))),
-              _switch(context, Icons.swap_horiz_rounded, '底部翻页栏', '显示上一页、下一页和当前页码', options.showPageControls, (v) => onChanged(options.copyWith(showPageControls: v))),
-            ]),
-            _section(context, '页面裁剪', '设置这里只负责入口和显示控制', [
-              _switch(context, Icons.crop_outlined, '显示裁剪控制', null, options.showCropMargins, (v) => onChanged(options.copyWith(showCropMargins: v))),
-              _selectRow(context, Icons.view_column_outlined, '裁剪模板', '打开当前页可视化编辑器', () => _editCropConfiguration(context)),
-            ]),
-            _section(context, 'DIY', '普通用户可以忽略；高级用户保留自由度', [
-              ExpansionTile(
-                tilePadding: EdgeInsets.zero,
-                leading: const Icon(Icons.tune_rounded),
-                title: const Text('怎么看懂这些选项？'),
-                subtitle: const Text('不用懂 Flutter，也能按说明改配置'),
-                children: [
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      '主题：${options.themePreset}\n悬浮控件：${options.floatingControls ? '开启' : '关闭'}\n工具栏：${options.toolbarPosition}\n画布：${options.canvasBackground}\n\n默认值负责“打开就能读”，DIY 负责满足特殊习惯。主题、工具栏、画布和显示控件都对应 ReaderViewOptions，不需要修改 ReaderPage。',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.5),
-                    ),
+    final list = Scrollbar(
+      thumbVisibility: width >= 700,
+      interactive: true,
+      controller: scrollController,
+      child: ListView(
+        controller: scrollController,
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: EdgeInsets.fromLTRB(16, 8, 16, 24 + bottomInset),
+        physics: const ClampingScrollPhysics(),
+        children: [
+          _section(context, '阅读器外观', '先选整体气质，再按习惯微调', [
+            _ThemePresetSelector(
+              value: options.themePreset,
+              onChanged: (value) => onChanged(options.copyWith(themePreset: value)),
+            ),
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('悬浮式控件'),
+              subtitle: const Text('工具栏悬浮在页面上方，不挤占正文空间'),
+              value: options.floatingControls,
+              onChanged: (value) => onChanged(options.copyWith(floatingControls: value)),
+            ),
+            _selectRow(context, Icons.vertical_align_top_rounded, '工具栏位置', _toolbarLabel(options.toolbarPosition), () async {
+              final value = await _choose(context, '工具栏位置', options.toolbarPosition, const {
+                'auto': '自动（推荐）', 'top': '顶部', 'bottom': '底部',
+              });
+              if (value != null) onChanged(options.copyWith(toolbarPosition: value));
+            }),
+            _selectRow(context, Icons.wallpaper_outlined, '阅读画布', _canvasLabel(options.canvasBackground), () async {
+              final value = await _choose(context, '阅读画布', options.canvasBackground, const {
+                'inherit': '跟随系统', 'paper': '纸张', 'dark': '暗色', 'custom': '自定义颜色（DIY）',
+              });
+              if (value != null) onChanged(options.copyWith(canvasBackground: value));
+            }),
+          ]),
+          _section(context, '阅读时显示什么', '只留下真正需要的控件，减少长时间阅读的视觉噪音', [
+            _switch(context, Icons.location_on_outlined, '当前位置', '章节、书籍页码和 PDF 页码', options.showLocationBar, (v) => onChanged(options.copyWith(showLocationBar: v))),
+            _switch(context, Icons.manage_search_outlined, '搜索命中位置', '显示最近一次搜索命中的章节与页码', options.showSearchLocation, (v) => onChanged(options.copyWith(showSearchLocation: v)), enabled: options.showLocationBar),
+            _switch(context, Icons.menu_book_outlined, '目录按钮', null, options.showBookTreeButton, (v) => onChanged(options.copyWith(showBookTreeButton: v))),
+            _switch(context, Icons.search_rounded, '搜索按钮', null, options.showSearchButton, (v) => onChanged(options.copyWith(showSearchButton: v))),
+            _switch(context, Icons.find_in_page_outlined, '页码跳转按钮', null, options.showPageJumpButton, (v) => onChanged(options.copyWith(showPageJumpButton: v))),
+            _switch(context, Icons.swap_horiz_rounded, '底部翻页栏', '显示上一页、下一页和当前页码', options.showPageControls, (v) => onChanged(options.copyWith(showPageControls: v))),
+          ]),
+          _section(context, '页面裁剪', '设置这里只负责入口和显示控制', [
+            _switch(context, Icons.crop_outlined, '显示裁剪控制', null, options.showCropMargins, (v) => onChanged(options.copyWith(showCropMargins: v))),
+            _selectRow(context, Icons.view_column_outlined, '裁剪模板', '打开当前页可视化编辑器', () => _editCropConfiguration(context)),
+          ]),
+          _section(context, 'DIY', '普通用户可以忽略；高级用户保留自由度', [
+            ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              leading: const Icon(Icons.tune_rounded),
+              title: const Text('怎么看懂这些选项？'),
+              subtitle: const Text('不用懂 Flutter，也能按说明改配置'),
+              children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '主题：${options.themePreset}\n悬浮控件：${options.floatingControls ? '开启' : '关闭'}\n工具栏：${options.toolbarPosition}\n画布：${options.canvasBackground}\n\n默认值负责“打开就能读”，DIY 负责满足特殊习惯。主题、工具栏、画布和显示控件都对应 ReaderViewOptions，不需要修改 ReaderPage。',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.5),
                   ),
-                ],
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.restore_rounded),
-                title: const Text('恢复默认设置'),
-                subtitle: const Text('恢复推荐的 Google 风格与阅读布局'),
-                onTap: onReset,
-              ),
-            ]),
-          ],
-        ),
+                ),
+              ],
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.restore_rounded),
+              title: const Text('恢复默认设置'),
+              subtitle: const Text('恢复推荐的 Google 风格与阅读布局'),
+              onTap: onReset,
+            ),
+          ]),
+        ],
       ),
     );
+
+    if (scrollController != null) return list;
+    return SizedBox(height: maxHeight, child: list);
   }
 
   Widget _section(BuildContext context, String title, String subtitle, List<Widget> children) {
