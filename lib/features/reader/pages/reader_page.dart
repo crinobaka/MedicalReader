@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:record/record.dart';
 
@@ -15,6 +14,7 @@ import '../services/reader_annotation_service.dart';
 import '../services/reader_search_service.dart';
 import '../widgets/book_tree_panel.dart';
 import '../widgets/reader_note_dialog.dart';
+import '../widgets/reader_page_jump_dialogs.dart';
 import '../widgets/reader_page_layout.dart';
 import '../widgets/reader_serch_dialog.dart';
 import '../widgets/reader_settings_panel.dart';
@@ -26,6 +26,7 @@ class ReaderPage extends ConsumerStatefulWidget {
   const ReaderPage({super.key, required this.document, this.initialPage = 0});
   final LibraryDocument document;
   final int initialPage;
+
   @override
   ConsumerState<ReaderPage> createState() => _ReaderPageState();
 }
@@ -204,7 +205,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   Future<void> _showPageJump() async {
     final value = await showDialog<int>(
       context: context,
-      builder: (context) => _PageJumpDialog(currentPage: _controller.currentPage + 1, pageCount: _controller.pageCount),
+      builder: (context) => PageJumpDialog(
+        currentPage: _controller.currentPage + 1,
+        pageCount: _controller.pageCount,
+      ),
     );
     if (value != null) await _controller.goToPage(value - 1);
   }
@@ -212,7 +216,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   Future<void> _showBookPageJump() async {
     final value = await showDialog<int>(
       context: context,
-      builder: (context) => _BookPageJumpDialog(currentPage: _controller.currentBookPage),
+      builder: (context) => BookPageJumpDialog(currentPage: _controller.currentBookPage),
     );
     if (value == null) return;
     final page = _controller.bookPageMapping.pdfPageForBookPage(value);
@@ -270,57 +274,4 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     _controller.dispose();
     super.dispose();
   }
-}
-
-class _PageJumpDialog extends StatefulWidget {
-  const _PageJumpDialog({required this.currentPage, required this.pageCount});
-  final int currentPage;
-  final int pageCount;
-  @override
-  State<_PageJumpDialog> createState() => _PageJumpDialogState();
-}
-
-class _PageJumpDialogState extends State<_PageJumpDialog> {
-  late final TextEditingController _controller = TextEditingController(text: '${widget.currentPage}');
-  @override
-  void dispose() { _controller.dispose(); super.dispose(); }
-  void _submit() {
-    final value = int.tryParse(_controller.text);
-    if (value != null && value >= 1 && value <= widget.pageCount) Navigator.of(context).pop(value);
-  }
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-        title: const Text('跳转到页码'),
-        content: TextField(controller: _controller, autofocus: true, keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly], decoration: InputDecoration(hintText: '1 - ${widget.pageCount}', suffixText: '/ ${widget.pageCount}'), onSubmitted: (_) => _submit()),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('取消')),
-          FilledButton(onPressed: _submit, child: const Text('跳转')),
-        ],
-      );
-}
-
-class _BookPageJumpDialog extends StatefulWidget {
-  const _BookPageJumpDialog({required this.currentPage});
-  final int? currentPage;
-  @override
-  State<_BookPageJumpDialog> createState() => _BookPageJumpDialogState();
-}
-
-class _BookPageJumpDialogState extends State<_BookPageJumpDialog> {
-  late final TextEditingController _controller = TextEditingController(text: widget.currentPage?.toString() ?? '');
-  @override
-  void dispose() { _controller.dispose(); super.dispose(); }
-  void _submit() {
-    final value = int.tryParse(_controller.text.trim());
-    if (value != null && value > 0) Navigator.of(context).pop(value);
-  }
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-        title: const Text('跳转到书籍页码'),
-        content: TextField(controller: _controller, autofocus: true, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: '书籍页码'), onSubmitted: (_) => _submit()),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('取消')),
-          FilledButton(onPressed: _submit, child: const Text('跳转')),
-        ],
-      );
 }
