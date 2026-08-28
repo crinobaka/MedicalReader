@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../reader/pages/reader_page.dart';
+import '../../reader/pages/reader_page_v2.dart';
 import '../models/library_document.dart';
 import '../providers/library_provider.dart';
 import '../widgets/document_card.dart';
@@ -58,7 +58,11 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with WidgetsBindingOb
       appBar: AppBar(
         title: const Text('Medical Library'),
         actions: [
-          IconButton(tooltip: '刷新文件库', onPressed: _refreshing ? null : _refresh, icon: const Icon(Icons.refresh)),
+          IconButton(
+            tooltip: '刷新文件库',
+            onPressed: _refreshing ? null : _refresh,
+            icon: const Icon(Icons.refresh),
+          ),
         ],
       ),
       body: RefreshIndicator(
@@ -105,7 +109,10 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with WidgetsBindingOb
   Widget _buildDocumentCard(LibraryDocument document) {
     return DocumentCard(
       document: document,
-      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ReaderPage(document: document))),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => ReaderPageV2(document: document)),
+      ),
       onDelete: () async {
         final confirmed = await showDialog<bool>(
           context: context,
@@ -118,7 +125,9 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with WidgetsBindingOb
             ],
           ),
         );
-        if (confirmed == true) await ref.read(libraryProvider.notifier).removeDocument(document.id);
+        if (confirmed == true) {
+          await ref.read(libraryProvider.notifier).removeDocument(document.id);
+        }
       },
     );
   }
