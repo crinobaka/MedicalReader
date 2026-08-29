@@ -176,10 +176,10 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
     final currentImage = widget.image;
     if (currentImage == null) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
-    // Keep the search-hit collection explicitly typed at this boundary. This
-    // prevents dynamic List inference from leaking into ReaderSearchHighlight
-    // when callers build the list through map/expand/json-derived collections.
-    final List<ReaderSearchHit> typedSearchHits = List<ReaderSearchHit>.from(widget.searchHits);
+    // Make the collection concrete before crossing into the painting layer.
+    // This is intentionally a new typed list rather than a dynamic cast so
+    // JSON/map-derived callers cannot leak List<dynamic> into the widget API.
+    final searchHits = List<ReaderSearchHit>.unmodifiable(widget.searchHits);
 
     final canvas = Listener(
       onPointerSignal: _handlePointerSignal,
@@ -197,7 +197,7 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
             onInteractionEnd: _onInteractionEnd,
             child: ReaderPageImage(
               image: currentImage,
-              overlay: ReaderSearchHighlight(hits: typedSearchHits),
+              overlay: ReaderSearchHighlight(hits: searchHits),
             ),
           ),
         ),
