@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:pdf/widgets.dart' as pw;
+
 import '../../library/models/library_document.dart';
 import '../models/crop_configuration.dart';
 import '../models/crop_output.dart';
@@ -10,10 +12,8 @@ import 'crop_session_service.dart';
 
 /// Materializes a crop configuration into a reproducible image set.
 ///
-/// This is deliberately image based: the native PDF document remains untouched,
-/// and the reader can later choose to consume the generated directory as a
-/// separate derived document. Keeping that boundary makes the feature safe on
-/// both Android and Windows.
+/// The source PDF is never modified. A session contains the generated pages,
+/// an output manifest, and can optionally be exported as a standalone PDF.
 class CropOutputService {
   const CropOutputService({
     this.engine = const CropEngineService(),
@@ -32,55 +32,25 @@ class CropOutputService {
     List<CropRegion>? previousRegions,
   }) async {
     if (pdfPage < 0) throw ArgumentError.value(pdfPage, 'pdfPage');
-
-    final session = await sessions.createSession(
+    return generatePages(
       document: document,
       configuration: configuration,
-    );
-    final regions = engine.resolveRegions(
-      configuration: configuration,
-      pageIndex: pdfPage,
-      bookPage: bookPage,
+      pages: [
+        CropOutputSourcePage(
+          pdfPage: pdfPage,
+          bookPage: bookPage,
+          image: source,
+        ),
+      ],
       previousRegions: previousRegions,
     );
-    final composed = await engine.cropAndCompose(
-      source: source,
-      regions: regions,
-      layout: configuration.layout,
-    );
-
-    try {
-      final file = await sessions.writePageImageFromUiImage(
-        session: session,
-        pageIndex: pdfPage,
-        image: composed,
-      );
-      final output = CropOutputManifest(
-        sessionId: session.id,
-        sourceDocumentId: document.id,
-        sourcePath: document.file.path,
-        directoryPath: session.directoryPath,
-        layout: configuration.layout,
-        pages: [
-          CropOutputPage(
-            sourcePdfPage: pdfPage + 1,
-            sourceBookPage: bookPage,
-            regions: regions,
-            fileName: file.path.split(Platform.pathSeparator).last,
-          ),
-        ],
-      );
-      await _writeManifest(session.directoryPath, output);
-      return output;
-    } finally {
-      composed.dispose();
-    }
   }
 
   Future<CropOutputManifest> generatePages({
     required LibraryDocument document,
     required CropConfiguration configuration,
     required List<CropOutputSourcePage> pages,
+    List<CropRegion>? previousRegions,
   }) async {
     if (pages.isEmpty) throw ArgumentError('pages must not be empty');
 
@@ -89,9 +59,10 @@ class CropOutputService {
       configuration: configuration,
     );
     final outputs = <CropOutputPage>[];
-    List<CropRegion>? previous;
+    var previous = previousRegions;
 
     for (final page in pages) {
+      if (page.pdfPage < 0) continue;
       final regions = engine.resolveRegions(
         configuration: configuration,
         pageIndex: page.pdfPage,
@@ -99,6 +70,7 @@ class CropOutputService {
         previousRegions: previous,
       );
       if (regions.isEmpty) continue;
+
       final composed = await engine.cropAndCompose(
         source: page.image,
         regions: regions,
@@ -119,7 +91,7 @@ class CropOutputService {
       } finally {
         composed.dispose();
       }
-      previous = regions;
+      if (configuration.inheritPrevious) previous = regions;
     }
 
     final output = CropOutputManifest(
@@ -132,6 +104,63 @@ class CropOutputService {
     );
     await _writeManifest(session.directoryPath, output);
     return output;
+  }
+
+  /// Combines generated PNG pages into a portable standalone PDF.
+  ///
+  /// This operation reads only the derived session pages, so it cannot alter
+  /// the source document. The returned file is suitable for Android sharing or
+  /// Windows export through the existing file picker flow.
+  Future<File> exportPdf({
+    required CropOutputManifest output,
+    String? destinationPath,
+  }) async {
+    if (output.pages.isEmpty) {
+      throw StateError('The crop session contains no generated pages.');
+    }
+
+    final pdf = pw.Document();
+    try {
+      for (final page in output.pages) {
+        final file = File(
+          '${output.directoryPath}${Platform.pathSeparator}${page.fileName}',
+        );
+        if (!await file.exists()) continue;
+        final bytes = await file.readAsBytes();
+        final image = pw.MemoryImage(bytes);
+        final decoded = await _readPngSize(bytes);
+        final width = decoded.$1.toDouble().clamp(1, double.infinity);
+        final height = decoded.$2.toDouble().clamp(1, double.infinity);
+        pdf.addPage(pw.Page(
+          pageFormat: pw.PdfPageFormat(width, height, marginAll: 0),
+          build: (_) => pw.Image(image, fit: pw.BoxFit.fill),
+        ));
+      }
+
+      if (pdf.document.catalog.pages.pages.isEmpty) {
+        throw StateError('No generated page files are available.');
+      }
+      final path = destinationPath ??
+          '${output.directoryPath}${Platform.pathSeparator}crop-result.pdf';
+      final file = File(path);
+      await file.parent.create(recursive: true);
+      await file.writeAsBytes(await pdf.save(), flush: true);
+      return file;
+    } finally {
+      // pw.Document owns its internal objects; there are no ui.Image handles
+      // retained by this export operation.
+    }
+  }
+
+  Future<(int, int)> _readPngSize(List<int> bytes) async {
+    if (bytes.length < 24 || bytes[0] != 0x89 || bytes[1] != 0x50 ||
+        bytes[2] != 0x4e || bytes[3] != 0x47) {
+      throw FormatException('Generated crop page is not a PNG image.');
+    }
+    final data = bytes;
+    final width = (data[16] << 24) | (data[17] << 16) | (data[18] << 8) | data[19];
+    final height = (data[20] << 24) | (data[21] << 16) | (data[22] << 8) | data[23];
+    return (width, height);
   }
 
   Future<void> _writeManifest(String directoryPath, CropOutputManifest output) async {
