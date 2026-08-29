@@ -3,9 +3,9 @@ import 'dart:typed_data';
 
 import '../models/book_tree_node.dart';
 
-/// Best-effort importer for the standard PDF outline/bookmark dictionaries.
+/// Best-effort importer for standard PDF outline/bookmark dictionaries.
 /// No additional PDF package is required. Unsupported encrypted/compressed
-/// outline storage simply falls back to the normal directory workflow.
+/// object storage falls back to the normal directory workflow.
 class PdfOutlineService {
   const PdfOutlineService();
 
@@ -25,32 +25,66 @@ class PdfOutlineService {
     }
     if (objects.isEmpty) return const [];
 
-    final pageIds = <int>[];
-    for (final entry in objects.entries) {
-      if (RegExp(r'/Type\s*/Page(?:\s|/|>)').hasMatch(entry.value) &&
-          !RegExp(r'/Type\s*/Pages(?:\s|/|>)').hasMatch(entry.value)) {
-        pageIds.add(entry.key);
-      }
-    }
-    final pageIndexByObject = <int, int>{};
-    for (var i = 0; i < pageIds.length; i++) {
-      pageIndexByObject[pageIds[i]] = i + 1;
-    }
-
-    int? outlineRoot;
+    int? catalogId;
     for (final entry in objects.entries) {
       if (RegExp(r'/Type\s*/Catalog\b').hasMatch(entry.value)) {
-        outlineRoot = _ref(entry.value, '/Outlines');
+        catalogId = entry.key;
         break;
       }
     }
+    if (catalogId == null) return const [];
+
+    final catalog = objects[catalogId];
+    if (catalog == null) return const [];
+    final pagesRoot = _ref(catalog, '/Pages');
+    final pageIndexByObject = <int, int>{};
+    if (pagesRoot != null) {
+      _collectPages(pagesRoot, objects, pageIndexByObject, <int>{});
+    }
+    if (pageIndexByObject.isEmpty) {
+      // Some simple PDFs omit a usable page tree. Keep a deterministic
+      // fallback rather than silently losing all destinations.
+      final ids = objects.entries
+          .where((entry) => RegExp(r'/Type\s*/Page(?:\s|/|>)').hasMatch(entry.value) &&
+              !RegExp(r'/Type\s*/Pages(?:\s|/|>)').hasMatch(entry.value))
+          .map((entry) => entry.key)
+          .toList()
+        ..sort();
+      for (var i = 0; i < ids.length; i++) {
+        pageIndexByObject[ids[i]] = i + 1;
+      }
+    }
+
+    final outlineRoot = _ref(catalog, '/Outlines');
     if (outlineRoot == null) return const [];
     final root = objects[outlineRoot];
     if (root == null) return const [];
     final first = _ref(root, '/First');
     if (first == null) return const [];
-
     return _readSiblings(first, objects, pageIndexByObject, <int>{});
+  }
+
+  void _collectPages(
+    int root,
+    Map<int, String> objects,
+    Map<int, int> result,
+    Set<int> visited,
+  ) {
+    if (!visited.add(root)) return;
+    final object = objects[root];
+    if (object == null) return;
+    if (RegExp(r'/Type\s*/Page(?:\s|/|>)').hasMatch(object) &&
+        !RegExp(r'/Type\s*/Pages(?:\s|/|>)').hasMatch(object)) {
+      result[root] = result.length + 1;
+      return;
+    }
+    final kidsMatch = RegExp(r'/Kids\s*\[([\s\S]*?)\]').firstMatch(object);
+    if (kidsMatch == null) return;
+    final refs = RegExp(r'(\d+)\s+\d+\s+R').allMatches(kidsMatch.group(1) ?? '');
+    for (final ref in refs) {
+      final id = int.tryParse(ref.group(1) ?? '');
+      if (id != null) _collectPages(id, objects, result, visited);
+    }
   }
 
   List<BookTreeNode> _readSiblings(
@@ -85,7 +119,11 @@ class PdfOutlineService {
     return List.unmodifiable(result);
   }
 
-  int? _destinationPage(String object, Map<int, String> objects, Map<int, int> pageIndexByObject) {
+  int? _destinationPage(
+    String object,
+    Map<int, String> objects,
+    Map<int, int> pageIndexByObject,
+  ) {
     final direct = _pageRef(object);
     if (direct != null) return pageIndexByObject[direct];
     final actionRef = RegExp(r'/A\s+(\d+)\s+\d+\s+R').firstMatch(object);
