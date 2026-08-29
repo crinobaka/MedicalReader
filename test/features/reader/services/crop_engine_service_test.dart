@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:medical_reader/features/reader/models/crop_configuration.dart';
-import 'package:medical_reader/features/reader/services/crop_engine_service.dart';
+import 'package:medicalreader/features/reader/models/crop_configuration.dart';
+import 'package:medicalreader/features/reader/services/crop_engine_service.dart';
 
 void main() {
   const engine = CropEngineService();
@@ -23,7 +23,7 @@ void main() {
   });
 
   test('excluded regions never reach output', () {
-    const config = CropConfiguration(
+    final config = CropConfiguration(
       createdAt: DateTime(2026),
       template: CropTemplate.custom,
       regions: [
@@ -39,7 +39,7 @@ void main() {
 
   test('previous regions are inherited only when explicitly enabled', () {
     const previous = [CropRegion(x: .25, y: .1, width: .5, height: .8)];
-    const config = CropConfiguration(
+    final config = CropConfiguration(
       createdAt: DateTime(2026),
       inheritPrevious: true,
       template: CropTemplate.single,

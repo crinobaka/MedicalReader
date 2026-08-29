@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:medical_reader/features/reader/models/crop_configuration.dart';
+import 'package:medicalreader/features/reader/models/crop_configuration.dart';
 
 void main() {
   group('CropConfiguration', () {
