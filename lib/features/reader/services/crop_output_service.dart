@@ -112,8 +112,8 @@ class CropOutputService {
       final bytes = await file.readAsBytes();
       final image = pw.MemoryImage(bytes);
       final decoded = _readPngSize(bytes);
-      final width = decoded.$1.toDouble().clamp(1, double.infinity);
-      final height = decoded.$2.toDouble().clamp(1, double.infinity);
+      final double width = decoded.$1.toDouble().clamp(1, double.infinity);
+      final double height = decoded.$2.toDouble().clamp(1, double.infinity);
       pdf.addPage(pw.Page(
         pageFormat: PdfPageFormat(width, height, marginAll: 0),
         build: (_) => pw.Image(image, fit: pw.BoxFit.fill),
