@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:medical_reader/features/reader/models/reader_controls_state.dart';
+import 'package:medicalreader/features/reader/models/reader_controls_state.dart';
 
 void main() {
   test('toggle changes visibility without changing pin state', () {
