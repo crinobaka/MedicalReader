@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -22,10 +24,11 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   @override
   void initState() {
     super.initState();
-    _controller = SearchPageController()..initialize();
+    _controller = SearchPageController();
     _queryController = TextEditingController();
     _searchFocusNode = FocusNode();
     _queryController.addListener(_onQueryTextChanged);
+    unawaited(_controller.initialize());
   }
 
   void _onQueryTextChanged() {
@@ -40,7 +43,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       selection: TextSelection.collapsed(offset: query.length),
     );
     await _controller.search(query);
-    if (mounted) _searchFocusNode.unfocus();
+    if (!mounted) return;
+    _searchFocusNode.unfocus();
   }
 
   void _clearQuery() {
@@ -89,10 +93,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                       IconButton(
                         tooltip: '搜索',
                         icon: const Icon(Icons.arrow_forward),
-                        onPressed: () => _search(),
+                        onPressed: () => unawaited(_search()),
                       ),
                     ],
-                    onSubmitted: (value) => _search(value),
+                    onSubmitted: (value) => unawaited(_search(value)),
                   ),
                 ),
               ),
@@ -100,8 +104,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                 SliverToBoxAdapter(
                   child: SearchHistoryList(
                     history: _controller.history,
-                    onSelected: _search,
-                    onClear: _controller.clearHistory,
+                    onSelected: (value) => unawaited(_search(value)),
+                    onClear: () => unawaited(_controller.clearHistory()),
                   ),
                 )
               else if (hasQuery) ...[
