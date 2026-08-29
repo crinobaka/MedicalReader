@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../library/models/library_document.dart';
 import '../library/providers/library_provider.dart';
-import '../reader/pages/reader_page.dart';
 import 'controllers/search_page_controller.dart';
+import 'widgets/search_history_list.dart';
+import 'widgets/search_result_tile.dart';
 
-/// 搜索入口：只组装输入、结果列表和导航，不持有搜索业务状态。
+/// Search entry point: coordinates query state and delegates presentation.
 class SearchPage extends ConsumerStatefulWidget {
   const SearchPage({super.key});
 
@@ -96,37 +96,15 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   ),
                 ),
               ),
-              if (!hasQuery && _controller.history.isNotEmpty) ...[
+              if (!hasQuery && _controller.history.isNotEmpty)
                 SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 16, 4),
-                    child: Row(
-                      children: [
-                        const Expanded(
-                          child: Text('最近搜索', style: TextStyle(fontWeight: FontWeight.w600)),
-                        ),
-                        TextButton.icon(
-                          onPressed: _controller.clearHistory,
-                          icon: const Icon(Icons.delete_outline, size: 18),
-                          label: const Text('清空'),
-                        ),
-                      ],
-                    ),
+                  child: SearchHistoryList(
+                    history: _controller.history,
+                    onSelected: _search,
+                    onClear: _controller.clearHistory,
                   ),
-                ),
-                SliverList.builder(
-                  itemCount: _controller.history.length,
-                  itemBuilder: (context, index) {
-                    final item = _controller.history[index];
-                    return ListTile(
-                      leading: const Icon(Icons.history),
-                      title: Text(item),
-                      trailing: const Icon(Icons.north_west, size: 18),
-                      onTap: () => _search(item),
-                    );
-                  },
-                ),
-              ] else if (hasQuery) ...[
+                )
+              else if (hasQuery) ...[
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
@@ -141,7 +119,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                 else
                   SliverList.builder(
                     itemCount: results.length,
-                    itemBuilder: (context, index) => _SearchResultTile(document: results[index]),
+                    itemBuilder: (context, index) => SearchResultTile(document: results[index]),
                   ),
               ] else if (!_controller.loadingHistory)
                 const SliverFillRemaining(
@@ -152,23 +130,6 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           ),
         );
       },
-    );
-  }
-}
-
-class _SearchResultTile extends StatelessWidget {
-  const _SearchResultTile({required this.document});
-  final LibraryDocument document;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      leading: const Icon(Icons.picture_as_pdf_outlined),
-      title: Text(document.title),
-      subtitle: Text(document.file.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => ReaderPage(document: document)),
-      ),
     );
   }
 }
