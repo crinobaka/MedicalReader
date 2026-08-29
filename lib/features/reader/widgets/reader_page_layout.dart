@@ -105,6 +105,10 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
     setState(() => _controlsVisible = !_controlsVisible);
   }
 
+  void _resetZoom() {
+    widget.transformationController.value = Matrix4.identity();
+  }
+
   void _onInteractionStart(ScaleStartDetails details) {
     _gestureDistanceX = 0;
     _gestureDistanceY = 0;
@@ -176,9 +180,7 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
     final currentImage = widget.image;
     if (currentImage == null) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
-    // Make the collection concrete before crossing into the painting layer.
-    // This is intentionally a new typed list rather than a dynamic cast so
-    // JSON/map-derived callers cannot leak List<dynamic> into the widget API.
+    // Keep the boundary strongly typed before search data enters the painting layer.
     final searchHits = List<ReaderSearchHit>.unmodifiable(widget.searchHits);
 
     final canvas = Listener(
@@ -186,6 +188,7 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onTap: options.floatingControls ? _toggleControls : null,
+        onDoubleTap: _resetZoom,
         child: ReaderViewport(
           loading: widget.pageLoading,
           page: InteractiveViewer(
@@ -246,7 +249,13 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
 
   void _handleKeyEvent(KeyEvent event) {
     if (event is! KeyDownEvent) return;
-    if (event.logicalKey == LogicalKeyboardKey.arrowLeft || event.logicalKey == LogicalKeyboardKey.pageUp) {
+    if (HardwareKeyboard.instance.isControlPressed && event.logicalKey == LogicalKeyboardKey.keyF) {
+      unawaited(widget.onSearch());
+    } else if (event.logicalKey == LogicalKeyboardKey.escape) {
+      if (_controlsVisible == false) {
+        setState(() => _controlsVisible = true);
+      }
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft || event.logicalKey == LogicalKeyboardKey.pageUp) {
       unawaited(widget.onPrevious());
     } else if (event.logicalKey == LogicalKeyboardKey.arrowRight || event.logicalKey == LogicalKeyboardKey.pageDown) {
       unawaited(widget.onNext());
