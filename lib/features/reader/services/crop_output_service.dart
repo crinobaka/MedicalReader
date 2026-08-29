@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import '../../library/models/library_document.dart';
@@ -36,11 +37,7 @@ class CropOutputService {
       document: document,
       configuration: configuration,
       pages: [
-        CropOutputSourcePage(
-          pdfPage: pdfPage,
-          bookPage: bookPage,
-          image: source,
-        ),
+        CropOutputSourcePage(pdfPage: pdfPage, bookPage: bookPage, image: source),
       ],
       previousRegions: previousRegions,
     );
@@ -54,10 +51,7 @@ class CropOutputService {
   }) async {
     if (pages.isEmpty) throw ArgumentError('pages must not be empty');
 
-    final session = await sessions.createSession(
-      document: document,
-      configuration: configuration,
-    );
+    final session = await sessions.createSession(document: document, configuration: configuration);
     final outputs = <CropOutputPage>[];
     var previous = previousRegions;
 
@@ -107,21 +101,13 @@ class CropOutputService {
   }
 
   /// Combines generated PNG pages into a portable standalone PDF.
-  /// The original PDF is never read for this step and is never modified.
-  Future<File> exportPdf({
-    required CropOutputManifest output,
-    String? destinationPath,
-  }) async {
-    if (output.pages.isEmpty) {
-      throw StateError('The crop session contains no generated pages.');
-    }
+  Future<File> exportPdf({required CropOutputManifest output, String? destinationPath}) async {
+    if (output.pages.isEmpty) throw StateError('The crop session contains no generated pages.');
 
     final pdf = pw.Document();
     var addedPages = 0;
     for (final page in output.pages) {
-      final file = File(
-        '${output.directoryPath}${Platform.pathSeparator}${page.fileName}',
-      );
+      final file = File('${output.directoryPath}${Platform.pathSeparator}${page.fileName}');
       if (!await file.exists()) continue;
       final bytes = await file.readAsBytes();
       final image = pw.MemoryImage(bytes);
@@ -129,17 +115,14 @@ class CropOutputService {
       final width = decoded.$1.toDouble().clamp(1, double.infinity);
       final height = decoded.$2.toDouble().clamp(1, double.infinity);
       pdf.addPage(pw.Page(
-        pageFormat: pw.PdfPageFormat(width, height, marginAll: 0),
+        pageFormat: PdfPageFormat(width, height, marginAll: 0),
         build: (_) => pw.Image(image, fit: pw.BoxFit.fill),
       ));
       addedPages++;
     }
 
-    if (addedPages == 0) {
-      throw StateError('No generated page files are available.');
-    }
-    final path = destinationPath ??
-        '${output.directoryPath}${Platform.pathSeparator}crop-result.pdf';
+    if (addedPages == 0) throw StateError('No generated page files are available.');
+    final path = destinationPath ?? '${output.directoryPath}${Platform.pathSeparator}crop-result.pdf';
     final file = File(path);
     await file.parent.create(recursive: true);
     await file.writeAsBytes(await pdf.save(), flush: true);
@@ -147,27 +130,17 @@ class CropOutputService {
   }
 
   (int, int) _readPngSize(List<int> bytes) {
-    if (bytes.length < 24 || bytes[0] != 0x89 || bytes[1] != 0x50 ||
-        bytes[2] != 0x4e || bytes[3] != 0x47) {
+    if (bytes.length < 24 || bytes[0] != 0x89 || bytes[1] != 0x50 || bytes[2] != 0x4e || bytes[3] != 0x47) {
       throw FormatException('Generated crop page is not a PNG image.');
     }
-    final width = (bytes[16] << 24) |
-        (bytes[17] << 16) |
-        (bytes[18] << 8) |
-        bytes[19];
-    final height = (bytes[20] << 24) |
-        (bytes[21] << 16) |
-        (bytes[22] << 8) |
-        bytes[23];
+    final width = (bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19];
+    final height = (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23];
     return (width, height);
   }
 
   Future<void> _writeManifest(String directoryPath, CropOutputManifest output) async {
     final file = File('${directoryPath}${Platform.pathSeparator}output.json');
-    await file.writeAsString(
-      const JsonEncoder.withIndent('  ').convert(output.toJson()),
-      flush: true,
-    );
+    await file.writeAsString(const JsonEncoder.withIndent('  ').convert(output.toJson()), flush: true);
   }
 }
 
@@ -176,9 +149,5 @@ class CropOutputSourcePage {
   final int? bookPage;
   final ui.Image image;
 
-  const CropOutputSourcePage({
-    required this.pdfPage,
-    required this.bookPage,
-    required this.image,
-  });
+  const CropOutputSourcePage({required this.pdfPage, required this.bookPage, required this.image});
 }
