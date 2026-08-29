@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../controllers/reader_interaction_controller.dart';
 import '../models/book_tree_node.dart';
 import '../providers/reader_view_options_provider.dart';
+import '../services/reader_search_service.dart';
 import 'reader_error_view.dart';
 import 'reader_location_bar.dart';
 import 'reader_page_controls.dart';
@@ -25,7 +26,7 @@ class ReaderPageLayout extends ConsumerStatefulWidget {
   final bool pageLoading;
   final Object? error;
   final ui.Image? image;
-  final List<dynamic> searchHits;
+  final List<ReaderSearchHit> searchHits;
   final bool bookmarked;
   final bool cropEnabled;
   final bool canGoPrevious;
@@ -124,10 +125,6 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
     final scale = widget.transformationController.value.getMaxScaleOnAxis();
     if ((scale - 1).abs() > 0.01) return;
 
-    // A page-turn gesture should feel intentional. InteractiveViewer also
-    // receives vertical pans, so require horizontal dominance before treating
-    // the gesture as navigation. This prevents small-screen readers from
-    // accidentally changing pages while trying to pan/scroll.
     final horizontal = _gestureDistanceX.abs();
     final vertical = _gestureDistanceY.abs();
     if (horizontal < 48 || horizontal <= vertical * 1.2) return;
