@@ -1,11 +1,11 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
 import '../models/book_tree_node.dart';
 
 /// Best-effort importer for standard PDF outline/bookmark dictionaries.
-/// No additional PDF package is required. Unsupported encrypted/compressed
-/// object storage falls back to the normal directory workflow.
+/// No additional PDF package is required.
 class PdfOutlineService {
   const PdfOutlineService();
 
@@ -33,17 +33,15 @@ class PdfOutlineService {
       }
     }
     if (catalogId == null) return const [];
-
     final catalog = objects[catalogId];
     if (catalog == null) return const [];
-    final pagesRoot = _ref(catalog, '/Pages');
+
     final pageIndexByObject = <int, int>{};
+    final pagesRoot = _ref(catalog, '/Pages');
     if (pagesRoot != null) {
       _collectPages(pagesRoot, objects, pageIndexByObject, <int>{});
     }
     if (pageIndexByObject.isEmpty) {
-      // Some simple PDFs omit a usable page tree. Keep a deterministic
-      // fallback rather than silently losing all destinations.
       final ids = objects.entries
           .where((entry) => RegExp(r'/Type\s*/Page(?:\s|/|>)').hasMatch(entry.value) &&
               !RegExp(r'/Type\s*/Pages(?:\s|/|>)').hasMatch(entry.value))
@@ -64,12 +62,7 @@ class PdfOutlineService {
     return _readSiblings(first, objects, pageIndexByObject, <int>{});
   }
 
-  void _collectPages(
-    int root,
-    Map<int, String> objects,
-    Map<int, int> result,
-    Set<int> visited,
-  ) {
+  void _collectPages(int root, Map<int, String> objects, Map<int, int> result, Set<int> visited) {
     if (!visited.add(root)) return;
     final object = objects[root];
     if (object == null) return;
@@ -80,19 +73,13 @@ class PdfOutlineService {
     }
     final kidsMatch = RegExp(r'/Kids\s*\[([\s\S]*?)\]').firstMatch(object);
     if (kidsMatch == null) return;
-    final refs = RegExp(r'(\d+)\s+\d+\s+R').allMatches(kidsMatch.group(1) ?? '');
-    for (final ref in refs) {
+    for (final ref in RegExp(r'(\d+)\s+\d+\s+R').allMatches(kidsMatch.group(1) ?? '')) {
       final id = int.tryParse(ref.group(1) ?? '');
       if (id != null) _collectPages(id, objects, result, visited);
     }
   }
 
-  List<BookTreeNode> _readSiblings(
-    int first,
-    Map<int, String> objects,
-    Map<int, int> pageIndexByObject,
-    Set<int> visited,
-  ) {
+  List<BookTreeNode> _readSiblings(int first, Map<int, String> objects, Map<int, int> pageIndexByObject, Set<int> visited) {
     final result = <BookTreeNode>[];
     var current = first;
     while (current > 0 && visited.add(current)) {
@@ -105,12 +92,7 @@ class PdfOutlineService {
           ? const <BookTreeNode>[]
           : _readSiblings(childFirst, objects, pageIndexByObject, visited);
       if (title.isNotEmpty) {
-        result.add(BookTreeNode(
-          id: 'pdf-outline-$current',
-          name: title,
-          pageStart: page,
-          children: children,
-        ));
+        result.add(BookTreeNode(id: 'pdf-outline-$current', name: title, pageStart: page, children: children));
       }
       final next = _ref(object, '/Next');
       if (next == null || next == current) break;
@@ -119,11 +101,7 @@ class PdfOutlineService {
     return List.unmodifiable(result);
   }
 
-  int? _destinationPage(
-    String object,
-    Map<int, String> objects,
-    Map<int, int> pageIndexByObject,
-  ) {
+  int? _destinationPage(String object, Map<int, String> objects, Map<int, int> pageIndexByObject) {
     final direct = _pageRef(object);
     if (direct != null) return pageIndexByObject[direct];
     final actionRef = RegExp(r'/A\s+(\d+)\s+\d+\s+R').firstMatch(object);
@@ -152,9 +130,7 @@ class PdfOutlineService {
       final hex = raw.substring(1, raw.length - 1).replaceAll(RegExp(r'\s+'), '');
       try {
         final bytes = <int>[];
-        for (var i = 0; i + 1 < hex.length; i += 2) {
-          bytes.add(int.parse(hex.substring(i, i + 2), radix: 16));
-        }
+        for (var i = 0; i + 1 < hex.length; i += 2) bytes.add(int.parse(hex.substring(i, i + 2), radix: 16));
         return _decodePdfText(Uint8List.fromList(bytes));
       } catch (_) {
         return '';
@@ -169,9 +145,7 @@ class PdfOutlineService {
   String _decodePdfText(Uint8List bytes) {
     if (bytes.length >= 2 && bytes[0] == 0xFE && bytes[1] == 0xFF) {
       final units = <int>[];
-      for (var i = 2; i + 1 < bytes.length; i += 2) {
-        units.add((bytes[i] << 8) | bytes[i + 1]);
-      }
+      for (var i = 2; i + 1 < bytes.length; i += 2) units.add((bytes[i] << 8) | bytes[i + 1]);
       return String.fromCharCodes(units);
     }
     return latin1.decode(bytes, allowInvalid: true);
