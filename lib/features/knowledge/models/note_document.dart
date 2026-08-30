@@ -1,9 +1,6 @@
 import '../../reader/models/reader_annotation.dart';
 
-/// 独立知识笔记模型。
-///
-/// bookId/pageIndex 可为空：为空表示笔记已经与书籍解绑，
-/// 解绑后的笔记仍然可以保存、编辑和导出，不依赖 LibraryDocument 生命周期。
+/// Independent knowledge note. bookId/pageIndex may be null after detaching.
 class NoteDocument {
   final String id;
   final String? bookId;
@@ -37,6 +34,35 @@ class NoteDocument {
         attachments: attachments,
         createdAt: createdAt,
         updatedAt: updatedAt,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'bookId': bookId,
+        'pageIndex': pageIndex,
+        'title': title,
+        'body': body,
+        'format': format.name,
+        'attachments': attachments,
+        'createdAt': createdAt.toIso8601String(),
+        'updatedAt': updatedAt.toIso8601String(),
+      };
+
+  factory NoteDocument.fromJson(Map<String, dynamic> json) => NoteDocument(
+        id: json['id']?.toString() ?? '',
+        bookId: json['bookId']?.toString(),
+        pageIndex: (json['pageIndex'] as num?)?.toInt(),
+        title: json['title']?.toString() ?? '',
+        body: json['body']?.toString() ?? '',
+        format: ReaderNoteFormat.values.firstWhere(
+          (value) => value.name == json['format']?.toString(),
+          orElse: () => ReaderNoteFormat.markdown,
+        ),
+        attachments: json['attachments'] is List
+            ? (json['attachments'] as List).map((value) => value.toString()).toList()
+            : const [],
+        createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? '') ?? DateTime.now(),
+        updatedAt: DateTime.tryParse(json['updatedAt']?.toString() ?? '') ?? DateTime.now(),
       );
 
   factory NoteDocument.fromAnnotation(ReaderAnnotation annotation) {
