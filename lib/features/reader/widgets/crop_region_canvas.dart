@@ -131,21 +131,33 @@ class _RegionGesture extends StatefulWidget {
 }
 class _RegionGestureState extends State<_RegionGesture> {
   bool _resizing = false;
-  @override Widget build(BuildContext context) => GestureDetector(behavior: HitTestBehavior.opaque, onLongPress: widget.onLongPress, onPanStart: (d) { final s = context.size ?? Size.zero; _resizing = d.localPosition.dx >= s.width - 28 && d.localPosition.dy >= s.height - 28; }, onPanUpdate: (d) { if (widget.pageSize.isEmpty) return; final r = widget.region, dx = d.delta.dx / widget.pageSize.width, dy = d.delta.dy / widget.pageSize.height; if (_resizing) widget.onChanged(r.copyWith(width: (r.width + dx).clamp(widget.minRegionSize, 1.0 - r.x).toDouble(), height: (r.height + dy).clamp(widget.minRegionSize, 1.0 - r.y).toDouble())); else widget.onChanged(r.copyWith(x: (r.x + dx).clamp(0.0, 1.0 - r.width).toDouble(), y: (r.y + dy).clamp(0.0, 1.0 - r.height).toDouble())); }, child: widget.child);
+  @override Widget build(BuildContext context) => GestureDetector(behavior: HitTestBehavior.opaque, onLongPress: widget.onLongPress, onPanStart: (d) { final s = context.size ?? Size.zero; _resizing = d.localPosition.dx >= s.width - 28 && d.localPosition.dy >= s.height - 28; }, onPanUpdate: (d) { if (widget.pageSize.isEmpty) return; final r = widget.region, dx = d.delta.dx / widget.pageSize.width, dy = d.delta.dy / widget.pageSize.height; if (_resizing) {
+    widget.onChanged(r.copyWith(width: (r.width + dx).clamp(widget.minRegionSize, 1.0 - r.x).toDouble(), height: (r.height + dy).clamp(widget.minRegionSize, 1.0 - r.y).toDouble()));
+  } else {
+    widget.onChanged(r.copyWith(x: (r.x + dx).clamp(0.0, 1.0 - r.width).toDouble(), y: (r.y + dy).clamp(0.0, 1.0 - r.height).toDouble()));
+  } }, child: widget.child);
 }
 
 class _DrawPreviewPainter extends CustomPainter {
   final CropEditorTool tool; final Offset start, current; const _DrawPreviewPainter(this.tool, this.start, this.current);
-  @override void paint(Canvas c, Size s) { final p = Paint()..color = Colors.blue..strokeWidth = 3..style = PaintingStyle.stroke; if (tool == CropEditorTool.line) c.drawLine(start, current, p); else c.drawRect(Rect.fromPoints(start, current), p); }
+  @override void paint(Canvas c, Size s) { final p = Paint()..color = Colors.blue..strokeWidth = 3..style = PaintingStyle.stroke; if (tool == CropEditorTool.line) {
+    c.drawLine(start, current, p);
+  } else {
+    c.drawRect(Rect.fromPoints(start, current), p);
+  } }
   @override bool shouldRepaint(covariant _DrawPreviewPainter oldDelegate) => true;
 }
 class _PolygonPainter extends CustomPainter {
   final List<Offset> points; final Rect pageRect; const _PolygonPainter(this.points, this.pageRect);
-  @override void paint(Canvas c, Size s) { final p = Paint()..color = Colors.blue..strokeWidth = 2..style = PaintingStyle.stroke; for (var i = 1; i < points.length; i++) c.drawLine(Offset(pageRect.left + points[i-1].dx * pageRect.width, pageRect.top + points[i-1].dy * pageRect.height), Offset(pageRect.left + points[i].dx * pageRect.width, pageRect.top + points[i].dy * pageRect.height), p); }
+  @override void paint(Canvas c, Size s) { final p = Paint()..color = Colors.blue..strokeWidth = 2..style = PaintingStyle.stroke; for (var i = 1; i < points.length; i++) {
+    c.drawLine(Offset(pageRect.left + points[i-1].dx * pageRect.width, pageRect.top + points[i-1].dy * pageRect.height), Offset(pageRect.left + points[i].dx * pageRect.width, pageRect.top + points[i].dy * pageRect.height), p);
+  } }
   @override bool shouldRepaint(covariant _PolygonPainter oldDelegate) => true;
 }
 class _CropHatchPainter extends CustomPainter {
   final Color color; const _CropHatchPainter(this.color);
-  @override void paint(Canvas c, Size s) { final p = Paint()..color = color..strokeWidth = 1; for (var o = -s.height; o < s.width; o += 10) c.drawLine(Offset(o, 0), Offset(o + s.height, s.height), p); }
+  @override void paint(Canvas c, Size s) { final p = Paint()..color = color..strokeWidth = 1; for (var o = -s.height; o < s.width; o += 10) {
+    c.drawLine(Offset(o, 0), Offset(o + s.height, s.height), p);
+  } }
   @override bool shouldRepaint(covariant _CropHatchPainter oldDelegate) => oldDelegate.color != color;
 }

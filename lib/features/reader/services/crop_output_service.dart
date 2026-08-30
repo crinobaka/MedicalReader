@@ -139,7 +139,7 @@ class CropOutputService {
   }
 
   Future<void> _writeManifest(String directoryPath, CropOutputManifest output) async {
-    final file = File('${directoryPath}${Platform.pathSeparator}output.json');
+    final file = File('$directoryPath${Platform.pathSeparator}output.json');
     await file.writeAsString(const JsonEncoder.withIndent('  ').convert(output.toJson()), flush: true);
   }
 }

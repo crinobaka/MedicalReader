@@ -12,7 +12,7 @@ class BookTreeService {
   final BookManifestService _manifestService;
   final PdfOutlineService _outlineService;
 
-  BookTreeService({BookManifestService manifestService = const BookManifestService(), PdfOutlineService outlineService = const PdfOutlineService()}) : _manifestService = manifestService, _outlineService = outlineService;
+  BookTreeService({this._manifestService = const BookManifestService(), this._outlineService = const PdfOutlineService()});
 
   Future<BookTreeIndex> loadIndexForDocument(LibraryDocument document, {required int pageCount, BookManifest? manifest}) async {
     final nodes = await loadForDocument(document, manifest: manifest);

@@ -63,10 +63,7 @@ class ReaderEngineService {
   }) async {
     CropConfiguration? effectiveConfiguration = cropConfiguration;
 
-    if (effectiveConfiguration == null) {
-      effectiveConfiguration =
-          await _cropConfigurationStore.getForCurrentDocument();
-    }
+    effectiveConfiguration ??= await _cropConfigurationStore.getForCurrentDocument();
 
     final hasConfiguredRegions =
         effectiveConfiguration != null &&

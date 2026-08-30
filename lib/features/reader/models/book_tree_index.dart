@@ -11,8 +11,8 @@ class BookTreeIndex {
   const BookTreeIndex({
     required this.nodes,
     required this.pageCount,
-    BookPageMapping? pageMapping,
-  }) : _pageMapping = pageMapping;
+    this._pageMapping,
+  });
 
   bool get isEmpty => nodes.isEmpty;
 

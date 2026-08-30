@@ -116,7 +116,7 @@ class _ReaderNotesPageState
                   )
                 : ListView.separated(
                     itemCount: notes.length,
-                    separatorBuilder: (_, __) =>
+                    separatorBuilder: (_, _) =>
                         const Divider(height: 1),
                     itemBuilder: (context, index) {
                       final note = notes[index];

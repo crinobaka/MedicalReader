@@ -101,7 +101,7 @@ class ReaderNoteEditorState extends State<ReaderNoteEditor> {
         }
         final file = File(path);
         return file.existsSync()
-            ? Image.file(file, fit: BoxFit.contain, errorBuilder: (_, __, ___) => _missingImage(alt, path))
+            ? Image.file(file, fit: BoxFit.contain, errorBuilder: (_, _, _) => _missingImage(alt, path))
             : _missingImage(alt, path);
       },
     );

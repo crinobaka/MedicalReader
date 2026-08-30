@@ -98,7 +98,7 @@ class _AttachmentView extends StatelessWidget {
                 child: Image.file(
                   file,
                   fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => _MissingAttachment(path: attachment.path),
+                  errorBuilder: (_, _, _) => _MissingAttachment(path: attachment.path),
                 ),
               )
             : _MissingAttachment(path: attachment.path),

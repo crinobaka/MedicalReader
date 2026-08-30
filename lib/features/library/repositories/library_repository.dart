@@ -96,7 +96,7 @@ class LibraryRepository {
     }
 
     final operation = _writeQueue.then((_) => storage.saveJson(output));
-    _writeQueue = operation.then<void>((_) {}, onError: (_, __) {});
+    _writeQueue = operation.then<void>((_) {}, onError: (_, _) {});
     await operation;
   }
 }

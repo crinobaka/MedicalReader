@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../../lib/core/file_manager/models/document_file.dart';
-import '../../../lib/features/library/models/library_document.dart';
-import '../../../lib/features/search/controllers/search_page_controller.dart';
+import 'package:medicalreader/core/file_manager/models/document_file.dart';
+import 'package:medicalreader/features/library/models/library_document.dart';
+import 'package:medicalreader/features/search/controllers/search_page_controller.dart';
 
 void main() {
   group('SearchPageController.filterDocuments', () {

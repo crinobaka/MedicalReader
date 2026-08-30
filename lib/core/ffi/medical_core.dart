@@ -98,10 +98,9 @@ class MedicalCoreDocument {
   bool _closed = false;
 
   MedicalCoreDocument._({
-    required Pointer<_MedicalCoreDocument> handle,
-    required MedicalCore core,
-  }) : _handle = handle,
-       _core = core;
+    required this._handle,
+    required this._core,
+  });
 
   int get pageCount {
     if (_closed) {

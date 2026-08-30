@@ -1,7 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../../../lib/features/reader/controllers/reader_interaction_controller.dart';
+import 'package:medicalreader/features/reader/controllers/reader_interaction_controller.dart';
 
 void main() {
   const controller = ReaderInteractionController();

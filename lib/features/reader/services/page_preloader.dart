@@ -9,8 +9,7 @@ class PagePreloader {
   bool _running = false;
   int _generation = 0;
 
-  PagePreloader({required ReaderEngineService readerEngine})
-    : _readerEngine = readerEngine;
+  PagePreloader({required this._readerEngine});
 
   Future<void> preloadAround({
     required MedicalCoreDocument document,

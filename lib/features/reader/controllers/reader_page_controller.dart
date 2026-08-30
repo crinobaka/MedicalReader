@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:ui' as ui;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../../core/ffi/medical_core.dart';
@@ -171,7 +170,11 @@ class ReaderPageController extends ChangeNotifier {
 
   void _replaceNeighbor(int slot, ui.Image? next) {
     final old = slot == 0 ? previousPageImage : nextPageImage;
-    if (slot == 0) previousPageImage = next; else nextPageImage = next;
+    if (slot == 0) {
+      previousPageImage = next;
+    } else {
+      nextPageImage = next;
+    }
     if (old != null && !identical(old, next)) old.dispose();
   }
 

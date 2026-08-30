@@ -13,9 +13,9 @@ class BookTemplateService {
   final BookTemplateAssetLoader _assetLoader;
 
   BookTemplateService({
-    BookTemplateAssetLoader assetLoader =
+    this._assetLoader =
         const BookTemplateAssetLoader(),
-  }) : _assetLoader = assetLoader;
+  });
 
   void register(BookTemplate template) {
     _templates[template.id] = template;

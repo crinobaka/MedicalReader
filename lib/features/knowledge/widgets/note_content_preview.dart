@@ -60,7 +60,7 @@ class _AttachmentImage extends StatelessWidget {
     if (path.startsWith('http://') || path.startsWith('https://')) return Padding(padding: const EdgeInsets.only(top: 12), child: Image.network(path));
     return Padding(
       padding: const EdgeInsets.only(top: 12),
-      child: Image.file(File(path), errorBuilder: (_, __, ___) => Text('无法加载附件：$path')),
+      child: Image.file(File(path), errorBuilder: (_, _, _) => Text('无法加载附件：$path')),
     );
   }
 }

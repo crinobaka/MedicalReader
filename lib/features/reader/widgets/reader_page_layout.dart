@@ -151,14 +151,15 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
     if (widget.image == null) return const Scaffold(body: Center(child: CircularProgressIndicator()));
     final controls = options.showPageControls ? ReaderPageControls(canGoPrevious: widget.canGoPrevious, canGoNext: widget.canGoNext, pageLoading: widget.pageLoading, pageLabel: widget.bookPage == null ? 'PDF P${widget.currentPage + 1} / ${widget.pageCount}' : '书籍 P${widget.bookPage} · PDF P${widget.currentPage + 1} / ${widget.pageCount}', locationLabel: widget.currentBookTreeNode?.name, searchLabel: widget.searchResultPath.isNotEmpty ? '搜索命中 · ${widget.searchResultPath.map((node) => node.name).join(' › ')}' : null, onPrevious: widget.onPrevious, onNext: widget.onNext, onPageTap: widget.onPageJump) : null;
     final canvas = Listener(onPointerSignal: _handlePointerSignal, child: GestureDetector(behavior: HitTestBehavior.translucent, onTap: options.floatingControls ? _toggleControls : null, onDoubleTap: _resetZoom, child: ReaderViewport(loading: widget.pageLoading, page: InteractiveViewer(transformationController: widget.transformationController, minScale: 0.5, maxScale: 4.0, onInteractionStart: _onInteractionStart, onInteractionUpdate: _onInteractionUpdate, onInteractionEnd: _onInteractionEnd, child: _readingSurface(context, options.pageLayout)))));
-    final content = options.floatingControls ? Stack(fit: StackFit.expand, children: [canvas, if (_controlsVisible) Positioned(top: 0, left: 0, right: 0, child: SafeArea(child: toolbar)), if (_controlsVisible && controls != null) Positioned(left: 0, right: 0, bottom: 0, child: SafeArea(child: controls))]) : Column(children: [toolbar, Expanded(child: canvas), if (controls != null) controls]);
+    final content = options.floatingControls ? Stack(fit: StackFit.expand, children: [canvas, if (_controlsVisible) Positioned(top: 0, left: 0, right: 0, child: SafeArea(child: toolbar)), if (_controlsVisible && controls != null) Positioned(left: 0, right: 0, bottom: 0, child: SafeArea(child: controls))]) : Column(children: [toolbar, Expanded(child: canvas), ?controls]);
     return Scaffold(body: KeyboardListener(focusNode: widget.keyboardFocusNode, onKeyEvent: _handleKeyEvent, child: content));
   }
 
   void _handleKeyEvent(KeyEvent event) {
     if (event is! KeyDownEvent) return;
-    if (HardwareKeyboard.instance.isControlPressed && event.logicalKey == LogicalKeyboardKey.keyF) unawaited(widget.onSearch());
-    else if (event.logicalKey == LogicalKeyboardKey.escape) { if (!_controlsVisible) setState(() => _controlsVisible = true); }
+    if (HardwareKeyboard.instance.isControlPressed && event.logicalKey == LogicalKeyboardKey.keyF) {
+      unawaited(widget.onSearch());
+    } else if (event.logicalKey == LogicalKeyboardKey.escape) { if (!_controlsVisible) setState(() => _controlsVisible = true); }
     else if (event.logicalKey == LogicalKeyboardKey.arrowLeft || event.logicalKey == LogicalKeyboardKey.pageUp) unawaited(widget.onPrevious());
     else if (event.logicalKey == LogicalKeyboardKey.arrowRight || event.logicalKey == LogicalKeyboardKey.pageDown) unawaited(widget.onNext());
     else if (event.logicalKey == LogicalKeyboardKey.home) unawaited(widget.onFirst());

@@ -83,7 +83,7 @@ class _KnowledgePageState extends ConsumerState<KnowledgePage> {
               children: [
                 Expanded(
                   child: DropdownButtonFormField<String?>(
-                    value: _selectedBookId,
+                    initialValue: _selectedBookId,
                     decoration: const InputDecoration(
                       labelText: '书籍',
                       border: OutlineInputBorder(),
@@ -144,7 +144,7 @@ class _KnowledgePageState extends ConsumerState<KnowledgePage> {
                 ? const Center(child: Text('暂无笔记'))
                 : ListView.separated(
                     itemCount: filteredNotes.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    separatorBuilder: (_, _) => const Divider(height: 1),
                     itemBuilder: (context, index) {
                       final item = filteredNotes[index];
 

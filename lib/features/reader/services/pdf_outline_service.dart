@@ -43,7 +43,9 @@ class PdfOutlineService {
     if (pagesRoot != null) _collectPages(pagesRoot, objects, pageIndexByObject, <int>{});
     if (pageIndexByObject.isEmpty) {
       final ids = objects.entries.where((entry) => RegExp(r'/Type\s*/Page(?:\s|/|>)').hasMatch(entry.value) && !RegExp(r'/Type\s*/Pages(?:\s|/|>)').hasMatch(entry.value)).map((entry) => entry.key).toList()..sort();
-      for (var i = 0; i < ids.length; i++) pageIndexByObject[ids[i]] = i + 1;
+      for (var i = 0; i < ids.length; i++) {
+        pageIndexByObject[ids[i]] = i + 1;
+      }
     }
 
     final outlineRoot = _ref(catalog, '/Outlines');
@@ -118,7 +120,9 @@ class PdfOutlineService {
       final hex = raw.substring(1, raw.length - 1).replaceAll(RegExp(r'\s+'), '');
       try {
         final bytes = <int>[];
-        for (var i = 0; i + 1 < hex.length; i += 2) bytes.add(int.parse(hex.substring(i, i + 2), radix: 16));
+        for (var i = 0; i + 1 < hex.length; i += 2) {
+          bytes.add(int.parse(hex.substring(i, i + 2), radix: 16));
+        }
         return _decodePdfText(Uint8List.fromList(bytes));
       } catch (_) {
         return '';
@@ -134,7 +138,9 @@ class PdfOutlineService {
         if (next == 't') { bytes.add(9); continue; }
         if (RegExp(r'[0-7]').hasMatch(next)) {
           var oct = next;
-          while (oct.length < 3 && i + 1 < escaped.length && RegExp(r'[0-7]').hasMatch(escaped[i + 1])) oct += escaped[++i];
+          while (oct.length < 3 && i + 1 < escaped.length && RegExp(r'[0-7]').hasMatch(escaped[i + 1])) {
+            oct += escaped[++i];
+          }
           bytes.add(int.parse(oct, radix: 8));
           continue;
         }
@@ -149,7 +155,9 @@ class PdfOutlineService {
   String _decodePdfText(Uint8List bytes) {
     if (bytes.length >= 2 && bytes[0] == 0xFE && bytes[1] == 0xFF) {
       final units = <int>[];
-      for (var i = 2; i + 1 < bytes.length; i += 2) units.add((bytes[i] << 8) | bytes[i + 1]);
+      for (var i = 2; i + 1 < bytes.length; i += 2) {
+        units.add((bytes[i] << 8) | bytes[i + 1]);
+      }
       return String.fromCharCodes(units);
     }
     try {
