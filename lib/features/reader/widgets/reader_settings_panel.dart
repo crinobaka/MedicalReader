@@ -47,10 +47,9 @@ class ReaderSettingsPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
-    final maxHeight = MediaQuery.sizeOf(context).height * 0.88;
-    final width = MediaQuery.sizeOf(context).width;
     final listView = ListView(
       controller: scrollController,
+      primary: scrollController == null ? true : null,
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: EdgeInsets.fromLTRB(16, 8, 16, 24 + bottomInset),
       physics: const ClampingScrollPhysics(),
@@ -104,14 +103,11 @@ class ReaderSettingsPanel extends StatelessWidget {
       ],
     );
 
-    // A controller supplied by a parent may not be attached until after the
-    // sheet/dialog finishes its first layout pass. Avoid RawScrollbar's
-    // "no ScrollPosition attached" assertion during that window.
-    final list = scrollController == null
-        ? Scrollbar(thumbVisibility: width >= 700, interactive: true, child: listView)
-        : listView;
-    if (scrollController != null) return list;
-    return SizedBox(height: maxHeight, child: list);
+    // Do not create a standalone Scrollbar here. On Android the framework may
+    // schedule a paint before a modal sheet's ScrollPosition is attached,
+    // which makes a primary-controller Scrollbar assert. The ListView remains
+    // fully touch-scrollable; desktop users can use wheel/trackpad scrolling.
+    return listView;
   }
 
   Widget _section(BuildContext context, String title, String subtitle, List<Widget> children) {
