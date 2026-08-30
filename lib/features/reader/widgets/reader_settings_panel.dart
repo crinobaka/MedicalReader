@@ -163,7 +163,7 @@ class _ThemePresetSelector extends StatelessWidget {
     (id: 'github', name: 'GitHub', description: '紧凑、直接、适合长时间桌面使用', icon: Icons.code_rounded),
   ];
   @override
-  Widget build(BuildContext context) => Column(children: [for (final preset in presets) Padding(padding: const EdgeInsets.only(bottom: 8), child: _ThemePresetCard(preset: preset, selected: value == preset.id, onTap: () => onChanged(preset.id))]);
+  Widget build(BuildContext context) => Column(children: [for (final preset in presets) Padding(padding: const EdgeInsets.only(bottom: 8), child: _ThemePresetCard(preset: preset, selected: value == preset.id, onTap: () => onChanged(preset.id)))]);
 }
 
 class _ThemePresetCard extends StatelessWidget {
