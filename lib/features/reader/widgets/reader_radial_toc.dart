@@ -6,10 +6,9 @@ import '../models/book_tree_node.dart';
 
 /// Touch-first radial TOC navigator.
 ///
-/// The navigator intentionally owns only the navigation gesture. It does not
-/// consume the whole reader surface: only the radial sheet and its handle are
-/// interactive, so an accidental drag outside the sheet still belongs to the
-/// reader (for example page navigation).
+/// Only the visible sheet receives drag gestures. The rest of the reader stays
+/// available for page navigation and panning; the close button is the explicit
+/// cancel affordance.
 class ReaderRadialToc extends StatefulWidget {
   final List<BookTreeNode> nodes;
   final bool fromLeft;
@@ -81,11 +80,16 @@ class _ReaderRadialTocState extends State<ReaderRadialToc> {
     final inwardDelta = widget.fromLeft ? delta : -delta;
     _horizontalTravel += inwardDelta;
 
-    if (_horizontalTravel >= _enterThreshold && _nodes[_index].children.isNotEmpty && _history.length < _maxDepth - 1) {
-      _history.add(_TocLevel(nodes: _nodes, index: _index));
-      _nodes = _nodes[_index].children;
+    if (_horizontalTravel >= _enterThreshold &&
+        _nodes[_index].children.isNotEmpty &&
+        _history.length < _maxDepth - 1) {
+      final selectedIndex = _index;
+      final children = _nodes[selectedIndex].children;
+      _history.add(_TocLevel(nodes: _nodes, index: selectedIndex));
+      _nodes = children;
       _index = _closestIndex(_nodes, widget.currentPage);
       _horizontalTravel = 0;
+      _verticalRemainder = 0;
       setState(() {});
       return;
     }
@@ -95,6 +99,7 @@ class _ReaderRadialTocState extends State<ReaderRadialToc> {
       _nodes = previous.nodes;
       _index = previous.index.clamp(0, _nodes.length - 1);
       _horizontalTravel = 0;
+      _verticalRemainder = 0;
       setState(() {});
     }
   }
@@ -107,9 +112,8 @@ class _ReaderRadialTocState extends State<ReaderRadialToc> {
 
   void _handleEnd() {
     if (_committed) return;
-    final inward = widget.fromLeft ? _horizontalTravel : -_horizontalTravel;
-    // A reverse gesture is navigation within the hierarchy, not a jump.
-    if (inward < -_commitThreshold && _history.isEmpty) {
+    final outward = widget.fromLeft ? _horizontalTravel : -_horizontalTravel;
+    if (outward < -_commitThreshold && _history.isEmpty) {
       widget.onDismiss();
       return;
     }
@@ -123,112 +127,106 @@ class _ReaderRadialTocState extends State<ReaderRadialToc> {
     final size = MediaQuery.sizeOf(context);
     final safeTop = MediaQuery.paddingOf(context).top;
     final safeBottom = MediaQuery.paddingOf(context).bottom;
-    final panelRadius = math.min(size.width * .88, size.height * .76);
+    final panelRadius = math.min(size.width * .88, size.height * .78);
     final panelWidth = math.min(size.width * .86, panelRadius);
     final scheme = Theme.of(context).colorScheme;
     final selected = _nodes[_index];
     final level = _history.length + 1;
 
     return Positioned.fill(
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onTap: widget.onDismiss,
-              child: const SizedBox.expand(),
-            ),
-          ),
-          Positioned(
-            top: safeTop + 12,
-            bottom: safeBottom + 12,
-            left: widget.fromLeft ? 0 : null,
-            right: widget.fromLeft ? null : 0,
-            width: panelWidth,
-            child: Material(
-              color: scheme.surface.withValues(alpha: .97),
-              elevation: 8,
-              clipBehavior: Clip.antiAlias,
-              borderRadius: BorderRadius.horizontal(
-                left: widget.fromLeft ? Radius.zero : Radius.circular(panelRadius),
-                right: widget.fromLeft ? Radius.circular(panelRadius) : Radius.zero,
-              ),
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onVerticalDragUpdate: (details) => _moveSelection(details.delta.dy),
-                onHorizontalDragUpdate: (details) => _moveDepth(details.delta.dx),
-                onVerticalDragEnd: (_) => _handleEnd(),
-                onHorizontalDragEnd: (_) => _handleEnd(),
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    widget.fromLeft ? 28 : 20,
-                    22,
-                    widget.fromLeft ? 20 : 28,
-                    22,
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          IconButton(
-                            tooltip: '关闭目录',
-                            onPressed: widget.onDismiss,
-                            icon: const Icon(Icons.close),
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              level == 1 ? '目录' : '目录 · $level级',
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+      child: IgnorePointer(
+        ignoring: false,
+        child: Stack(
+          children: [
+            const Positioned.fill(child: IgnorePointer(child: SizedBox.expand())),
+            Positioned(
+              top: safeTop + 12,
+              bottom: safeBottom + 12,
+              left: widget.fromLeft ? 0 : null,
+              right: widget.fromLeft ? null : 0,
+              width: panelWidth,
+              child: Material(
+                color: scheme.surface.withValues(alpha: .97),
+                elevation: 8,
+                clipBehavior: Clip.antiAlias,
+                borderRadius: BorderRadius.horizontal(
+                  left: widget.fromLeft ? Radius.zero : Radius.circular(panelRadius),
+                  right: widget.fromLeft ? Radius.circular(panelRadius) : Radius.zero,
+                ),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onVerticalDragUpdate: (details) => _moveSelection(details.delta.dy),
+                  onHorizontalDragUpdate: (details) => _moveDepth(details.delta.dx),
+                  onVerticalDragEnd: (_) => _handleEnd(),
+                  onHorizontalDragEnd: (_) => _handleEnd(),
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      widget.fromLeft ? 28 : 20,
+                      22,
+                      widget.fromLeft ? 20 : 28,
+                      22,
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            IconButton(
+                              tooltip: '关闭目录',
+                              onPressed: widget.onDismiss,
+                              icon: const Icon(Icons.close),
                             ),
-                          ),
-                          Text('${_index + 1}/${_nodes.length}', style: Theme.of(context).textTheme.labelMedium),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Align(
-                        alignment: Alignment.center,
-                        child: Text(
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                level == 1 ? '目录' : '目录 · $level级',
+                                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                            Text('${_index + 1}/${_nodes.length}', style: Theme.of(context).textTheme.labelMedium),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
                           selected.name,
                           maxLines: 2,
                           textAlign: TextAlign.center,
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        selected.pageLabel.isEmpty ? '第 ${_index + 1} 项' : 'P ${selected.pageLabel}',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                      const SizedBox(height: 18),
-                      Expanded(
-                        child: Center(
-                          child: _TocRail(
-                            nodes: _nodes,
-                            selectedIndex: _index,
-                            rowHeight: _rowHeight,
-                            accent: scheme.primary,
+                        const SizedBox(height: 4),
+                        Text(
+                          selected.pageLabel.isEmpty ? '第 ${_index + 1} 项' : 'P ${selected.pageLabel}',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        const SizedBox(height: 18),
+                        Expanded(
+                          child: Center(
+                            child: _TocRail(
+                              nodes: _nodes,
+                              selectedIndex: _index,
+                              rowHeight: _rowHeight,
+                              accent: scheme.primary,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        selected.children.isNotEmpty && level < _maxDepth
-                            ? '上下滑选择 · 向内滑进入 · 反向滑返回'
-                            : _history.isNotEmpty
-                                ? '上下滑选择 · 反向滑返回 · 松手跳转'
-                                : '上下滑选择 · 松手跳转 · 反向滑动取消',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
+                        const SizedBox(height: 10),
+                        Text(
+                          selected.children.isNotEmpty && level < _maxDepth
+                              ? '上下滑选择 · 向内滑进入 · 反向滑返回'
+                              : _history.isNotEmpty
+                                  ? '上下滑选择 · 反向滑返回 · 松手跳转'
+                                  : '上下滑选择 · 松手跳转 · 反向滑动取消',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -275,10 +273,7 @@ class _TocRail extends StatelessWidget {
             ),
             child: Row(
               children: [
-                SizedBox(
-                  width: 30,
-                  child: Text('${i + 1}', textAlign: TextAlign.center),
-                ),
+                SizedBox(width: 30, child: Text('${i + 1}', textAlign: TextAlign.center)),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
