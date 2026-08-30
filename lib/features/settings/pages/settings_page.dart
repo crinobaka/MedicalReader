@@ -188,7 +188,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               leading: Icon(Icons.info_outline),
               title: Text('MedicalReader'),
               subtitle: Text(
-                'PDF 阅读、知识整理与医学文献管理\n版本 1.0.0',
+                'PDF 阅读、知识整理与医学文献管理\n版本 1.5.0',
               ),
             ),
           ),
