@@ -209,18 +209,19 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
           final availableWidth = constraints.maxWidth;
           final availableHeight = constraints.maxHeight;
           final count = pages.length;
-          const outerPadding = 24.0;
           const gap = 12.0;
-          final usableWidth = (availableWidth - outerPadding * 2 - gap * (count - 1)).clamp(1.0, double.infinity);
-          final usableHeight = (availableHeight - outerPadding * 2).clamp(1.0, double.infinity);
+          final usableWidth = math.max(1.0, availableWidth - gap * (count - 1));
+          final usableHeight = math.max(1.0, availableHeight);
 
           if (count == 1) {
             final image = pages.single;
             final ratio = image.width / image.height;
-            final width = usableWidth.clamp(1.0, 960.0);
-            final height = width / ratio;
-            final fittedWidth = height > usableHeight ? usableHeight * ratio : width;
-            final fittedHeight = fittedWidth / ratio;
+            var fittedWidth = usableWidth;
+            var fittedHeight = fittedWidth / ratio;
+            if (fittedHeight > usableHeight) {
+              fittedHeight = usableHeight;
+              fittedWidth = fittedHeight * ratio;
+            }
             return Center(
               child: SizedBox(
                 width: fittedWidth,
@@ -233,10 +234,11 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
           }
 
           final widthByRow = usableWidth / count;
-          var pageWidth = widthByRow.clamp(160.0, 640.0);
+          var pageWidth = widthByRow;
           final ratios = pages.map((page) => page.width / page.height).toList(growable: false);
-          final heightForWidth = pageWidth / ratios.reduce((a, b) => a < b ? a : b);
-          if (heightForWidth > usableHeight) pageWidth = usableHeight * ratios.reduce((a, b) => a < b ? a : b);
+          final narrowestRatio = ratios.reduce((a, b) => a < b ? a : b);
+          final heightForWidth = pageWidth / narrowestRatio;
+          if (heightForWidth > usableHeight) pageWidth = usableHeight * narrowestRatio;
 
           final spreadWidth = pageWidth * count + gap * (count - 1);
           return Center(
@@ -283,11 +285,11 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
   }
 
   Widget _edgeTocGesture(bool fromLeft) => Positioned(
-        top: MediaQuery.sizeOf(context).height * .20,
-        bottom: MediaQuery.sizeOf(context).height * .20,
+        top: MediaQuery.sizeOf(context).height * .12,
+        bottom: MediaQuery.sizeOf(context).height * .12,
         left: fromLeft ? 0 : null,
         right: fromLeft ? null : 0,
-        width: 52,
+        width: 64,
         child: GestureDetector(
           behavior: HitTestBehavior.translucent,
           onHorizontalDragStart: (_) => _openToc(fromLeft),
@@ -445,7 +447,7 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
       unawaited(widget.onFirst());
     } else if (event.logicalKey == LogicalKeyboardKey.end) {
       unawaited(widget.onLast());
-    } else if (event.logicalKey == LogicalKeyboardKey.keyG) {
+    } else if (event.logicalKey == LogicalKeyboardLogicalKey.keyG) {
       unawaited(widget.onPageJump());
     } else if (event.logicalKey == LogicalKeyboardKey.keyB) {
       unawaited(widget.onBookPageJump());
