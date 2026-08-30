@@ -59,20 +59,42 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       .where((item) => item.pageIndex == _controller.currentPage)
       .toList(growable: false);
 
-  bool get _bookmarked => _annotations.any(
-        (item) => item.type == ReaderAnnotationType.bookmark,
-      );
+  bool get _bookmarked => _annotations.any((item) => item.type == ReaderAnnotationType.bookmark);
+
+  List<List<Offset>> get _inkStrokes => _annotations
+      .where((item) => item.type == ReaderAnnotationType.ink && item.rect.length >= 4)
+      .map((item) {
+        final values = <Offset>[];
+        for (var i = 0; i + 1 < item.rect.length; i += 2) {
+          values.add(Offset(item.rect[i], item.rect[i + 1]));
+        }
+        return values;
+      })
+      .toList(growable: false);
+
+  Future<void> _saveInkStroke(List<double> normalized) async {
+    if (normalized.length < 4) return;
+    final notifier = ref.read(readerAnnotationsProvider(widget.document).notifier);
+    final now = DateTime.now();
+    await notifier.add(
+      ReaderAnnotation(
+        id: 'ink_${widget.document.id}_${_controller.currentPage}_${now.microsecondsSinceEpoch}',
+        bookId: widget.document.id,
+        pageIndex: _controller.currentPage,
+        type: ReaderAnnotationType.ink,
+        rect: normalized,
+        createdAt: now,
+        updatedAt: now,
+      ),
+    );
+  }
 
   Future<void> _toggleBookmark() async {
     if (_controller.pageLoading) return;
     final notifier = ref.read(readerAnnotationsProvider(widget.document).notifier);
-    final existing = _annotations.where(
-      (item) => item.type == ReaderAnnotationType.bookmark,
-    );
+    final existing = _annotations.where((item) => item.type == ReaderAnnotationType.bookmark);
     if (existing.isNotEmpty) {
-      for (final item in existing) {
-        await notifier.remove(item.id);
-      }
+      for (final item in existing) await notifier.remove(item.id);
       return;
     }
     final now = DateTime.now();
@@ -99,10 +121,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         bookTreeIndex: _controller.bookTreeIndex,
         bookPageMapping: _controller.bookPageMapping,
         bookTemplate: _controller.bookTemplate,
-        searchContext: {
-          ...?_controller.bookTemplate?.searchContext,
-          ...?_controller.bookManifest?.searchContext,
-        },
+        searchContext: {...?_controller.bookTemplate?.searchContext, ...?_controller.bookManifest?.searchContext},
       ),
     );
     if (result == null || !mounted) return;
@@ -114,9 +133,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   Future<void> _editBookTree() async {
     final result = await showDialog<List<BookTreeNode>>(
       context: context,
-      builder: (dialogContext) => BookTreeEditorDialog(
-        nodes: _controller.bookTreeIndex.nodes,
-      ),
+      builder: (dialogContext) => BookTreeEditorDialog(nodes: _controller.bookTreeIndex.nodes),
     );
     if (result == null || !mounted) return;
     await BookTreeService().saveTreeForDocument(widget.document, result);
@@ -147,9 +164,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   Future<void> _showNote() async {
     if (_controller.pageLoading) return;
     final notifier = ref.read(readerAnnotationsProvider(widget.document).notifier);
-    final existing = _annotations.where(
-      (item) => item.type == ReaderAnnotationType.note,
-    );
+    final existing = _annotations.where((item) => item.type == ReaderAnnotationType.note);
     final note = existing.isNotEmpty
         ? existing.first
         : ReaderAnnotation(
@@ -170,10 +185,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           if (files.isEmpty) return null;
           final path = files.first.path;
           if (path == null || path.isEmpty) return null;
-          return const ReaderAnnotationService().importAttachment(
-            widget.document,
-            path,
-          );
+          return const ReaderAnnotationService().importAttachment(widget.document, path);
         },
         onInsertAudio: _recordAudio,
       ),
@@ -186,10 +198,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     final service = const ReaderAnnotationService();
     final directory = await service.ensureAttachmentsDirectory(widget.document);
     final path = '${directory.path}${Platform.pathSeparator}audio_${DateTime.now().microsecondsSinceEpoch}.wav';
-    await _audioRecorder.start(
-      const RecordConfig(encoder: AudioEncoder.wav),
-      path: path,
-    );
+    await _audioRecorder.start(const RecordConfig(encoder: AudioEncoder.wav), path: path);
     if (!mounted) return null;
     final stop = await showDialog<bool>(
           context: context,
@@ -230,12 +239,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             return SafeArea(
               child: ReaderSettingsPanel(
                 options: options,
-                onChanged: (value) => ref
-                    .read(readerViewOptionsProvider.notifier)
-                    .update(value),
-                onReset: () => ref
-                    .read(readerViewOptionsProvider.notifier)
-                    .reset(),
+                onChanged: (value) => ref.read(readerViewOptionsProvider.notifier).update(value),
+                onReset: () => ref.read(readerViewOptionsProvider.notifier).reset(),
                 scrollController: scrollController,
               ),
             );
@@ -259,9 +264,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   Future<void> _showBookPageJump() async {
     final value = await showDialog<int>(
       context: context,
-      builder: (dialogContext) => BookPageJumpDialog(
-        currentPage: _controller.currentBookPage,
-      ),
+      builder: (dialogContext) => BookPageJumpDialog(currentPage: _controller.currentBookPage),
     );
     if (value == null) return;
     final page = _controller.bookPageMapping.pdfPageForBookPage(value);
@@ -276,8 +279,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         final path = _controller.currentBookTreePath;
         return ReaderPageLayout(
           locationLabel: _controller.currentLocationLabel,
-          searchLocationLabel:
-              path.isEmpty ? null : '命中 · ${path.map((node) => node.name).join(' / ')}',
+          searchLocationLabel: path.isEmpty ? null : '命中 · ${path.map((node) => node.name).join(' / ')}',
           loading: _controller.loading,
           pageLoading: _controller.pageLoading,
           error: _controller.error,
@@ -294,6 +296,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           bookPage: _controller.currentBookPage,
           currentBookTreeNode: _controller.currentBookTreeNode,
           searchResultPath: path,
+          bookTreeNodes: _controller.bookTreeIndex.nodes,
+          inkStrokes: _inkStrokes,
+          onInkStroke: _saveInkStroke,
           keyboardFocusNode: _focusNode,
           transformationController: _transformationController,
           onPrevious: _controller.previousPage,
@@ -302,6 +307,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           onLast: _controller.lastPage,
           onPageJump: _showPageJump,
           onBookPageJump: _showBookPageJump,
+          onPageSelected: (page) => _controller.goToPage(page),
           onBookTree: _showBookTree,
           onSearch: _showSearch,
           onBookmark: _toggleBookmark,
