@@ -36,6 +36,7 @@ class ReaderViewOptionsNotifier extends Notifier<ReaderViewOptions> {
     String? toolbarPosition,
     String? canvasBackground,
     int? customCanvasColor,
+    String? pageLayout,
   }) {
     update(state.copyWith(
       showLocationBar: showLocationBar,
@@ -50,6 +51,7 @@ class ReaderViewOptionsNotifier extends Notifier<ReaderViewOptions> {
       toolbarPosition: toolbarPosition,
       canvasBackground: canvasBackground,
       customCanvasColor: customCanvasColor,
+      pageLayout: pageLayout,
     ));
   }
 
