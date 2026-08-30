@@ -11,7 +11,11 @@ class NoteRenderer {
   Widget build(BuildContext context, NoteDocument note) {
     switch (note.format) {
       case ReaderNoteFormat.markdown:
-        return Markdown(
+        // NoteContentPreview already owns the outer scroll view.  Markdown
+        // must therefore be the non-scrolling variant; nesting Markdown's
+        // internal ListView inside the preview ListView gives it an unbounded
+        // height and triggers "Vertical viewport was given unbounded height".
+        return MarkdownBody(
           data: note.body,
           padding: EdgeInsets.zero,
           styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
