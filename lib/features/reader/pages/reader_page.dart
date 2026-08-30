@@ -119,7 +119,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       ),
     );
     if (result == null || !mounted) return;
-    await const BookTreeService().saveTreeForDocument(widget.document, result);
+    await BookTreeService().saveTreeForDocument(widget.document, result);
     await _controller.retry();
   }
 
