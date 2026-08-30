@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
@@ -447,7 +448,7 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
       unawaited(widget.onFirst());
     } else if (event.logicalKey == LogicalKeyboardKey.end) {
       unawaited(widget.onLast());
-    } else if (event.logicalKey == LogicalKeyboardLogicalKey.keyG) {
+    } else if (event.logicalKey == LogicalKeyboardKey.keyG) {
       unawaited(widget.onPageJump());
     } else if (event.logicalKey == LogicalKeyboardKey.keyB) {
       unawaited(widget.onBookPageJump());
