@@ -4,11 +4,11 @@ import 'package:flutter/material.dart';
 
 import '../models/book_tree_node.dart';
 
-/// Touch-first radial TOC navigator.
+/// Touch-first directory navigator.
 ///
-/// Only the visible sheet receives drag gestures. The rest of the reader stays
-/// available for page navigation and panning; the close button is the explicit
-/// cancel affordance.
+/// The directory is a side-mounted curved sheet rather than a conventional
+/// drawer. Vertical travel selects an entry, inward travel enters children,
+/// reverse travel returns/cancels, and release commits the highlighted entry.
 class ReaderRadialToc extends StatefulWidget {
   final List<BookTreeNode> nodes;
   final bool fromLeft;
@@ -31,9 +31,9 @@ class ReaderRadialToc extends StatefulWidget {
 
 class _ReaderRadialTocState extends State<ReaderRadialToc> {
   static const _maxDepth = 3;
-  static const _rowHeight = 44.0;
-  static const _enterThreshold = 64.0;
-  static const _commitThreshold = 34.0;
+  static const _rowHeight = 46.0;
+  static const _enterThreshold = 58.0;
+  static const _commitThreshold = 28.0;
 
   late List<BookTreeNode> _nodes;
   final List<_TocLevel> _history = [];
@@ -79,21 +79,18 @@ class _ReaderRadialTocState extends State<ReaderRadialToc> {
   void _moveDepth(double delta) {
     final inwardDelta = widget.fromLeft ? delta : -delta;
     _horizontalTravel += inwardDelta;
-
     if (_horizontalTravel >= _enterThreshold &&
         _nodes[_index].children.isNotEmpty &&
         _history.length < _maxDepth - 1) {
       final selectedIndex = _index;
-      final children = _nodes[selectedIndex].children;
       _history.add(_TocLevel(nodes: _nodes, index: selectedIndex));
-      _nodes = children;
+      _nodes = _nodes[selectedIndex].children;
       _index = _closestIndex(_nodes, widget.currentPage);
       _horizontalTravel = 0;
       _verticalRemainder = 0;
       setState(() {});
       return;
     }
-
     if (_horizontalTravel <= -_enterThreshold && _history.isNotEmpty) {
       final previous = _history.removeLast();
       _nodes = previous.nodes;
@@ -123,110 +120,110 @@ class _ReaderRadialTocState extends State<ReaderRadialToc> {
   @override
   Widget build(BuildContext context) {
     if (_nodes.isEmpty) return const SizedBox.shrink();
-
     final size = MediaQuery.sizeOf(context);
     final safeTop = MediaQuery.paddingOf(context).top;
     final safeBottom = MediaQuery.paddingOf(context).bottom;
-    final panelRadius = math.min(size.width * .88, size.height * .78);
-    final panelWidth = math.min(size.width * .86, panelRadius);
     final scheme = Theme.of(context).colorScheme;
+    final panelWidth = math.min(380.0, size.width * .82);
+    final radius = math.max(72.0, math.min(size.height * .28, panelWidth * .72));
     final selected = _nodes[_index];
     final level = _history.length + 1;
 
     return Positioned.fill(
-      child: IgnorePointer(
-        ignoring: false,
-        child: Stack(
-          children: [
-            const Positioned.fill(child: IgnorePointer(child: SizedBox.expand())),
-            Positioned(
-              top: safeTop + 12,
-              bottom: safeBottom + 12,
-              left: widget.fromLeft ? 0 : null,
-              right: widget.fromLeft ? null : 0,
-              width: panelWidth,
-              child: Material(
-                color: scheme.surface.withValues(alpha: .97),
-                elevation: 8,
-                clipBehavior: Clip.antiAlias,
-                borderRadius: BorderRadius.horizontal(
-                  left: widget.fromLeft ? Radius.zero : Radius.circular(panelRadius),
-                  right: widget.fromLeft ? Radius.circular(panelRadius) : Radius.zero,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: widget.onDismiss,
+              child: ColoredBox(color: Colors.black.withValues(alpha: .10)),
+            ),
+          ),
+          Positioned(
+            top: safeTop + 8,
+            bottom: safeBottom + 8,
+            left: widget.fromLeft ? 0 : null,
+            right: widget.fromLeft ? null : 0,
+            width: panelWidth,
+            child: Material(
+              color: scheme.surface.withValues(alpha: .98),
+              elevation: 10,
+              clipBehavior: Clip.antiAlias,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.only(
+                  topLeft: widget.fromLeft ? Radius.zero : Radius.circular(radius),
+                  bottomLeft: widget.fromLeft ? Radius.zero : Radius.circular(radius),
+                  topRight: widget.fromLeft ? Radius.circular(radius) : Radius.zero,
+                  bottomRight: widget.fromLeft ? Radius.circular(radius) : Radius.zero,
                 ),
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onVerticalDragUpdate: (details) => _moveSelection(details.delta.dy),
-                  onHorizontalDragUpdate: (details) => _moveDepth(details.delta.dx),
-                  onVerticalDragEnd: (_) => _handleEnd(),
-                  onHorizontalDragEnd: (_) => _handleEnd(),
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      widget.fromLeft ? 28 : 20,
-                      22,
-                      widget.fromLeft ? 20 : 28,
-                      22,
-                    ),
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            IconButton(
-                              tooltip: '关闭目录',
-                              onPressed: widget.onDismiss,
-                              icon: const Icon(Icons.close),
-                            ),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                level == 1 ? '目录' : '目录 · $level级',
-                                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                              ),
-                            ),
-                            Text('${_index + 1}/${_nodes.length}', style: Theme.of(context).textTheme.labelMedium),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          selected.name,
-                          maxLines: 2,
-                          textAlign: TextAlign.center,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          selected.pageLabel.isEmpty ? '第 ${_index + 1} 项' : 'P ${selected.pageLabel}',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                        const SizedBox(height: 18),
-                        Expanded(
-                          child: Center(
-                            child: _TocRail(
-                              nodes: _nodes,
-                              selectedIndex: _index,
-                              rowHeight: _rowHeight,
-                              accent: scheme.primary,
+              ),
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onVerticalDragUpdate: (details) => _moveSelection(details.delta.dy),
+                onHorizontalDragUpdate: (details) => _moveDepth(details.delta.dx),
+                onVerticalDragEnd: (_) => _handleEnd(),
+                onHorizontalDragEnd: (_) => _handleEnd(),
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(widget.fromLeft ? 24 : 18, 18, widget.fromLeft ? 18 : 24, 18),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          IconButton(tooltip: '关闭目录', onPressed: widget.onDismiss, icon: const Icon(Icons.close)),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              level == 1 ? '目录' : '目录 · $level级',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                             ),
                           ),
+                          Text('${_index + 1}/${_nodes.length}', style: Theme.of(context).textTheme.labelMedium),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          Icon(Icons.account_tree_outlined, size: 17, color: scheme.primary),
+                          const SizedBox(width: 7),
+                          Expanded(
+                            child: Text(
+                              selected.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(selected.pageLabel.isEmpty ? '第 ${_index + 1} 项' : 'P ${selected.pageLabel}', style: Theme.of(context).textTheme.bodySmall),
+                      const SizedBox(height: 14),
+                      Expanded(
+                        child: _ArcSelectionRail(
+                          nodes: _nodes,
+                          selectedIndex: _index,
+                          fromLeft: widget.fromLeft,
+                          rowHeight: _rowHeight,
+                          accent: scheme.primary,
                         ),
-                        const SizedBox(height: 10),
-                        Text(
-                          selected.children.isNotEmpty && level < _maxDepth
-                              ? '上下滑选择 · 向内滑进入 · 反向滑返回'
-                              : _history.isNotEmpty
-                                  ? '上下滑选择 · 反向滑返回 · 松手跳转'
-                                  : '上下滑选择 · 松手跳转 · 反向滑动取消',
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        selected.children.isNotEmpty && level < _maxDepth
+                            ? '上下滑选择 · 向内滑进入 · 反向滑返回'
+                            : _history.isNotEmpty
+                                ? '上下滑选择 · 反向滑返回 · 松手跳转'
+                                : '上下滑选择 · 松手跳转 · 反向滑动取消',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
                   ),
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -235,59 +232,96 @@ class _ReaderRadialTocState extends State<ReaderRadialToc> {
 class _TocLevel {
   final List<BookTreeNode> nodes;
   final int index;
-
   const _TocLevel({required this.nodes, required this.index});
 }
 
-class _TocRail extends StatelessWidget {
+class _ArcSelectionRail extends StatelessWidget {
   final List<BookTreeNode> nodes;
   final int selectedIndex;
+  final bool fromLeft;
   final double rowHeight;
   final Color accent;
 
-  const _TocRail({
-    required this.nodes,
-    required this.selectedIndex,
-    required this.rowHeight,
-    required this.accent,
-  });
+  const _ArcSelectionRail({required this.nodes, required this.selectedIndex, required this.fromLeft, required this.rowHeight, required this.accent});
 
   @override
   Widget build(BuildContext context) {
-    final start = math.max(0, selectedIndex - 2);
-    final end = math.min(nodes.length, start + 5);
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (var i = start; i < end; i++)
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
-            curve: Curves.easeOut,
-            height: rowHeight,
-            margin: const EdgeInsets.symmetric(vertical: 2),
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            decoration: BoxDecoration(
-              color: i == selectedIndex ? accent.withValues(alpha: .12) : Colors.transparent,
-              borderRadius: BorderRadius.circular(14),
-              border: i == selectedIndex ? Border.all(color: accent.withValues(alpha: .42)) : null,
-            ),
-            child: Row(
-              children: [
-                SizedBox(width: 30, child: Text('${i + 1}', textAlign: TextAlign.center)),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    nodes[i].name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: i == selectedIndex ? const TextStyle(fontWeight: FontWeight.w700) : null,
-                  ),
-                ),
-                if (nodes[i].children.isNotEmpty) const Icon(Icons.chevron_right, size: 18),
-              ],
-            ),
-          ),
-      ],
+    final start = math.max(0, selectedIndex - 3);
+    final end = math.min(nodes.length, start + 7);
+    final visible = [for (var i = start; i < end; i++) i];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final centerY = constraints.maxHeight / 2;
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            CustomPaint(painter: _ArcGuidePainter(fromLeft: fromLeft, color: accent.withValues(alpha: .10), radius: math.max(150.0, constraints.maxHeight * .72))),
+            for (var position = 0; position < visible.length; position++)
+              _arcItem(context, index: visible[position], position: position, count: visible.length, centerY: centerY),
+          ],
+        );
+      },
     );
   }
+
+  Widget _arcItem(BuildContext context, {required int index, required int position, required int count, required double centerY}) {
+    final selected = index == selectedIndex;
+    final relative = position - (count - 1) / 2;
+    final y = centerY + relative * rowHeight;
+    final normalized = (relative / math.max(1, (count - 1) / 2)).abs().clamp(0.0, 1.0);
+    final inset = math.pow(normalized, 1.7).toDouble() * 42;
+    final width = math.min(270.0, MediaQuery.sizeOf(context).width * .58);
+    return Positioned(
+      left: fromLeft ? inset : null,
+      right: fromLeft ? null : inset,
+      top: y - rowHeight / 2,
+      width: width,
+      height: rowHeight,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOut,
+        decoration: BoxDecoration(
+          color: selected ? accent.withValues(alpha: .14) : Colors.transparent,
+          borderRadius: BorderRadius.circular(rowHeight / 2),
+          border: selected ? Border.all(color: accent.withValues(alpha: .48)) : null,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        child: Row(
+          textDirection: fromLeft ? TextDirection.ltr : TextDirection.rtl,
+          children: [
+            CircleAvatar(
+              radius: 15,
+              backgroundColor: selected ? accent : accent.withValues(alpha: .12),
+              foregroundColor: selected ? Theme.of(context).colorScheme.onPrimary : accent,
+              child: Text('${index + 1}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+            ),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Text(nodes[index].name, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: fromLeft ? TextAlign.left : TextAlign.right, style: selected ? const TextStyle(fontWeight: FontWeight.w700) : null),
+            ),
+            if (nodes[index].children.isNotEmpty) Icon(fromLeft ? Icons.chevron_right : Icons.chevron_left, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ArcGuidePainter extends CustomPainter {
+  final bool fromLeft;
+  final Color color;
+  final double radius;
+  const _ArcGuidePainter({required this.fromLeft, required this.color, required this.radius});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(fromLeft ? -radius * .62 : size.width + radius * .62, size.height / 2);
+    final rect = Rect.fromCircle(center: center, radius: radius);
+    final paint = Paint()..color = color..style = PaintingStyle.stroke..strokeWidth = 2.5;
+    final start = fromLeft ? -math.pi * .34 : math.pi * .66;
+    canvas.drawArc(rect, start, math.pi * .68, false, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ArcGuidePainter oldDelegate) => oldDelegate.fromLeft != fromLeft || oldDelegate.color != color || oldDelegate.radius != radius;
 }
