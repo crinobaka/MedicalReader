@@ -5,7 +5,9 @@ import 'dart:typed_data';
 import '../models/book_tree_node.dart';
 
 /// Best-effort importer for standard PDF outline/bookmark dictionaries.
-/// No additional PDF package is required.
+/// PDF strings are decoded according to the encodings commonly emitted by
+/// Acrobat and browser PDF generators: UTF-16BE with BOM first, then UTF-8,
+/// then Latin-1 as a lossless fallback for legacy files.
 class PdfOutlineService {
   const PdfOutlineService();
 
@@ -38,19 +40,10 @@ class PdfOutlineService {
 
     final pageIndexByObject = <int, int>{};
     final pagesRoot = _ref(catalog, '/Pages');
-    if (pagesRoot != null) {
-      _collectPages(pagesRoot, objects, pageIndexByObject, <int>{});
-    }
+    if (pagesRoot != null) _collectPages(pagesRoot, objects, pageIndexByObject, <int>{});
     if (pageIndexByObject.isEmpty) {
-      final ids = objects.entries
-          .where((entry) => RegExp(r'/Type\s*/Page(?:\s|/|>)').hasMatch(entry.value) &&
-              !RegExp(r'/Type\s*/Pages(?:\s|/|>)').hasMatch(entry.value))
-          .map((entry) => entry.key)
-          .toList()
-        ..sort();
-      for (var i = 0; i < ids.length; i++) {
-        pageIndexByObject[ids[i]] = i + 1;
-      }
+      final ids = objects.entries.where((entry) => RegExp(r'/Type\s*/Page(?:\s|/|>)').hasMatch(entry.value) && !RegExp(r'/Type\s*/Pages(?:\s|/|>)').hasMatch(entry.value)).map((entry) => entry.key).toList()..sort();
+      for (var i = 0; i < ids.length; i++) pageIndexByObject[ids[i]] = i + 1;
     }
 
     final outlineRoot = _ref(catalog, '/Outlines');
@@ -66,8 +59,7 @@ class PdfOutlineService {
     if (!visited.add(root)) return;
     final object = objects[root];
     if (object == null) return;
-    if (RegExp(r'/Type\s*/Page(?:\s|/|>)').hasMatch(object) &&
-        !RegExp(r'/Type\s*/Pages(?:\s|/|>)').hasMatch(object)) {
+    if (RegExp(r'/Type\s*/Page(?:\s|/|>)').hasMatch(object) && !RegExp(r'/Type\s*/Pages(?:\s|/|>)').hasMatch(object)) {
       result[root] = result.length + 1;
       return;
     }
@@ -88,12 +80,8 @@ class PdfOutlineService {
       final title = _title(object).trim();
       final page = _destinationPage(object, objects, pageIndexByObject);
       final childFirst = _ref(object, '/First');
-      final children = childFirst == null
-          ? const <BookTreeNode>[]
-          : _readSiblings(childFirst, objects, pageIndexByObject, visited);
-      if (title.isNotEmpty) {
-        result.add(BookTreeNode(id: 'pdf-outline-$current', name: title, pageStart: page, children: children));
-      }
+      final children = childFirst == null ? const <BookTreeNode>[] : _readSiblings(childFirst, objects, pageIndexByObject, visited);
+      if (title.isNotEmpty) result.add(BookTreeNode(id: 'pdf-outline-$current', name: title, pageStart: page, children: children));
       final next = _ref(object, '/Next');
       if (next == null || next == current) break;
       current = next;
@@ -136,10 +124,26 @@ class PdfOutlineService {
         return '';
       }
     }
-    return raw.substring(1, raw.length - 1)
-        .replaceAll(r'\(', '(')
-        .replaceAll(r'\)', ')')
-        .replaceAll(r'\\', '\\');
+    final escaped = raw.substring(1, raw.length - 1);
+    final bytes = <int>[];
+    for (var i = 0; i < escaped.length; i++) {
+      if (escaped[i] == '\\' && i + 1 < escaped.length) {
+        final next = escaped[++i];
+        if (next == 'n') { bytes.add(10); continue; }
+        if (next == 'r') { bytes.add(13); continue; }
+        if (next == 't') { bytes.add(9); continue; }
+        if (RegExp(r'[0-7]').hasMatch(next)) {
+          var oct = next;
+          while (oct.length < 3 && i + 1 < escaped.length && RegExp(r'[0-7]').hasMatch(escaped[i + 1])) oct += escaped[++i];
+          bytes.add(int.parse(oct, radix: 8));
+          continue;
+        }
+        bytes.add(next.codeUnitAt(0));
+      } else {
+        bytes.add(escaped.codeUnitAt(i));
+      }
+    }
+    return _decodePdfText(Uint8List.fromList(bytes));
   }
 
   String _decodePdfText(Uint8List bytes) {
@@ -148,6 +152,10 @@ class PdfOutlineService {
       for (var i = 2; i + 1 < bytes.length; i += 2) units.add((bytes[i] << 8) | bytes[i + 1]);
       return String.fromCharCodes(units);
     }
-    return latin1.decode(bytes, allowInvalid: true);
+    try {
+      return utf8.decode(bytes, allowMalformed: false);
+    } catch (_) {
+      return latin1.decode(bytes, allowInvalid: true);
+    }
   }
 }
