@@ -11,7 +11,6 @@ import 'knowledge_note_page.dart';
 
 class KnowledgePage extends ConsumerStatefulWidget {
   const KnowledgePage({super.key});
-
   @override
   ConsumerState<KnowledgePage> createState() => _KnowledgePageState();
 }
@@ -37,16 +36,12 @@ class _KnowledgePageState extends ConsumerState<KnowledgePage> {
   Widget build(BuildContext context) {
     final documents = ref.watch(libraryProvider);
     final notes = <_KnowledgeNote>[];
-
     for (final document in documents) {
       final annotations = ref.watch(readerAnnotationsProvider(document));
       for (final annotation in annotations) {
-        if (annotation.type == ReaderAnnotationType.note) {
-          notes.add(_KnowledgeNote(document: document, note: annotation));
-        }
+        if (annotation.type == ReaderAnnotationType.note) notes.add(_KnowledgeNote(document: document, note: annotation));
       }
     }
-
     final filteredNotes = _filterNotes(notes);
     final detached = _filterDetached(_detachedNotes);
 
@@ -57,11 +52,7 @@ class _KnowledgePageState extends ConsumerState<KnowledgePage> {
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
             child: TextField(
-              decoration: const InputDecoration(
-                hintText: '搜索笔记',
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(),
-              ),
+              decoration: const InputDecoration(hintText: '搜索笔记', prefixIcon: Icon(Icons.search), border: OutlineInputBorder()),
               onChanged: (value) => setState(() => _query = value),
             ),
           ),
@@ -74,8 +65,7 @@ class _KnowledgePageState extends ConsumerState<KnowledgePage> {
                   decoration: const InputDecoration(labelText: '书籍', border: OutlineInputBorder()),
                   items: [
                     const DropdownMenuItem<String?>(value: null, child: Text('全部书籍')),
-                    for (final document in documents)
-                      DropdownMenuItem<String?>(value: document.id, child: Text(document.title, overflow: TextOverflow.ellipsis)),
+                    for (final document in documents) DropdownMenuItem<String?>(value: document.id, child: Text(document.title, overflow: TextOverflow.ellipsis)),
                   ],
                   onChanged: (value) => setState(() => _selectedBookId = value),
                 ),
@@ -96,10 +86,7 @@ class _KnowledgePageState extends ConsumerState<KnowledgePage> {
             child: ListView(
               children: [
                 if (detached.isNotEmpty) ...[
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
-                    child: Text('独立笔记', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  ),
+                  const Padding(padding: EdgeInsets.fromLTRB(16, 8, 16, 4), child: Text('独立笔记', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
                   for (final note in detached)
                     ListTile(
                       leading: const Icon(Icons.link_off_outlined),
@@ -144,13 +131,7 @@ class _KnowledgePageState extends ConsumerState<KnowledgePage> {
       context: context,
       builder: (context) => SimpleDialog(
         title: const Text('选择书籍'),
-        children: [
-          for (final document in documents)
-            SimpleDialogOption(
-              onPressed: () => Navigator.of(context).pop(document),
-              child: Text(document.title, maxLines: 2, overflow: TextOverflow.ellipsis),
-            ),
-        ],
+        children: [for (final document in documents) SimpleDialogOption(onPressed: () => Navigator.of(context).pop(document), child: Text(document.title, maxLines: 2, overflow: TextOverflow.ellipsis))],
       ),
     );
     if (document == null || !mounted) return;
@@ -175,17 +156,18 @@ class _KnowledgePageState extends ConsumerState<KnowledgePage> {
     final result = notes.where((item) {
       if (_selectedBookId != null && item.document.id != _selectedBookId) return false;
       if (query.isEmpty) return true;
-      return item.note.title.toLowerCase().contains(query) ||
-          item.note.content.toLowerCase().contains(query) ||
-          item.document.title.toLowerCase().contains(query);
+      return item.note.title.toLowerCase().contains(query) || item.note.content.toLowerCase().contains(query) || item.document.title.toLowerCase().contains(query);
     }).toList();
     switch (_sort) {
       case KnowledgeNoteSort.updatedDesc:
         result.sort((a, b) => b.note.updatedAt.compareTo(a.note.updatedAt));
+        break;
       case KnowledgeNoteSort.updatedAsc:
         result.sort((a, b) => a.note.updatedAt.compareTo(b.note.updatedAt));
+        break;
       case KnowledgeNoteSort.titleAsc:
         result.sort((a, b) => _noteTitle(a).toLowerCase().compareTo(_noteTitle(b).toLowerCase()));
+        break;
     }
     return result;
   }
@@ -193,14 +175,21 @@ class _KnowledgePageState extends ConsumerState<KnowledgePage> {
   List<NoteDocument> _filterDetached(List<NoteDocument> notes) {
     final query = _query.trim().toLowerCase();
     final result = notes.where((note) => query.isEmpty || note.title.toLowerCase().contains(query) || note.body.toLowerCase().contains(query)).toList();
-    if (_sort == KnowledgeNoteSort.updatedAsc) result.sort((a, b) => a.updatedAt.compareTo(b.updatedAt));
-    if (_sort == KnowledgeNoteSort.updatedDesc) result.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-    if (_sort == KnowledgeNoteSort.titleAsc) result.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+    switch (_sort) {
+      case KnowledgeNoteSort.updatedAsc:
+        result.sort((a, b) => a.updatedAt.compareTo(b.updatedAt));
+        break;
+      case KnowledgeNoteSort.updatedDesc:
+        result.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+        break;
+      case KnowledgeNoteSort.titleAsc:
+        result.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+        break;
+    }
     return result;
   }
 
   String _noteTitle(_KnowledgeNote item) => item.note.title.trim().isNotEmpty ? item.note.title.trim() : '第 ${item.note.pageIndex + 1} 页笔记';
-
   String _preview(String content) {
     final text = content.replaceAll(RegExp(r'[#*_>`]'), '').replaceAll(RegExp(r'\s+'), ' ').trim();
     return text.isEmpty ? '空白笔记' : text;
@@ -208,7 +197,6 @@ class _KnowledgePageState extends ConsumerState<KnowledgePage> {
 }
 
 enum KnowledgeNoteSort { updatedDesc, updatedAsc, titleAsc }
-
 class _KnowledgeNote {
   final LibraryDocument document;
   final ReaderAnnotation note;
