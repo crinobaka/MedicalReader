@@ -12,13 +12,19 @@ import '../../reader/pages/reader_page.dart';
 import '../../reader/providers/reader_annotation_provider.dart';
 import '../../reader/services/reader_annotation_service.dart';
 import '../models/note_document.dart';
+import '../services/detached_note_storage.dart';
+import '../services/note_export_service.dart';
 import '../widgets/note_content_preview.dart';
 
 class KnowledgeNotePage extends ConsumerStatefulWidget {
-  final LibraryDocument document;
-  final ReaderAnnotation note;
+  final LibraryDocument? document;
+  final ReaderAnnotation? note;
+  final NoteDocument? detachedNote;
 
-  const KnowledgeNotePage({super.key, required this.document, required this.note});
+  const KnowledgeNotePage({super.key, this.document, this.note, this.detachedNote})
+      : assert(note != null || detachedNote != null);
+
+  bool get isDetached => detachedNote != null || document == null || note == null;
 
   @override
   ConsumerState<KnowledgeNotePage> createState() => _KnowledgeNotePageState();
@@ -35,13 +41,16 @@ class _KnowledgeNotePageState extends ConsumerState<KnowledgeNotePage> {
   bool _recording = false;
   String? _recordingPath;
 
+  bool get _detached => widget.isDetached;
+
   @override
   void initState() {
     super.initState();
-    _titleController = TextEditingController(text: widget.note.title);
-    _contentController = TextEditingController(text: widget.note.content);
-    _noteFormat = widget.note.noteFormat;
-    _attachments = [...widget.note.attachments];
+    final source = widget.detachedNote;
+    _titleController = TextEditingController(text: source?.title ?? widget.note!.title);
+    _contentController = TextEditingController(text: source?.body ?? widget.note!.content);
+    _noteFormat = source?.format ?? widget.note!.noteFormat;
+    _attachments = [...(source?.attachments ?? widget.note!.attachments)];
     _audioRecorder = AudioRecorder();
   }
 
@@ -53,33 +62,79 @@ class _KnowledgeNotePageState extends ConsumerState<KnowledgeNotePage> {
     super.dispose();
   }
 
-  NoteDocument get _draft => NoteDocument(
-        id: widget.note.id,
-        bookId: widget.note.bookId,
-        pageIndex: widget.note.pageIndex,
-        title: _titleController.text.trim(),
-        body: _contentController.text,
-        format: _noteFormat,
-        attachments: List.unmodifiable(_attachments),
-        createdAt: widget.note.createdAt,
-        updatedAt: DateTime.now(),
-      );
+  NoteDocument get _draft => widget.detachedNote == null
+      ? NoteDocument(
+          id: widget.note!.id,
+          bookId: widget.note!.bookId,
+          pageIndex: widget.note!.pageIndex,
+          title: _titleController.text.trim(),
+          body: _contentController.text,
+          format: _noteFormat,
+          attachments: List.unmodifiable(_attachments),
+          createdAt: widget.note!.createdAt,
+          updatedAt: DateTime.now(),
+        )
+      : NoteDocument(
+          id: widget.detachedNote!.id,
+          title: _titleController.text.trim(),
+          body: _contentController.text,
+          format: _noteFormat,
+          attachments: List.unmodifiable(_attachments),
+          createdAt: widget.detachedNote!.createdAt,
+          updatedAt: DateTime.now(),
+        );
 
   Future<void> _save() async {
     if (_saving || _recording) return;
     setState(() => _saving = true);
     try {
-      final updated = widget.note.copyWith(
-        title: _titleController.text.trim(),
-        content: _contentController.text,
-        noteFormat: _noteFormat,
-        attachments: List.unmodifiable(_attachments),
-        updatedAt: DateTime.now(),
-      );
-      await ref.read(readerAnnotationsProvider(widget.document).notifier).add(updated);
-      if (mounted) Navigator.of(context).pop(updated);
+      if (_detached) {
+        await const DetachedNoteStorage().save(_draft.detach());
+      } else {
+        final updated = widget.note!.copyWith(
+          title: _titleController.text.trim(),
+          content: _contentController.text,
+          noteFormat: _noteFormat,
+          attachments: List.unmodifiable(_attachments),
+          updatedAt: DateTime.now(),
+        );
+        await ref.read(readerAnnotationsProvider(widget.document!).notifier).add(updated);
+      }
+      if (mounted) Navigator.of(context).pop();
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _detach() async {
+    if (_detached || _saving || _recording) return;
+    final detached = _draft.detach();
+    await const DetachedNoteStorage().save(detached);
+    await ref.read(readerAnnotationsProvider(widget.document!).notifier).remove(widget.note!.id);
+    if (mounted) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => KnowledgeNotePage(detachedNote: detached)),
+      );
+    }
+  }
+
+  Future<void> _export() async {
+    if (_saving || _recording) return;
+    final note = _draft;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Wrap(children: [
+          ListTile(leading: const Icon(Icons.code), title: const Text('导出 Markdown'), onTap: () => Navigator.pop(context, 'md')),
+          ListTile(leading: const Icon(Icons.picture_as_pdf), title: const Text('导出 PDF'), onTap: () => Navigator.pop(context, 'pdf')),
+        ]),
+      ),
+    );
+    if (choice == null) return;
+    final service = const NoteExportService();
+    final path = choice == 'md' ? await service.exportMarkdown(note) : await service.exportPdf(note);
+    if (mounted && path != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('已导出：$path')));
     }
   }
 
@@ -96,25 +151,30 @@ class _KnowledgeNotePageState extends ConsumerState<KnowledgeNotePage> {
       ),
     );
     if (confirmed != true) return;
-    await ref.read(readerAnnotationsProvider(widget.document).notifier).remove(widget.note.id);
+    if (_detached) {
+      await const DetachedNoteStorage().delete(_draft.id);
+    } else {
+      await ref.read(readerAnnotationsProvider(widget.document!).notifier).remove(widget.note!.id);
+    }
     if (mounted) Navigator.of(context).pop();
   }
 
   void _openPdf() {
+    if (_detached) return;
     Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => ReaderPage(document: widget.document, initialPage: widget.note.pageIndex),
+      builder: (_) => ReaderPage(document: widget.document!, initialPage: widget.note!.pageIndex),
     ));
   }
 
   Future<void> _takePhoto() async {
-    if (_previewMode || _saving || _recording) return;
+    if (_previewMode || _saving || _recording || _detached) return;
     try {
       final cameras = await availableCameras();
       if (cameras.isEmpty) return _showMessage('没有检测到可用摄像头');
       if (!mounted) return;
       final result = await Navigator.of(context).push<XFile>(MaterialPageRoute(builder: (_) => _CameraCapturePage(camera: cameras.first)));
       if (result == null) return;
-      final reference = await const ReaderAnnotationService().importAttachmentReference(widget.document, result.path);
+      final reference = await const ReaderAnnotationService().importAttachmentReference(widget.document!, result.path);
       setState(() {
         _attachments = [..._attachments, reference];
         final separator = _contentController.text.isEmpty ? '' : '\n\n';
@@ -126,7 +186,7 @@ class _KnowledgeNotePageState extends ConsumerState<KnowledgeNotePage> {
   }
 
   Future<void> _toggleRecording() async {
-    if (_previewMode || _saving) return;
+    if (_previewMode || _saving || _detached) return;
     if (_recording) return _stopRecording();
     try {
       if (!await _audioRecorder.hasPermission()) return _showMessage('没有录音权限');
@@ -146,7 +206,7 @@ class _KnowledgeNotePageState extends ConsumerState<KnowledgeNotePage> {
       final source = temporaryPath ?? _recordingPath;
       _recordingPath = null;
       if (source == null) return _showMessage('录音文件不存在');
-      final reference = await const ReaderAnnotationService().importAttachmentReference(widget.document, source);
+      final reference = await const ReaderAnnotationService().importAttachmentReference(widget.document!, source);
       setState(() => _attachments = [..._attachments, reference]);
       try { await File(source).delete(); } catch (_) {}
     } catch (error) {
@@ -162,13 +222,17 @@ class _KnowledgeNotePageState extends ConsumerState<KnowledgeNotePage> {
 
   @override
   Widget build(BuildContext context) {
-    final attachmentDirectory = File(widget.document.file.path).parent.path;
+    final attachmentDirectory = !_detached && widget.document != null
+        ? File(widget.document!.file.path).parent.path
+        : null;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('笔记'),
+        title: Text(_detached ? '独立笔记' : '笔记'),
         actions: [
           IconButton(tooltip: _previewMode ? '编辑' : '预览', icon: Icon(_previewMode ? Icons.edit_outlined : Icons.preview_outlined), onPressed: _recording ? null : () => setState(() => _previewMode = !_previewMode)),
-          IconButton(tooltip: '定位 PDF', icon: const Icon(Icons.picture_as_pdf_outlined), onPressed: _recording ? null : _openPdf),
+          IconButton(tooltip: '导出', icon: const Icon(Icons.ios_share_outlined), onPressed: _recording ? null : _export),
+          if (!_detached) IconButton(tooltip: '与书籍解绑', icon: const Icon(Icons.link_off_outlined), onPressed: _recording ? null : _detach),
+          if (!_detached) IconButton(tooltip: '定位 PDF', icon: const Icon(Icons.picture_as_pdf_outlined), onPressed: _recording ? null : _openPdf),
           IconButton(tooltip: '删除', icon: const Icon(Icons.delete_outline), onPressed: _recording ? null : _delete),
         ],
       ),
@@ -178,8 +242,8 @@ class _KnowledgeNotePageState extends ConsumerState<KnowledgeNotePage> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(children: [
-              Expanded(child: Text(widget.document.title, overflow: TextOverflow.ellipsis)),
-              Text('第 ${widget.note.pageIndex + 1} 页'),
+              Expanded(child: Text(_detached ? '独立笔记' : widget.document!.title, overflow: TextOverflow.ellipsis)),
+              if (!_detached) Text('第 ${widget.note!.pageIndex + 1} 页'),
               const SizedBox(width: 8),
               DropdownButton<ReaderNoteFormat>(
                 value: _noteFormat,
@@ -194,13 +258,13 @@ class _KnowledgeNotePageState extends ConsumerState<KnowledgeNotePage> {
           const Divider(height: 1),
           Expanded(
             child: _previewMode
-                ? NoteContentPreview(note: _draft, attachmentBasePath: '$attachmentDirectory${Platform.pathSeparator}attachments')
+                ? NoteContentPreview(note: _draft, attachmentBasePath: attachmentDirectory == null ? null : '$attachmentDirectory${Platform.pathSeparator}attachments')
                 : Padding(
                     padding: const EdgeInsets.all(16),
                     child: TextField(controller: _contentController, maxLines: null, expands: true, textAlignVertical: TextAlignVertical.top, decoration: const InputDecoration(hintText: '在这里编写笔记...', border: OutlineInputBorder())),
                   ),
           ),
-          if (!_previewMode)
+          if (!_previewMode && !_detached)
             SafeArea(
               top: false,
               child: Padding(
@@ -262,4 +326,3 @@ class _CameraCapturePageState extends State<_CameraCapturePage> {
           },
         ),
       );
-}
