@@ -1,0 +1,16 @@
+{
+  "id": "two-column-medical",
+  "name": "Two Column Medical Paper",
+  "version": "1.0.0",
+  "description": "A practical starting template for two-column medical PDFs.",
+  "author": "MedicalReader",
+  "data": {
+    "aliases": ["medical paper", "journal article", "two column"],
+    "metadata": {"title": "Two Column Medical Paper"},
+    "defaults": {
+      "bookPageMapping": {"mode": "offset", "offset": 0},
+      "searchContext": {"prefix": ""},
+      "crop": {"mode": "double"}
+    }
+  }
+}

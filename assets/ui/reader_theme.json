@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "name": "MedicalReader Default",
+  "preset": "google",
+  "brightness": "system",
+  "canvas": {
+    "background": "#F8F9FA",
+    "pageShadow": true,
+    "pageGap": 12
+  },
+  "chrome": {
+    "surface": "#F7FFFFFF",
+    "foreground": "#202124",
+    "accent": "#1A73E8",
+    "muted": "#5F6368",
+    "border": "#1A5F6368",
+    "radius": 16,
+    "buttonRadius": 20,
+    "elevation": 5,
+    "buttonOpacity": 0.08,
+    "toolbarHeight": 56,
+    "controlPadding": {"horizontal": 12, "vertical": 8}
+  },
+  "layout": {
+    "topBar": {"visible": true, "collapsed": false, "overlay": true, "persistent": true},
+    "bottomBar": {"visible": true, "collapsed": false, "overlay": true, "persistent": false},
+    "leftPanel": {"visible": true, "collapsed": false, "overlay": true, "persistent": false},
+    "rightPanel": {"visible": false, "collapsed": true, "overlay": true, "persistent": false},
+    "floatingControls": true
+  }
+}
