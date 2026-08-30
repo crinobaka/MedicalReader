@@ -37,6 +37,7 @@ flutter:
   assets:
     - assets/book_templates/
     - assets/branding/
+    - assets/ui/
 
 flutter_launcher_icons:
   android: true
