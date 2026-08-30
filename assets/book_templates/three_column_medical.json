@@ -1,0 +1,16 @@
+{
+  "id": "three-column-medical",
+  "name": "Three Column Medical Reference",
+  "version": "1.0.0",
+  "description": "A starting template for dense reference material with three logical columns.",
+  "author": "MedicalReader",
+  "data": {
+    "aliases": ["reference", "three column", "dense medical"],
+    "metadata": {"title": "Three Column Medical Reference"},
+    "defaults": {
+      "bookPageMapping": {"mode": "offset", "offset": 0},
+      "searchContext": {"prefix": ""},
+      "crop": {"mode": "triple"}
+    }
+  }
+}
