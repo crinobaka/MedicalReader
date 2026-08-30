@@ -163,43 +163,73 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
       pages.add(current);
     }
 
-    final count = pages.length;
-    final size = MediaQuery.sizeOf(context);
-    final horizontalPadding = count == 1 ? 24.0 : 16.0;
-    final gap = count == 1 ? 0.0 : 12.0;
-    final maxWidth = count == 1
-        ? (size.width - horizontalPadding * 2).clamp(320.0, 960.0).toDouble()
-        : (size.width - horizontalPadding * 2 - gap * (count - 1)).clamp(240.0, 960.0).toDouble();
-    final pageWidth = (maxWidth / count).clamp(180.0, 640.0).toDouble();
-
-    return Container(
+    return ColoredBox(
       color: _canvasColor(context),
-      alignment: Alignment.center,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            for (var index = 0; index < pages.length; index++) ...[
-              SizedBox(
-                width: pageWidth,
-                child: AspectRatio(
-                  aspectRatio: pages[index].width / pages[index].height,
-                  child: _page(
-                    pages[index],
-                    overlay: index == (widget.previousPageImage != null && count > 1 ? 1 : 0)
-                        ? ReaderSearchHighlight(hits: widget.searchHits)
-                        : null,
-                  ),
-                ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final availableWidth = constraints.maxWidth;
+          final availableHeight = constraints.maxHeight;
+          final count = pages.length;
+          const outerPadding = 24.0;
+          const gap = 12.0;
+          final usableWidth = (availableWidth - outerPadding * 2 - gap * (count - 1)).clamp(1.0, double.infinity);
+          final usableHeight = (availableHeight - outerPadding * 2).clamp(1.0, double.infinity);
+
+          if (count == 1) {
+            final image = pages.single;
+            final ratio = image.width / image.height;
+            final width = usableWidth.clamp(1.0, 960.0);
+            final height = width / ratio;
+            final fittedWidth = height > usableHeight ? usableHeight * ratio : width;
+            final fittedHeight = fittedWidth / ratio;
+            return Center(
+              child: SizedBox(
+                width: fittedWidth,
+                height: fittedHeight,
+                child: _page(image, overlay: ReaderSearchHighlight(hits: widget.searchHits)),
               ),
-              if (index < pages.length - 1) SizedBox(width: gap),
-            ],
-          ],
-        ),
+            );
+          }
+
+          // Multi-page mode keeps every page at the same visual height and
+          // centers the whole spread. It never stretches pages to fill the row.
+          final widthByRow = usableWidth / count;
+          var pageWidth = widthByRow.clamp(160.0, 640.0);
+          final ratios = pages.map((page) => page.width / page.height).toList(growable: false);
+          final heightForWidth = pageWidth / ratios.reduce((a, b) => a < b ? a : b);
+          if (heightForWidth > usableHeight) {
+            pageWidth = usableHeight * ratios.reduce((a, b) => a < b ? a : b);
+          }
+
+          final spreadWidth = pageWidth * count + gap * (count - 1);
+          return Center(
+            child: SizedBox(
+              width: spreadWidth,
+              height: usableHeight,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  for (var index = 0; index < pages.length; index++) ...[
+                    SizedBox(
+                      width: pageWidth,
+                      child: AspectRatio(
+                        aspectRatio: ratios[index],
+                        child: _page(
+                          pages[index],
+                          overlay: index == (widget.previousPageImage != null && count > 1 ? 1 : 0)
+                              ? ReaderSearchHighlight(hits: widget.searchHits)
+                              : null,
+                        ),
+                      ),
+                    ),
+                    if (index < pages.length - 1) const SizedBox(width: gap),
+                  ],
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
