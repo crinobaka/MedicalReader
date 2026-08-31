@@ -181,8 +181,12 @@ class ReaderPageController extends ChangeNotifier {
   Future<void> goToPage(int pageIndex) async {
     if (_disposed || pageLoading || pageIndex < 0 || pageIndex >= pageCount || pageIndex == currentPage) return;
     currentPage = pageIndex;
+    // Persist the navigation immediately. Rendering is asynchronous and should
+    // never be allowed to determine whether the user's reading position survives.
+    await _readerProgressService.savePage(documentId: documentInfo.id, lastPage: currentPage);
     await renderCurrent();
   }
+
   Future<void> nextPage() => goToPage(currentPage + 1);
   Future<void> previousPage() => goToPage(currentPage - 1);
   Future<void> firstPage() => goToPage(0);
@@ -194,7 +198,10 @@ class ReaderPageController extends ChangeNotifier {
     await renderCurrent(clearCache: true);
   }
 
-  Future<void> saveProgress() => _readerProgressService.save(documentId: documentInfo.id, lastPage: currentPage, cropMargins: cropMargins);
+  Future<void> saveProgress() => _readerProgressService.savePage(
+        documentId: documentInfo.id,
+        lastPage: currentPage,
+      );
 
   void _replaceImage(ui.Image next) {
     final previous = image;
@@ -235,5 +242,10 @@ class ReaderPageController extends ChangeNotifier {
     super.dispose();
   }
 
-  void unawaitedSaveProgress() => unawaited(_readerProgressService.save(documentId: documentInfo.id, lastPage: currentPage, cropMargins: cropMargins));
+  void unawaitedSaveProgress() => unawaited(
+        _readerProgressService.savePage(
+          documentId: documentInfo.id,
+          lastPage: currentPage,
+        ),
+      );
 }
