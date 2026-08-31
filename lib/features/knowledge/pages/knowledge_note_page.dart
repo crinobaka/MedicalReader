@@ -23,11 +23,9 @@ class KnowledgeNotePage extends ConsumerStatefulWidget {
   final LibraryDocument? document;
   final ReaderAnnotation? note;
   final NoteDocument? detachedNote;
-
   const KnowledgeNotePage({super.key, this.document, this.note, this.detachedNote}) : assert(note != null || detachedNote != null);
   bool get isDetached => detachedNote != null || document == null || note == null;
-  @override
-  ConsumerState<KnowledgeNotePage> createState() => _KnowledgeNotePageState();
+  @override ConsumerState<KnowledgeNotePage> createState() => _KnowledgeNotePageState();
 }
 
 class _KnowledgeNotePageState extends ConsumerState<KnowledgeNotePage> {
@@ -40,7 +38,6 @@ class _KnowledgeNotePageState extends ConsumerState<KnowledgeNotePage> {
   bool _saving = false;
   bool _recording = false;
   String? _recordingPath;
-
   bool get _detached => widget.isDetached;
 
   @override
@@ -75,14 +72,35 @@ class _KnowledgeNotePageState extends ConsumerState<KnowledgeNotePage> {
     } finally { if (mounted) setState(() => _saving = false); }
   }
 
+  List<String> get _drawingAttachments => _attachments.where((path) => path.toLowerCase().endsWith('.json') && path.contains('${Platform.pathSeparator}note_drawings${Platform.pathSeparator}')).toList();
+
   Future<void> _editDrawing() async {
     if (_previewMode || _saving || _recording) return;
-    final layer = await Navigator.of(context).push<NoteDrawingLayer>(MaterialPageRoute(builder: (_) => const NoteDrawingEditor()));
-    if (layer == null || !mounted || layer.strokes.isEmpty) return;
+    NoteDrawingLayer? initial;
+    String? previousPath;
+    final drawings = _drawingAttachments;
+    if (drawings.isNotEmpty) {
+      previousPath = drawings.last;
+      try { initial = await const NoteDrawingStorage().load(previousPath); } catch (_) { previousPath = null; }
+    }
+    if (!mounted) return;
+    final layer = await Navigator.of(context).push<NoteDrawingLayer>(MaterialPageRoute(builder: (_) => NoteDrawingEditor(initialLayer: initial)));
+    if (layer == null || !mounted) return;
+    if (layer.strokes.isEmpty) {
+      if (previousPath != null) setState(() => _attachments.remove(previousPath));
+      return;
+    }
     try {
       final path = await const NoteDrawingStorage().save(_draft.id, layer);
-      setState(() => _attachments = [..._attachments, path]);
-      _showMessage('手绘已作为独立资源加入笔记');
+      setState(() {
+        if (previousPath != null) {
+          final index = _attachments.indexOf(previousPath);
+          if (index >= 0) _attachments[index] = path;
+        } else {
+          _attachments.add(path);
+        }
+      });
+      _showMessage('手绘已保存，可再次打开继续编辑');
     } catch (error) { _showMessage('保存手绘失败：$error'); }
   }
 
@@ -97,10 +115,7 @@ class _KnowledgeNotePageState extends ConsumerState<KnowledgeNotePage> {
   Future<void> _export() async {
     if (_saving || _recording) return;
     final note = _draft;
-    final choice = await showModalBottomSheet<String>(context: context, builder: (context) => SafeArea(child: Wrap(children: [
-      ListTile(leading: const Icon(Icons.code), title: const Text('导出 Markdown'), onTap: () => Navigator.pop(context, 'md')),
-      ListTile(leading: const Icon(Icons.picture_as_pdf), title: const Text('导出 PDF'), onTap: () => Navigator.pop(context, 'pdf')),
-    ])));
+    final choice = await showModalBottomSheet<String>(context: context, builder: (context) => SafeArea(child: Wrap(children: [ListTile(leading: const Icon(Icons.code), title: const Text('导出 Markdown'), onTap: () => Navigator.pop(context, 'md')), ListTile(leading: const Icon(Icons.picture_as_pdf), title: const Text('导出 PDF'), onTap: () => Navigator.pop(context, 'pdf'))])));
     if (choice == null) return;
     final service = const NoteExportService();
     final path = choice == 'md' ? await service.exportMarkdown(note) : await service.exportPdf(note);
@@ -114,10 +129,7 @@ class _KnowledgeNotePageState extends ConsumerState<KnowledgeNotePage> {
     if (mounted) Navigator.of(context).pop();
   }
 
-  void _openPdf() {
-    if (_detached) return;
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => ReaderPage(document: widget.document!, initialPage: widget.note!.pageIndex)));
-  }
+  void _openPdf() { if (_detached) return; Navigator.of(context).push(MaterialPageRoute(builder: (_) => ReaderPage(document: widget.document!, initialPage: widget.note!.pageIndex))); }
 
   Future<void> _takePhoto() async {
     if (_previewMode || _saving || _recording || _detached) return;
@@ -161,41 +173,33 @@ class _KnowledgeNotePageState extends ConsumerState<KnowledgeNotePage> {
   @override
   Widget build(BuildContext context) {
     final attachmentDirectory = !_detached && widget.document != null ? File(widget.document!.file.path).parent.path : null;
-    return Scaffold(
-      appBar: AppBar(title: Text(_detached ? '独立笔记' : '笔记'), actions: [
-        IconButton(tooltip: _previewMode ? '编辑' : '预览', icon: Icon(_previewMode ? Icons.edit_outlined : Icons.preview_outlined), onPressed: _recording ? null : () => setState(() => _previewMode = !_previewMode)),
-        IconButton(tooltip: '导出', icon: const Icon(Icons.ios_share_outlined), onPressed: _recording ? null : _export),
-        if (!_detached) IconButton(tooltip: '与书籍解绑', icon: const Icon(Icons.link_off_outlined), onPressed: _recording ? null : _detach),
-        if (!_detached) IconButton(tooltip: '定位 PDF', icon: const Icon(Icons.picture_as_pdf_outlined), onPressed: _recording ? null : _openPdf),
-        IconButton(tooltip: '删除', icon: const Icon(Icons.delete_outline), onPressed: _recording ? null : _delete),
-      ]),
-      body: Column(children: [
-        Padding(padding: const EdgeInsets.fromLTRB(16, 16, 16, 8), child: TextField(controller: _titleController, enabled: !_previewMode && !_recording, decoration: const InputDecoration(labelText: '标题', border: OutlineInputBorder()))),
-        Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), child: Row(children: [Expanded(child: Text(_detached ? '独立笔记' : widget.document!.title, overflow: TextOverflow.ellipsis)), if (!_detached) Text('第 ${widget.note!.pageIndex + 1} 页'), const SizedBox(width: 8), DropdownButton<ReaderNoteFormat>(value: _noteFormat, onChanged: _previewMode || _recording ? null : (value) { if (value != null) setState(() => _noteFormat = value); }, items: const [DropdownMenuItem(value: ReaderNoteFormat.markdown, child: Text('Markdown')), DropdownMenuItem(value: ReaderNoteFormat.markdownHtml, child: Text('Markdown-HTML'))])])),
-        const Divider(height: 1),
-        Expanded(child: _previewMode ? NoteContentPreview(note: _draft, attachmentBasePath: attachmentDirectory == null ? null : '$attachmentDirectory${Platform.pathSeparator}attachments') : Padding(padding: const EdgeInsets.all(16), child: TextField(controller: _contentController, maxLines: null, expands: true, textAlignVertical: TextAlignVertical.top, decoration: const InputDecoration(hintText: '在这里编写笔记...', border: OutlineInputBorder())))),
-        if (!_previewMode) SafeArea(top: false, child: Padding(padding: const EdgeInsets.fromLTRB(12, 4, 12, 4), child: SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: [
-          OutlinedButton.icon(onPressed: _saving || _recording ? null : _editDrawing, icon: const Icon(Icons.draw_outlined), label: const Text('手绘')),
-          const SizedBox(width: 8),
-          if (!_detached) OutlinedButton.icon(onPressed: _saving || _recording ? null : _takePhoto, icon: const Icon(Icons.photo_camera_outlined), label: const Text('拍照')),
-          if (!_detached) const SizedBox(width: 8),
-          if (!_detached) OutlinedButton.icon(onPressed: _saving ? null : _toggleRecording, icon: Icon(_recording ? Icons.stop_circle_outlined : Icons.mic_none_outlined), label: Text(_recording ? '停止录音' : '录音')),
-          if (_recording) const Padding(padding: EdgeInsets.only(left: 12), child: Text('正在录音...')),
-        ]))),
-        SafeArea(top: false, child: Padding(padding: const EdgeInsets.all(12), child: SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: _saving || _recording ? null : _save, icon: const Icon(Icons.save_outlined), label: Text(_saving ? '保存中...' : '保存笔记'))))),
-      ]),
-    );
+    return Scaffold(appBar: AppBar(title: Text(_detached ? '独立笔记' : '笔记'), actions: [
+      IconButton(tooltip: _previewMode ? '编辑' : '预览', icon: Icon(_previewMode ? Icons.edit_outlined : Icons.preview_outlined), onPressed: _recording ? null : () => setState(() => _previewMode = !_previewMode)),
+      IconButton(tooltip: '导出', icon: const Icon(Icons.ios_share_outlined), onPressed: _recording ? null : _export),
+      if (!_detached) IconButton(tooltip: '与书籍解绑', icon: const Icon(Icons.link_off_outlined), onPressed: _recording ? null : _detach),
+      if (!_detached) IconButton(tooltip: '定位 PDF', icon: const Icon(Icons.picture_as_pdf_outlined), onPressed: _recording ? null : _openPdf),
+      IconButton(tooltip: '删除', icon: const Icon(Icons.delete_outline), onPressed: _recording ? null : _delete),
+    ]), body: Column(children: [
+      Padding(padding: const EdgeInsets.fromLTRB(16, 16, 16, 8), child: TextField(controller: _titleController, enabled: !_previewMode && !_recording, decoration: const InputDecoration(labelText: '标题', border: OutlineInputBorder()))),
+      Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), child: Row(children: [Expanded(child: Text(_detached ? '独立笔记' : widget.document!.title, overflow: TextOverflow.ellipsis)), if (!_detached) Text('第 ${widget.note!.pageIndex + 1} 页'), const SizedBox(width: 8), DropdownButton<ReaderNoteFormat>(value: _noteFormat, onChanged: _previewMode || _recording ? null : (value) { if (value != null) setState(() => _noteFormat = value); }, items: const [DropdownMenuItem(value: ReaderNoteFormat.markdown, child: Text('Markdown')), DropdownMenuItem(value: ReaderNoteFormat.markdownHtml, child: Text('Markdown-HTML'))])])),
+      const Divider(height: 1),
+      Expanded(child: _previewMode ? NoteContentPreview(note: _draft, attachmentBasePath: attachmentDirectory == null ? null : '$attachmentDirectory${Platform.pathSeparator}attachments') : Padding(padding: const EdgeInsets.all(16), child: TextField(controller: _contentController, maxLines: null, expands: true, textAlignVertical: TextAlignVertical.top, decoration: const InputDecoration(hintText: '在这里编写笔记...', border: OutlineInputBorder())))),
+      if (!_previewMode) SafeArea(top: false, child: Padding(padding: const EdgeInsets.fromLTRB(12, 4, 12, 4), child: SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: [
+        OutlinedButton.icon(onPressed: _saving || _recording ? null : _editDrawing, icon: const Icon(Icons.draw_outlined), label: Text(_drawingAttachments.isEmpty ? '手绘' : '编辑手绘')),
+        const SizedBox(width: 8),
+        if (!_detached) OutlinedButton.icon(onPressed: _saving || _recording ? null : _takePhoto, icon: const Icon(Icons.photo_camera_outlined), label: const Text('拍照')),
+        if (!_detached) const SizedBox(width: 8),
+        if (!_detached) OutlinedButton.icon(onPressed: _saving ? null : _toggleRecording, icon: Icon(_recording ? Icons.stop_circle_outlined : Icons.mic_none_outlined), label: Text(_recording ? '停止录音' : '录音')),
+        if (_recording) const Padding(padding: EdgeInsets.only(left: 12), child: Text('正在录音...')),
+      ]))),
+      SafeArea(top: false, child: Padding(padding: const EdgeInsets.all(12), child: SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: _saving || _recording ? null : _save, icon: const Icon(Icons.save_outlined), label: Text(_saving ? '保存中...' : '保存笔记'))))),
+    ]));
   }
 }
 
-class _CameraCapturePage extends StatefulWidget {
-  final CameraDescription camera;
-  const _CameraCapturePage({required this.camera});
-  @override State<_CameraCapturePage> createState() => _CameraCapturePageState();
-}
+class _CameraCapturePage extends StatefulWidget { final CameraDescription camera; const _CameraCapturePage({required this.camera}); @override State<_CameraCapturePage> createState() => _CameraCapturePageState(); }
 class _CameraCapturePageState extends State<_CameraCapturePage> {
-  late final CameraController _controller;
-  late final Future<void> _initializeFuture;
+  late final CameraController _controller; late final Future<void> _initializeFuture;
   @override void initState() { super.initState(); _controller = CameraController(widget.camera, ResolutionPreset.high, enableAudio: false); _initializeFuture = _controller.initialize(); }
   @override void dispose() { _controller.dispose(); super.dispose(); }
   Future<void> _capture() async { try { final file = await _controller.takePicture(); if (mounted) Navigator.of(context).pop(file); } catch (error) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('拍照失败：$error'))); } }
