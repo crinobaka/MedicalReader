@@ -5,6 +5,7 @@ import 'package:markdown/markdown.dart' as md;
 import 'package:pdf/widgets.dart' as pw;
 
 import '../models/note_document.dart';
+import '../../reader/models/reader_annotation.dart';
 
 /// Exports a note independently from its source book.
 /// Exported content never requires the originating LibraryDocument.
