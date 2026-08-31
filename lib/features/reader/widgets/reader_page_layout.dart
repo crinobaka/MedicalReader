@@ -118,6 +118,8 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
   double _gestureDistanceY = 0;
   bool _gestureStartedZooming = false;
   double _gestureStartScale = 1;
+  double _gestureStartY = 0;
+  int _gestureZone = 3;
 
   void _toggleControls() {
     if (mounted) setState(() => _controlsVisible = !_controlsVisible);
@@ -132,6 +134,10 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
     _gestureDistanceY = 0;
     _gestureStartScale = widget.transformationController.value.getMaxScaleOnAxis();
     _gestureStartedZooming = false;
+    _gestureStartY = details.localFocalPoint.dy;
+    final height = MediaQuery.sizeOf(context).height;
+    final third = height / 3;
+    _gestureZone = _gestureStartY < third ? 1 : (_gestureStartY < third * 2 ? 2 : 3);
   }
 
   void _onInteractionUpdate(ScaleUpdateDetails details) {
@@ -146,6 +152,17 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
     if (widget.pageLoading || _gestureStartedZooming || _tocVisible || _inkMode) return;
     if ((widget.transformationController.value.getMaxScaleOnAxis() - 1).abs() > 0.01) return;
     if (_gestureDistanceX.abs() < 48 || _gestureDistanceX.abs() <= _gestureDistanceY.abs() * 1.2) return;
+
+    // The touch surface is intentionally divided into three vertical zones.
+    // Zone 2 is reserved for the table-of-contents gesture; only zone 3
+    // performs page navigation. This keeps the two interactions from fighting
+    // each other on phones and leaves zone 1 free for ordinary canvas use.
+    if (_gestureZone == 2) {
+      _openToc(_gestureDistanceX > 0);
+      return;
+    }
+    if (_gestureZone != 3) return;
+
     final intent = _interaction.resolveHorizontalSwipe(
       distance: _gestureDistanceX,
       velocity: details.velocity.pixelsPerSecond.dx,
