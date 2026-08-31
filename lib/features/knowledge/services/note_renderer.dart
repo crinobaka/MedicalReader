@@ -11,38 +11,24 @@ class NoteRenderer {
   Widget build(BuildContext context, NoteDocument note) {
     switch (note.format) {
       case ReaderNoteFormat.markdown:
-        // NoteContentPreview already owns the outer scroll view.  Markdown
-        // must therefore be the non-scrolling variant; nesting Markdown's
-        // internal ListView inside the preview ListView gives it an unbounded
-        // height and triggers "Vertical viewport was given unbounded height".
-        return Padding(
-          padding: EdgeInsets.zero,
-          child: MarkdownBody(
-            data: note.body,
-            styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context))
-                .copyWith(
-                  p: const TextStyle(),
-                  textAlign: WrapAlignment.start,
-                  code: TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 13,
-                    height: 1.45,
-                    color: Theme.of(context).colorScheme.onSurface,
-                    backgroundColor: Theme.of(
-                      context,
-                    ).colorScheme.surfaceContainerHighest,
-                  ),
-                  codeblockDecoration: BoxDecoration(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: Theme.of(context).colorScheme.outlineVariant,
-                    ),
-                  ),
-                  codeblockPadding: const EdgeInsets.all(14),
-                ),
+        return MarkdownBody(
+          data: note.body,
+          styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
+            p: const TextStyle(),
+            textAlign: WrapAlignment.start,
+            code: TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 13,
+              height: 1.45,
+              color: Theme.of(context).colorScheme.onSurface,
+              backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+            ),
+            codeblockDecoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+            ),
+            codeblockPadding: const EdgeInsets.all(14),
           ),
         );
       case ReaderNoteFormat.markdownHtml:
