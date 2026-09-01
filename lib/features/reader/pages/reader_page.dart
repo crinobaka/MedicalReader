@@ -55,7 +55,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   }
 
   List<ReaderAnnotation> get _annotations => ref
-      .read(readerAnnotationsProvider(widget.document))
+      .watch(readerAnnotationsProvider(widget.document))
       .where((item) => item.pageIndex == _controller.currentPage)
       .toList(growable: false);
 
@@ -76,17 +76,15 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     if (normalized.length < 4) return;
     final notifier = ref.read(readerAnnotationsProvider(widget.document).notifier);
     final now = DateTime.now();
-    await notifier.add(
-      ReaderAnnotation(
-        id: 'ink_${widget.document.id}_${_controller.currentPage}_${now.microsecondsSinceEpoch}',
-        bookId: widget.document.id,
-        pageIndex: _controller.currentPage,
-        type: ReaderAnnotationType.ink,
-        rect: normalized,
-        createdAt: now,
-        updatedAt: now,
-      ),
-    );
+    await notifier.add(ReaderAnnotation(
+      id: 'ink_${widget.document.id}_${_controller.currentPage}_${now.microsecondsSinceEpoch}',
+      bookId: widget.document.id,
+      pageIndex: _controller.currentPage,
+      type: ReaderAnnotationType.ink,
+      rect: normalized,
+      createdAt: now,
+      updatedAt: now,
+    ));
   }
 
   Future<void> _toggleBookmark() async {
@@ -98,16 +96,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       return;
     }
     final now = DateTime.now();
-    await notifier.add(
-      ReaderAnnotation(
-        id: 'bookmark_${widget.document.id}_${_controller.currentPage}',
-        bookId: widget.document.id,
-        pageIndex: _controller.currentPage,
-        type: ReaderAnnotationType.bookmark,
-        createdAt: now,
-        updatedAt: now,
-      ),
-    );
+    await notifier.add(ReaderAnnotation(
+      id: 'bookmark_${widget.document.id}_${_controller.currentPage}',
+      bookId: widget.document.id,
+      pageIndex: _controller.currentPage,
+      type: ReaderAnnotationType.bookmark,
+      createdAt: now,
+      updatedAt: now,
+    ));
   }
 
   Future<void> _showSearch() async {
@@ -180,6 +176,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       context: context,
       builder: (dialogContext) => ReaderNoteDialog(
         note: note,
+        documentDirectory: (await const ReaderAnnotationService().ensureAttachmentsDirectory(widget.document)).path,
         onInsertImage: () async {
           final files = await FilePicker.pickFiles(type: FileType.image);
           if (files.isEmpty) return null;
