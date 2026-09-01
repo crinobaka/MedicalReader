@@ -26,10 +26,8 @@ import '../widgets/reader_settings_panel.dart';
 
 class ReaderPage extends ConsumerStatefulWidget {
   const ReaderPage({super.key, required this.document, this.initialPage = 0});
-
   final LibraryDocument document;
   final int initialPage;
-
   @override
   ConsumerState<ReaderPage> createState() => _ReaderPageState();
 }
@@ -76,17 +74,15 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     if (normalized.length < 4) return;
     final notifier = ref.read(readerAnnotationsProvider(widget.document).notifier);
     final now = DateTime.now();
-    await notifier.add(
-      ReaderAnnotation(
-        id: 'ink_${widget.document.id}_${_controller.currentPage}_${now.microsecondsSinceEpoch}',
-        bookId: widget.document.id,
-        pageIndex: _controller.currentPage,
-        type: ReaderAnnotationType.ink,
-        rect: normalized,
-        createdAt: now,
-        updatedAt: now,
-      ),
-    );
+    await notifier.add(ReaderAnnotation(
+      id: 'ink_${widget.document.id}_${_controller.currentPage}_${now.microsecondsSinceEpoch}',
+      bookId: widget.document.id,
+      pageIndex: _controller.currentPage,
+      type: ReaderAnnotationType.ink,
+      rect: normalized,
+      createdAt: now,
+      updatedAt: now,
+    ));
   }
 
   Future<void> _toggleBookmark() async {
@@ -98,16 +94,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       return;
     }
     final now = DateTime.now();
-    await notifier.add(
-      ReaderAnnotation(
-        id: 'bookmark_${widget.document.id}_${_controller.currentPage}',
-        bookId: widget.document.id,
-        pageIndex: _controller.currentPage,
-        type: ReaderAnnotationType.bookmark,
-        createdAt: now,
-        updatedAt: now,
-      ),
-    );
+    await notifier.add(ReaderAnnotation(
+      id: 'bookmark_${widget.document.id}_${_controller.currentPage}',
+      bookId: widget.document.id,
+      pageIndex: _controller.currentPage,
+      type: ReaderAnnotationType.bookmark,
+      createdAt: now,
+      updatedAt: now,
+    ));
   }
 
   Future<void> _showSearch() async {
@@ -180,6 +174,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       context: context,
       builder: (dialogContext) => ReaderNoteDialog(
         note: note,
+        documentDirectory: (widget.document.file.path.isEmpty) ? null : File(widget.document.file.path).parent.path,
         onInsertImage: () async {
           final files = await FilePicker.pickFiles(type: FileType.image);
           if (files.isEmpty) return null;
@@ -214,8 +209,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
               ),
             ],
           ),
-        ) ??
-        false;
+        ) ?? false;
     if (!stop) {
       await _audioRecorder.stop();
       return null;
@@ -228,23 +222,19 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (sheetContext) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: .82,
-        minChildSize: .45,
-        maxChildSize: .96,
-        builder: (sheetContext, scrollController) => Consumer(
-          builder: (context, ref, _) {
-            final options = ref.watch(readerViewOptionsProvider);
-            return SafeArea(
-              child: ReaderSettingsPanel(
+      builder: (sheetContext) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.sizeOf(sheetContext).height * .86,
+          child: Consumer(
+            builder: (context, ref, _) {
+              final options = ref.watch(readerViewOptionsProvider);
+              return ReaderSettingsPanel(
                 options: options,
                 onChanged: (value) => ref.read(readerViewOptionsProvider.notifier).update(value),
                 onReset: () => ref.read(readerViewOptionsProvider.notifier).reset(),
-                scrollController: scrollController,
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );
@@ -253,10 +243,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   Future<void> _showPageJump() async {
     final value = await showDialog<int>(
       context: context,
-      builder: (dialogContext) => PageJumpDialog(
-        currentPage: _controller.currentPage + 1,
-        pageCount: _controller.pageCount,
-      ),
+      builder: (dialogContext) => PageJumpDialog(currentPage: _controller.currentPage + 1, pageCount: _controller.pageCount),
     );
     if (value != null) await _controller.goToPage(value - 1);
   }
@@ -273,6 +260,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   @override
   Widget build(BuildContext context) {
+    // ReaderPage previously used ref.read() only. The annotation StateNotifier
+    // changed state correctly, but this widget therefore did not repaint until
+    // the page controller happened to rebuild. Watch it explicitly so ink,
+    // bookmarks and notes appear immediately after saving.
+    ref.watch(readerAnnotationsProvider(widget.document));
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, _) {
