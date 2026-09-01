@@ -159,7 +159,7 @@ class _NoteDrawingEditorState extends State<NoteDrawingEditor> {
   }
 
   double _distance(NoteDrawingPoint a, NoteDrawingPoint b) =>
-      math.hypot(a.x - b.x, a.y - b.y);
+      math.sqrt((a.x - b.x)*(a.x - b.x) + (a.y - b.y)*(a.y - b.y));
 
   void _eraseAt(Offset local, Size size) {
     if (_strokes.isEmpty) return;
@@ -201,7 +201,7 @@ class _NoteDrawingEditorState extends State<NoteDrawingEditor> {
     if (len2 == 0) return _distance(p, a);
     final t = (((p.x - a.x) * dx) + ((p.y - a.y) * dy)) / len2;
     final u = t.clamp(0.0, 1.0);
-    return math.hypot(p.x - a.x - u * dx, p.y - a.y - u * dy);
+    return math.sqrt((p.x - a.x - u * dx)*(p.x - a.x - u * dx) + (p.y - a.y - u * dy)*(p.y - a.y - u * dy));
   }
 
   void _beginSelection(Offset local, Size size) {
