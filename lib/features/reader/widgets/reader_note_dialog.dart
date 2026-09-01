@@ -1,5 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
+import '../../knowledge/models/note_drawing.dart';
+import '../../knowledge/services/note_drawing_storage.dart';
+import '../../knowledge/widgets/note_drawing_editor.dart';
 import '../models/reader_annotation.dart';
 import 'reader_note_editor.dart';
 
@@ -23,6 +28,49 @@ class ReaderNoteDialog extends StatefulWidget {
 
 class _ReaderNoteDialogState extends State<ReaderNoteDialog> {
   final _editorKey = GlobalKey<_ReaderNoteEditorDialogState>();
+  String? _drawingPath;
+
+  @override
+  void initState() {
+    super.initState();
+    _drawingPath = widget.note.attachments.where(_isDrawingPath).lastOrNull;
+  }
+
+  bool _isDrawingPath(String path) =>
+      path.toLowerCase().endsWith('.json') &&
+      path.contains('${Platform.pathSeparator}note_drawings${Platform.pathSeparator}');
+
+  Future<void> _editDrawing() async {
+    NoteDrawingLayer? initial;
+    final path = _drawingPath;
+    if (path != null) {
+      try {
+        initial = await const NoteDrawingStorage().load(path);
+      } catch (_) {
+        initial = null;
+      }
+    }
+    if (!mounted) return;
+    final layer = await Navigator.of(context).push<NoteDrawingLayer>(
+      MaterialPageRoute(
+        builder: (_) => NoteDrawingEditor(initialLayer: initial),
+      ),
+    );
+    if (layer == null || !mounted) return;
+    if (layer.strokes.isEmpty) {
+      setState(() => _drawingPath = null);
+      return;
+    }
+    final saved = await const NoteDrawingStorage().save(widget.note.id, layer);
+    if (mounted) setState(() => _drawingPath = saved);
+  }
+
+  ReaderAnnotation _buildAnnotation() {
+    final base = _editorKey.currentState!.buildAnnotation();
+    final attachments = base.attachments.where((path) => !_isDrawingPath(path)).toList();
+    if (_drawingPath != null) attachments.add(_drawingPath!);
+    return base.copyWith(attachments: List.unmodifiable(attachments));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,10 +91,20 @@ class _ReaderNoteDialogState extends State<ReaderNoteDialog> {
                 automaticallyImplyLeading: false,
                 title: const Text('笔记'),
                 actions: [
+                  IconButton(
+                    tooltip: _drawingPath == null ? '添加手绘' : '编辑手绘',
+                    onPressed: _editDrawing,
+                    icon: Icon(_drawingPath == null ? Icons.draw_outlined : Icons.edit_note_outlined),
+                  ),
+                  if (_drawingPath != null)
+                    const Padding(
+                      padding: EdgeInsets.only(right: 4),
+                      child: Center(child: Icon(Icons.check_circle_outline, size: 18)),
+                    ),
                   TextButton(
                     onPressed: () {
-                      final note = _editorKey.currentState?.buildAnnotation();
-                      if (note != null) Navigator.of(context).pop(note);
+                      final note = _buildAnnotation();
+                      Navigator.of(context).pop(note);
                     },
                     child: const Text('保存'),
                   ),
