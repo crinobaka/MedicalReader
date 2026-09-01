@@ -27,9 +27,10 @@ void main() {
     expect(intent.delta, 0.25);
   });
 
-  test('wheel resolves to navigation unless zooming', () {
-    expect(resolver.wheel(delta: 20, zooming: false).action, ReaderGestureAction.nextPage);
-    expect(resolver.wheel(delta: -20, zooming: false).action, ReaderGestureAction.previousPage);
+  test('wheel requires a detent-sized movement unless zooming', () {
+    expect(resolver.wheel(delta: 120, zooming: false).action, ReaderGestureAction.nextPage);
+    expect(resolver.wheel(delta: -120, zooming: false).action, ReaderGestureAction.previousPage);
+    expect(resolver.wheel(delta: 20, zooming: false).action, ReaderGestureAction.none);
     expect(resolver.wheel(delta: -2, zooming: true).action, ReaderGestureAction.zoom);
   });
 }
