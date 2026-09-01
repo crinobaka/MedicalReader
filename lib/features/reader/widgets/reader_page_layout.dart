@@ -24,8 +24,6 @@ import 'reader_toolbar.dart';
 import 'reader_viewport.dart';
 
 class ReaderPageLayout extends ConsumerStatefulWidget {
-  const ReaderPageLayout({super.key, required this.locationLabel, required this.loading, required this.pageLoading, required this.error, required this.image, this.previousPageImage, this.nextPageImage, required this.searchHits, required this.bookmarked, required this.cropEnabled, required this.canGoPrevious, required this.canGoNext, required this.currentPage, required this.pageCount, required this.bookPage, required this.currentBookTreeNode, required this.searchResultPath, this.bookTreeNodes = const [], this.inkStrokes = const [], this.onInkStroke, required this.onPageSelected, required this.keyboardFocusNode, required this.transformationController, required this.onPrevious, required this.onNext, required this.onFirst, required this.onLast, required this.onPageJump, required this.onBookPageJump, required this.onBookTree, required this.onSearch, required this.onBookmark, required this.onNote, required this.onCropChanged, required this.onSettings, required this.onRetry, this.searchLocationLabel});
-
   final String locationLabel;
   final String? searchLocationLabel;
   final bool loading;
@@ -64,6 +62,47 @@ class ReaderPageLayout extends ConsumerStatefulWidget {
   final Future<void> Function() onSettings;
   final VoidCallback onRetry;
 
+  const ReaderPageLayout({
+    super.key,
+    required this.locationLabel,
+    required this.loading,
+    required this.pageLoading,
+    required this.error,
+    required this.image,
+    this.previousPageImage,
+    this.nextPageImage,
+    required this.searchHits,
+    required this.bookmarked,
+    required this.cropEnabled,
+    required this.canGoPrevious,
+    required this.canGoNext,
+    required this.currentPage,
+    required this.pageCount,
+    required this.bookPage,
+    required this.currentBookTreeNode,
+    required this.searchResultPath,
+    this.bookTreeNodes = const [],
+    this.inkStrokes = const [],
+    this.onInkStroke,
+    required this.onPageSelected,
+    required this.keyboardFocusNode,
+    required this.transformationController,
+    required this.onPrevious,
+    required this.onNext,
+    required this.onFirst,
+    required this.onLast,
+    required this.onPageJump,
+    required this.onBookPageJump,
+    required this.onBookTree,
+    required this.onSearch,
+    required this.onBookmark,
+    required this.onNote,
+    required this.onCropChanged,
+    required this.onSettings,
+    required this.onRetry,
+    this.searchLocationLabel,
+  });
+
   @override
   ConsumerState<ReaderPageLayout> createState() => _ReaderPageLayoutState();
 }
@@ -79,28 +118,55 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
   double _gestureDistanceY = 0;
   bool _gestureStartedZooming = false;
   double _gestureStartScale = 1;
+  double _gestureStartY = 0;
+  int _gestureZone = 3;
 
-  void _toggleControls() { if (mounted) setState(() => _controlsVisible = !_controlsVisible); }
-  void _resetZoom() => widget.transformationController.value = Matrix4.identity();
+  void _toggleControls() {
+    if (mounted) setState(() => _controlsVisible = !_controlsVisible);
+  }
+
+  void _resetZoom() {
+    widget.transformationController.value = Matrix4.identity();
+  }
 
   void _onInteractionStart(ScaleStartDetails details) {
     _gestureDistanceX = 0;
     _gestureDistanceY = 0;
     _gestureStartScale = widget.transformationController.value.getMaxScaleOnAxis();
     _gestureStartedZooming = false;
+    _gestureStartY = details.localFocalPoint.dy;
+    final height = MediaQuery.sizeOf(context).height;
+    final third = height / 3;
+    _gestureZone = _gestureStartY < third ? 1 : (_gestureStartY < third * 2 ? 2 : 3);
   }
 
   void _onInteractionUpdate(ScaleUpdateDetails details) {
     _gestureDistanceX += details.focalPointDelta.dx;
     _gestureDistanceY += details.focalPointDelta.dy;
-    if ((details.scale - 1).abs() > .01 || (_gestureStartScale - 1).abs() > .01) _gestureStartedZooming = true;
+    if ((details.scale - 1).abs() > 0.01 || (_gestureStartScale - 1).abs() > 0.01) {
+      _gestureStartedZooming = true;
+    }
   }
 
   void _onInteractionEnd(ScaleEndDetails details) {
     if (widget.pageLoading || _gestureStartedZooming || _tocVisible || _inkMode) return;
-    if ((widget.transformationController.value.getMaxScaleOnAxis() - 1).abs() > .01) return;
+    if ((widget.transformationController.value.getMaxScaleOnAxis() - 1).abs() > 0.01) return;
     if (_gestureDistanceX.abs() < 48 || _gestureDistanceX.abs() <= _gestureDistanceY.abs() * 1.2) return;
-    final intent = _interaction.resolveHorizontalSwipe(distance: _gestureDistanceX, velocity: details.velocity.pixelsPerSecond.dx);
+
+    // The touch surface is intentionally divided into three vertical zones.
+    // Zone 2 is reserved for the table-of-contents gesture; only zone 3
+    // performs page navigation. This keeps the two interactions from fighting
+    // each other on phones and leaves zone 1 free for ordinary canvas use.
+    if (_gestureZone == 2) {
+      _openToc(_gestureDistanceX > 0);
+      return;
+    }
+    if (_gestureZone != 3) return;
+
+    final intent = _interaction.resolveHorizontalSwipe(
+      distance: _gestureDistanceX,
+      velocity: details.velocity.pixelsPerSecond.dx,
+    );
     if (intent == ReaderGestureIntent.nextPage) unawaited(widget.onNext());
     if (intent == ReaderGestureIntent.previousPage) unawaited(widget.onPrevious());
   }
@@ -111,80 +177,155 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
     return theme.canvasColor(options.canvasBackground, options.customCanvasColor, context);
   }
 
-  Widget _page(ui.Image page, {Widget? overlay}) => RepaintBoundary(child: ReaderPageImage(image: page, overlay: overlay));
+  Widget _page(ui.Image page, {Widget? overlay}) => RepaintBoundary(
+        child: ReaderPageImage(image: page, overlay: overlay),
+      );
 
-  Widget _overlay(Size size) => Stack(
-    fit: StackFit.expand,
-    children: [
-      ReaderSearchHighlight(hits: widget.searchHits),
-      ReaderInkLayer(
-        strokes: widget.inkStrokes.map((stroke) => stroke.map((p) => Offset(p.dx * size.width, p.dy * size.height)).toList()).toList(),
-        enabled: _inkMode,
-        onStrokeEnd: (stroke) {
-          if (widget.onInkStroke == null || stroke.length < 2) return;
-          final normalized = <double>[];
-          for (final point in stroke) {
-            normalized.add((point.dx / size.width).clamp(0.0, 1.0));
-            normalized.add((point.dy / size.height).clamp(0.0, 1.0));
-          }
-          widget.onInkStroke!(normalized);
-        },
-      ),
-    ],
-  );
+  Widget _currentOverlay(Size size) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        ReaderSearchHighlight(hits: widget.searchHits),
+        ReaderInkLayer(
+          strokes: widget.inkStrokes
+              .map((stroke) => stroke.map((p) => Offset(p.dx * size.width, p.dy * size.height)).toList())
+              .toList(),
+          enabled: _inkMode,
+          onStrokeEnd: (stroke) {
+            if (widget.onInkStroke == null || stroke.length < 2) return;
+            final normalized = <double>[];
+            for (final point in stroke) {
+              normalized.add((point.dx / size.width).clamp(0.0, 1.0));
+              normalized.add((point.dy / size.height).clamp(0.0, 1.0));
+            }
+            widget.onInkStroke!(normalized);
+          },
+        ),
+      ],
+    );
+  }
 
   Widget _readingSurface(BuildContext context, String layout) {
+    final current = widget.image!;
     final pages = <ui.Image>[];
     if (layout == 'three') {
       if (widget.previousPageImage != null) pages.add(widget.previousPageImage!);
-      pages.add(widget.image!);
+      pages.add(current);
       if (widget.nextPageImage != null) pages.add(widget.nextPageImage!);
     } else if (layout == 'two') {
       if (widget.previousPageImage != null) pages.add(widget.previousPageImage!);
-      pages.add(widget.image!);
+      pages.add(current);
       if (pages.length == 1 && widget.nextPageImage != null) pages.add(widget.nextPageImage!);
     } else {
-      pages.add(widget.image!);
+      pages.add(current);
     }
+
     return ColoredBox(
       color: _canvasColor(context),
-      child: LayoutBuilder(builder: (context, constraints) {
-        final count = pages.length;
-        const gap = 12.0;
-        final usableWidth = math.max(1.0, constraints.maxWidth - gap * (count - 1));
-        final usableHeight = math.max(1.0, constraints.maxHeight);
-        if (count == 1) {
-          final page = pages.single;
-          final ratio = page.width / page.height;
-          var width = usableWidth;
-          var height = width / ratio;
-          if (height > usableHeight) { height = usableHeight; width = height * ratio; }
-          return Center(child: SizedBox(width: width, height: height, child: LayoutBuilder(builder: (context, c) => _page(page, overlay: _overlay(c.biggest)))));
-        }
-        final ratios = pages.map((p) => p.width / p.height).toList(growable: false);
-        var pageWidth = usableWidth / count;
-        final narrowest = ratios.reduce((a, b) => a < b ? a : b);
-        if (pageWidth / narrowest > usableHeight) pageWidth = usableHeight * narrowest;
-        return Center(child: SizedBox(width: pageWidth * count + gap * (count - 1), height: usableHeight, child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          for (var i = 0; i < pages.length; i++) ...[
-            SizedBox(width: pageWidth, child: AspectRatio(aspectRatio: ratios[i], child: LayoutBuilder(builder: (context, c) => _page(pages[i], overlay: i == (widget.previousPageImage != null && count > 1 ? 1 : 0) ? _overlay(c.biggest) : null)))),
-            if (i < pages.length - 1) const SizedBox(width: gap),
-          ],
-        ])));
-      }),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final availableWidth = constraints.maxWidth;
+          final availableHeight = constraints.maxHeight;
+          final count = pages.length;
+          const gap = 12.0;
+          final usableWidth = math.max(1.0, availableWidth - gap * (count - 1));
+          final usableHeight = math.max(1.0, availableHeight);
+
+          if (count == 1) {
+            final image = pages.single;
+            final ratio = image.width / image.height;
+            var fittedWidth = usableWidth;
+            var fittedHeight = fittedWidth / ratio;
+            if (fittedHeight > usableHeight) {
+              fittedHeight = usableHeight;
+              fittedWidth = fittedHeight * ratio;
+            }
+            return Center(
+              child: SizedBox(
+                width: fittedWidth,
+                height: fittedHeight,
+                child: LayoutBuilder(
+                  builder: (context, pageConstraints) => _page(image, overlay: _currentOverlay(pageConstraints.biggest)),
+                ),
+              ),
+            );
+          }
+
+          final widthByRow = usableWidth / count;
+          var pageWidth = widthByRow;
+          final ratios = pages.map((page) => page.width / page.height).toList(growable: false);
+          final narrowestRatio = ratios.reduce((a, b) => a < b ? a : b);
+          final heightForWidth = pageWidth / narrowestRatio;
+          if (heightForWidth > usableHeight) pageWidth = usableHeight * narrowestRatio;
+
+          final spreadWidth = pageWidth * count + gap * (count - 1);
+          return Center(
+            child: SizedBox(
+              width: spreadWidth,
+              height: usableHeight,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  for (var index = 0; index < pages.length; index++) ...[
+                    SizedBox(
+                      width: pageWidth,
+                      child: AspectRatio(
+                        aspectRatio: ratios[index],
+                        child: LayoutBuilder(
+                          builder: (context, pageConstraints) => _page(
+                            pages[index],
+                            overlay: index == (widget.previousPageImage != null && count > 1 ? 1 : 0)
+                                ? _currentOverlay(pageConstraints.biggest)
+                                : null,
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (index < pages.length - 1) const SizedBox(width: gap),
+                  ],
+                ],
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 
   void _openToc(bool fromLeft) {
     if (widget.bookTreeNodes.isEmpty) return;
-    setState(() { _tocFromLeft = fromLeft; _tocVisible = true; _controlsVisible = false; });
+    setState(() {
+      _tocFromLeft = fromLeft;
+      _tocVisible = true;
+      _controlsVisible = false;
+    });
   }
+
+  Widget _edgeTocGesture(bool fromLeft) => Positioned(
+        top: MediaQuery.sizeOf(context).height * .12,
+        bottom: MediaQuery.sizeOf(context).height * .12,
+        left: fromLeft ? 0 : null,
+        right: fromLeft ? null : 0,
+        width: 64,
+        child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onHorizontalDragStart: (_) => _openToc(fromLeft),
+          child: const SizedBox.expand(),
+        ),
+      );
 
   @override
   Widget build(BuildContext context) {
     final options = ref.watch(readerViewOptionsProvider);
+    final title = options.showLocationBar
+        ? ReaderLocationBar(
+            location: widget.locationLabel,
+            searchLocation: options.showSearchLocation ? widget.searchLocationLabel : null,
+          )
+        : null;
     final toolbar = ReaderToolbar(
-      title: options.showLocationBar ? ReaderLocationBar(location: widget.locationLabel, searchLocation: options.showSearchLocation ? widget.searchLocationLabel : null) : null,
+      title: title,
       showBookTree: options.showBookTreeButton,
       showSearch: options.showSearchButton,
       showPageJump: options.showPageJumpButton,
@@ -193,7 +334,7 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
       cropEnabled: widget.cropEnabled,
       disabled: widget.pageLoading,
       floating: options.floatingControls,
-      onBookTree: () => _openToc(true),
+      onBookTree: widget.onBookTree,
       onSearch: widget.onSearch,
       onPageJump: widget.onPageJump,
       onBookmark: widget.onBookmark,
@@ -202,36 +343,50 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
       onSettings: widget.onSettings,
     );
     if (widget.loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    if (widget.error != null && widget.image == null) return Scaffold(body: ReaderErrorView(error: widget.error!, onRetry: widget.onRetry));
+    if (widget.error != null && widget.image == null) {
+      return Scaffold(body: ReaderErrorView(error: widget.error!, onRetry: widget.onRetry));
+    }
     if (widget.image == null) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
-    final controls = options.showPageControls ? ReaderPageControls(
-      canGoPrevious: widget.canGoPrevious,
-      canGoNext: widget.canGoNext,
-      pageLoading: widget.pageLoading,
-      pageLabel: widget.bookPage == null ? 'PDF P${widget.currentPage + 1} / ${widget.pageCount}' : '书籍 P${widget.bookPage} · PDF P${widget.currentPage + 1} / ${widget.pageCount}',
-      locationLabel: widget.currentBookTreeNode?.name,
-      searchLabel: widget.searchResultPath.isNotEmpty ? '搜索命中 · ${widget.searchResultPath.map((node) => node.name).join(' › ')}' : null,
-      onPrevious: widget.onPrevious,
-      onNext: widget.onNext,
-      onPageTap: widget.onPageJump,
-    ) : null;
+    final controls = options.showPageControls
+        ? ReaderPageControls(
+            canGoPrevious: widget.canGoPrevious,
+            canGoNext: widget.canGoNext,
+            pageLoading: widget.pageLoading,
+            pageLabel: widget.bookPage == null
+                ? 'PDF P${widget.currentPage + 1} / ${widget.pageCount}'
+                : '书籍 P${widget.bookPage} · PDF P${widget.currentPage + 1} / ${widget.pageCount}',
+            locationLabel: widget.currentBookTreeNode?.name,
+            searchLabel: widget.searchResultPath.isNotEmpty
+                ? '搜索命中 · ${widget.searchResultPath.map((node) => node.name).join(' › ')}'
+                : null,
+            onPrevious: widget.onPrevious,
+            onNext: widget.onNext,
+            onPageTap: widget.onPageJump,
+          )
+        : null;
 
     final canvas = Listener(
       onPointerSignal: _handlePointerSignal,
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onTap: options.floatingControls ? _toggleControls : null,
-        onLongPressStart: (details) { if (!_inkMode && !_tocVisible) setState(() => _magnifierPosition = details.localPosition); },
-        onLongPressMoveUpdate: (details) { if (_magnifierPosition != null) setState(() => _magnifierPosition = details.localPosition); },
-        onLongPressEnd: (_) { if (_magnifierPosition != null) setState(() => _magnifierPosition = null); },
+        onLongPressStart: (details) {
+          if (!_inkMode && !_tocVisible) setState(() => _magnifierPosition = details.localPosition);
+        },
+        onLongPressMoveUpdate: (details) {
+          if (_magnifierPosition != null) setState(() => _magnifierPosition = details.localPosition);
+        },
+        onLongPressEnd: (_) {
+          if (_magnifierPosition != null) setState(() => _magnifierPosition = null);
+        },
         onDoubleTap: _resetZoom,
         child: ReaderViewport(
           loading: widget.pageLoading,
           page: InteractiveViewer(
             transformationController: widget.transformationController,
-            minScale: .5,
-            maxScale: 4,
+            minScale: 0.5,
+            maxScale: 4.0,
             onInteractionStart: _onInteractionStart,
             onInteractionUpdate: _onInteractionUpdate,
             onInteractionEnd: _onInteractionEnd,
@@ -241,19 +396,52 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
       ),
     );
 
-    final content = options.floatingControls ? Stack(
-      fit: StackFit.expand,
-      children: [
-        canvas,
-        if (_magnifierPosition != null) ReaderMagnifierOverlay(position: _magnifierPosition!),
-        if (_controlsVisible) Positioned(top: 0, left: 0, right: 0, child: SafeArea(child: toolbar)),
-        if (_controlsVisible && controls != null) Positioned(left: 0, right: 0, bottom: 0, child: SafeArea(child: controls)),
-        if (_controlsVisible && widget.onInkStroke != null) Positioned(right: 16, bottom: controls == null ? 20 : 82, child: FloatingActionButton.small(heroTag: 'reader-ink', tooltip: _inkMode ? '退出手写' : '手写', onPressed: () => setState(() => _inkMode = !_inkMode), child: Icon(_inkMode ? Icons.edit_off : Icons.edit))),
-        if (_tocVisible) ReaderRadialToc(nodes: widget.bookTreeNodes, fromLeft: _tocFromLeft, currentPage: widget.currentPage, onSelected: (node) { setState(() => _tocVisible = false); final page = node.resolvePdfPageIndex(); if (page != null) unawaited(widget.onPageSelected(page)); }, onDismiss: () => setState(() => _tocVisible = false)),
-      ],
-    ) : Column(children: [toolbar, Expanded(child: canvas), ?controls]);
+    final content = options.floatingControls
+        ? Stack(
+            fit: StackFit.expand,
+            children: [
+              canvas,
+              _edgeTocGesture(true),
+              _edgeTocGesture(false),
+              if (_magnifierPosition != null) ReaderMagnifierOverlay(position: _magnifierPosition!),
+              if (_controlsVisible)
+                Positioned(top: 0, left: 0, right: 0, child: SafeArea(child: toolbar)),
+              if (_controlsVisible && controls != null)
+                Positioned(left: 0, right: 0, bottom: 0, child: SafeArea(child: controls)),
+              if (_controlsVisible && widget.onInkStroke != null)
+                Positioned(
+                  right: 16,
+                  bottom: controls == null ? 20 : 82,
+                  child: FloatingActionButton.small(
+                    heroTag: 'reader-ink',
+                    tooltip: _inkMode ? '退出手写' : '手写',
+                    onPressed: () => setState(() => _inkMode = !_inkMode),
+                    child: Icon(_inkMode ? Icons.edit_off : Icons.edit),
+                  ),
+                ),
+              if (_tocVisible)
+                ReaderRadialToc(
+                  nodes: widget.bookTreeNodes,
+                  fromLeft: _tocFromLeft,
+                  currentPage: widget.currentPage,
+                  onSelected: (node) {
+                    setState(() => _tocVisible = false);
+                    final page = node.resolvePdfPageIndex();
+                    if (page != null) unawaited(widget.onPageSelected(page));
+                  },
+                  onDismiss: () => setState(() => _tocVisible = false),
+                ),
+            ],
+          )
+        : Column(children: [toolbar, Expanded(child: canvas), ?controls]);
 
-    return Scaffold(body: KeyboardListener(focusNode: widget.keyboardFocusNode, onKeyEvent: _handleKeyEvent, child: content));
+    return Scaffold(
+      body: KeyboardListener(
+        focusNode: widget.keyboardFocusNode,
+        onKeyEvent: _handleKeyEvent,
+        child: content,
+      ),
+    );
   }
 
   void _handleKeyEvent(KeyEvent event) {
@@ -261,7 +449,14 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
     if (HardwareKeyboard.instance.isControlPressed && event.logicalKey == LogicalKeyboardKey.keyF) {
       unawaited(widget.onSearch());
     } else if (event.logicalKey == LogicalKeyboardKey.escape) {
-      if (_tocVisible || _magnifierPosition != null) { setState(() { _tocVisible = false; _magnifierPosition = null; }); } else if (!_controlsVisible) { setState(() => _controlsVisible = true); }
+      if (_tocVisible || _magnifierPosition != null) {
+        setState(() {
+          _tocVisible = false;
+          _magnifierPosition = null;
+        });
+      } else if (!_controlsVisible) {
+        setState(() => _controlsVisible = true);
+      }
     } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft || event.logicalKey == LogicalKeyboardKey.pageUp) {
       unawaited(widget.onPrevious());
     } else if (event.logicalKey == LogicalKeyboardKey.arrowRight || event.logicalKey == LogicalKeyboardKey.pageDown) {
@@ -279,18 +474,26 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
 
   void _handlePointerSignal(PointerSignalEvent event) {
     if (widget.pageLoading) return;
-    final intent = _interaction.resolvePointerSignal(event, zoomModifierPressed: HardwareKeyboard.instance.isControlPressed);
+    final intent = _interaction.resolvePointerSignal(
+      event,
+      zoomModifierPressed: HardwareKeyboard.instance.isControlPressed,
+    );
     switch (intent) {
-      case ReaderPointerIntent.previousPage: unawaited(widget.onPrevious());
-      case ReaderPointerIntent.nextPage: unawaited(widget.onNext());
+      case ReaderPointerIntent.previousPage:
+        unawaited(widget.onPrevious());
+      case ReaderPointerIntent.nextPage:
+        unawaited(widget.onNext());
       case ReaderPointerIntent.zoomIn:
       case ReaderPointerIntent.zoomOut:
         final currentScale = widget.transformationController.value.getMaxScaleOnAxis();
-        final factor = intent == ReaderPointerIntent.zoomIn ? 1.1 : .9;
-        final targetScale = (currentScale * factor).clamp(.5, 4).toDouble();
+        final factor = intent == ReaderPointerIntent.zoomIn ? 1.1 : 0.9;
+        final targetScale = (currentScale * factor).clamp(0.5, 4.0).toDouble();
         final actualFactor = targetScale / currentScale;
-        if (actualFactor != 1) widget.transformationController.value = widget.transformationController.value.clone()..scale(actualFactor);
-      case ReaderPointerIntent.none: break;
+        if (actualFactor != 1.0) {
+          widget.transformationController.value = widget.transformationController.value.clone()..scale(actualFactor);
+        }
+      case ReaderPointerIntent.none:
+        break;
     }
   }
 }
