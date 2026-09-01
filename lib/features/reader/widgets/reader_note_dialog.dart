@@ -56,8 +56,38 @@ class _ReaderNoteDialogState extends State<ReaderNoteDialog> {
       }
     }
     if (!mounted) return;
-    final layer = await Navigator.of(context).push<NoteDrawingLayer>(
-      MaterialPageRoute(builder: (_) => NoteDrawingEditor(initialLayer: initial)),
+    final layer = await showDialog<NoteDrawingLayer>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        NoteDrawingLayer current = initial ?? const NoteDrawingLayer(strokes: []);
+        return Dialog.fullscreen(
+          child: Column(
+            children: [
+              AppBar(
+                title: const Text('笔记手绘'),
+                leading: IconButton(
+                  tooltip: '取消',
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  icon: const Icon(Icons.close),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(current),
+                    child: const Text('完成'),
+                  ),
+                ],
+              ),
+              Expanded(
+                child: NoteDrawingEditor(
+                  initialLayer: initial,
+                  onChanged: (value) => current = value,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
     if (layer == null || !mounted) return;
     if (layer.strokes.isEmpty) {
