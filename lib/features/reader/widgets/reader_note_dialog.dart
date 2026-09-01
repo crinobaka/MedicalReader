@@ -33,7 +33,12 @@ class _ReaderNoteDialogState extends State<ReaderNoteDialog> {
   @override
   void initState() {
     super.initState();
-    _drawingPath = widget.note.attachments.where(_isDrawingPath).lastOrNull;
+    for (final path in widget.note.attachments.reversed) {
+      if (_isDrawingPath(path)) {
+        _drawingPath = path;
+        break;
+      }
+    }
   }
 
   bool _isDrawingPath(String path) =>
@@ -52,9 +57,7 @@ class _ReaderNoteDialogState extends State<ReaderNoteDialog> {
     }
     if (!mounted) return;
     final layer = await Navigator.of(context).push<NoteDrawingLayer>(
-      MaterialPageRoute(
-        builder: (_) => NoteDrawingEditor(initialLayer: initial),
-      ),
+      MaterialPageRoute(builder: (_) => NoteDrawingEditor(initialLayer: initial)),
     );
     if (layer == null || !mounted) return;
     if (layer.strokes.isEmpty) {
@@ -102,10 +105,7 @@ class _ReaderNoteDialogState extends State<ReaderNoteDialog> {
                       child: Center(child: Icon(Icons.check_circle_outline, size: 18)),
                     ),
                   TextButton(
-                    onPressed: () {
-                      final note = _buildAnnotation();
-                      Navigator.of(context).pop(note);
-                    },
+                    onPressed: () => Navigator.of(context).pop(_buildAnnotation()),
                     child: const Text('保存'),
                   ),
                 ],
@@ -162,7 +162,5 @@ class _ReaderNoteEditorDialogState extends State<_ReaderNoteEditorDialogStateful
     );
   }
 
-  ReaderAnnotation buildAnnotation() {
-    return _editorKey.currentState!.buildAnnotation();
-  }
+  ReaderAnnotation buildAnnotation() => _editorKey.currentState!.buildAnnotation();
 }
