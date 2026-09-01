@@ -4,9 +4,19 @@ import 'package:flutter/material.dart';
 
 import '../models/note_drawing.dart';
 
+/// Vector note editor. Coordinates remain normalized so the drawing survives
+/// changes in page size and can be stored as a note attachment.
 class NoteDrawingEditor extends StatefulWidget {
-  const NoteDrawingEditor({super.key, this.initialLayer});
+  const NoteDrawingEditor({
+    super.key,
+    this.initialLayer,
+    this.onChanged,
+    this.backgroundColor = Colors.white,
+  });
+
   final NoteDrawingLayer? initialLayer;
+  final ValueChanged<NoteDrawingLayer>? onChanged;
+  final Color backgroundColor;
 
   @override
   State<NoteDrawingEditor> createState() => _NoteDrawingEditorState();
@@ -14,33 +24,54 @@ class NoteDrawingEditor extends StatefulWidget {
 
 class _NoteDrawingEditorState extends State<NoteDrawingEditor> {
   late List<NoteDrawingStroke> _strokes;
-  final List<NoteDrawingStroke> _redo = [];
+  final List<List<NoteDrawingStroke>> _undo = [];
+  final List<List<NoteDrawingStroke>> _redo = [];
   NoteDrawingTool _tool = NoteDrawingTool.pen;
   Color _color = const Color(0xff202124);
   double _width = 3;
   NoteDrawingStroke? _active;
+  final List<NoteDrawingPoint> _polygon = [];
 
   @override
   void initState() {
     super.initState();
-    _strokes = widget.initialLayer == null
-        ? <NoteDrawingStroke>[]
-        : [...widget.initialLayer!.strokes];
+    _strokes = [...?widget.initialLayer?.strokes];
   }
+
+  NoteDrawingLayer get _layer => NoteDrawingLayer(strokes: List.unmodifiable(_strokes));
+
+  void _emit() => widget.onChanged?.call(_layer);
+
+  void _checkpoint() {
+    _undo.add(List.of(_strokes));
+    if (_undo.length > 100) _undo.removeAt(0);
+    _redo.clear();
+  }
+
+  NoteDrawingPoint _point(Offset p, Size size) => NoteDrawingPoint(
+        size.width <= 0 ? 0 : (p.dx / size.width).clamp(0.0, 1.0),
+        size.height <= 0 ? 0 : (p.dy / size.height).clamp(0.0, 1.0),
+      );
 
   void _begin(Offset local, Size size) {
     if (_tool == NoteDrawingTool.eraser) {
       _eraseAt(local, size);
       return;
     }
-    _active = NoteDrawingStroke(
-      tool: _tool,
-      color: _color.value,
-      width: _tool == NoteDrawingTool.highlighter ? _width * 3 : _width,
-      opacity: _tool == NoteDrawingTool.highlighter ? .28 : 1,
-      points: [_point(local, size)],
-    );
-    setState(() {});
+    if (_tool == NoteDrawingTool.polygon) {
+      setState(() => _polygon.add(_point(local, size)));
+      return;
+    }
+    final p = _point(local, size);
+    setState(() {
+      _active = NoteDrawingStroke(
+        tool: _tool,
+        color: _color.value,
+        width: _tool == NoteDrawingTool.highlighter ? _width * 3 : _width,
+        opacity: _tool == NoteDrawingTool.highlighter ? .28 : 1,
+        points: [p],
+      );
+    });
   }
 
   void _update(Offset local, Size size) {
@@ -50,80 +81,119 @@ class _NoteDrawingEditorState extends State<NoteDrawingEditor> {
     }
     final stroke = _active;
     if (stroke == null) return;
-    _active = NoteDrawingStroke(
-      tool: stroke.tool,
-      color: stroke.color,
-      width: stroke.width,
-      opacity: stroke.opacity,
-      points: [...stroke.points, _point(local, size)],
-    );
-    setState(() {});
+    final p = _point(local, size);
+    if (stroke.tool == NoteDrawingTool.pen || stroke.tool == NoteDrawingTool.highlighter) {
+      if (stroke.points.isNotEmpty && _distance(stroke.points.last, p) < .0015) return;
+      setState(() => _active = NoteDrawingStroke(
+            tool: stroke.tool,
+            color: stroke.color,
+            width: stroke.width,
+            opacity: stroke.opacity,
+            points: [...stroke.points, p],
+          ));
+    } else {
+      setState(() => _active = NoteDrawingStroke(
+            tool: stroke.tool,
+            color: stroke.color,
+            width: stroke.width,
+            opacity: stroke.opacity,
+            points: [stroke.points.first, p],
+          ));
+    }
   }
 
   void _end() {
     final stroke = _active;
     _active = null;
     if (stroke == null || stroke.points.length < 2) return;
-    setState(() {
-      _strokes = [..._strokes, stroke];
-      _redo.clear();
-    });
+    _checkpoint();
+    setState(() => _strokes = [..._strokes, stroke]);
+    _emit();
   }
 
-  NoteDrawingPoint _point(Offset p, Size size) => NoteDrawingPoint(
-    size.width == 0 ? 0 : (p.dx / size.width).clamp(0, 1),
-    size.height == 0 ? 0 : (p.dy / size.height).clamp(0, 1),
-  );
+  void _finishPolygon() {
+    if (_polygon.length < 3) return;
+    _checkpoint();
+    final points = [..._polygon, _polygon.first];
+    setState(() {
+      _strokes = [
+        ..._strokes,
+        NoteDrawingStroke(tool: NoteDrawingTool.polygon, color: _color.value, width: _width, points: points),
+      ];
+      _polygon.clear();
+    });
+    _emit();
+  }
+
+  double _distance(NoteDrawingPoint a, NoteDrawingPoint b) =>
+      math.hypot(a.x - b.x, a.y - b.y);
 
   void _eraseAt(Offset local, Size size) {
     if (_strokes.isEmpty) return;
-    final radius = math.max(8, _width * 2.5);
-    final removed = <NoteDrawingStroke>[];
-    final kept = <NoteDrawingStroke>[];
-    for (final stroke in _strokes) {
-      final hit = stroke.points.any(
-        (p) => (p.toOffset(size) - local).distance <= radius,
-      );
-      (hit ? removed : kept).add(stroke);
+    final target = _point(local, size);
+    final tolerance = math.max(.012, (_width * 2.5) / math.max(size.width, size.height));
+    final index = _strokes.lastIndexWhere((s) => _hit(s, target, tolerance));
+    if (index < 0) return;
+    _checkpoint();
+    setState(() => _strokes.removeAt(index));
+    _emit();
+  }
+
+  bool _hit(NoteDrawingStroke s, NoteDrawingPoint p, double tolerance) {
+    final pts = s.points;
+    if (pts.isEmpty) return false;
+    for (var i = 0; i < pts.length; i++) {
+      if (_distance(pts[i], p) <= tolerance) return true;
+      if (i > 0 && _segmentDistance(p, pts[i - 1], pts[i]) <= tolerance) return true;
     }
-    if (removed.isNotEmpty)
-      setState(() {
-        _redo.addAll(removed);
-        _strokes = kept;
-      });
+    return false;
   }
 
-  void _undo() {
-    if (_strokes.isEmpty) return;
-    setState(() {
-      _redo.add(_strokes.removeLast());
-    });
+  double _segmentDistance(NoteDrawingPoint p, NoteDrawingPoint a, NoteDrawingPoint b) {
+    final dx = b.x - a.x;
+    final dy = b.y - a.y;
+    final len2 = dx * dx + dy * dy;
+    if (len2 == 0) return _distance(p, a);
+    final t = (((p.x - a.x) * dx) + ((p.y - a.y) * dy)) / len2;
+    final u = t.clamp(0.0, 1.0);
+    return math.hypot(p.x - a.x - u * dx, p.y - a.y - u * dy);
   }
 
-  void _redoStroke() {
+  void _undoOnce() {
+    if (_undo.isEmpty) return;
+    _redo.add(List.of(_strokes));
+    setState(() => _strokes = _undo.removeLast());
+    _emit();
+  }
+
+  void _redoOnce() {
     if (_redo.isEmpty) return;
-    setState(() {
-      _strokes = [..._strokes, _redo.removeLast()];
-    });
+    _undo.add(List.of(_strokes));
+    setState(() => _strokes = _redo.removeLast());
+    _emit();
+  }
+
+  void _clear() {
+    if (_strokes.isEmpty) return;
+    _checkpoint();
+    setState(() => _strokes.clear());
+    _emit();
   }
 
   Future<void> _pickColor() async {
-    const colors = [
-      Colors.black,
-      Colors.red,
-      Colors.blue,
-      Colors.green,
-      Colors.orange,
-      Colors.purple,
-      Colors.white,
+    const colors = <Color>[
+      Color(0xff202124), Color(0xffd93025), Color(0xfff9ab00),
+      Color(0xff188038), Color(0xff1a73e8), Color(0xff9334e6),
+      Color(0xffe52592), Colors.white,
     ];
     final value = await showModalBottomSheet<Color>(
       context: context,
-      builder: (_) => SafeArea(
+      builder: (context) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Wrap(
             spacing: 12,
+            runSpacing: 12,
             children: [
               for (final color in colors)
                 InkWell(
@@ -141,42 +211,9 @@ class _NoteDrawingEditorState extends State<NoteDrawingEditor> {
 
   @override
   Widget build(BuildContext context) {
-    const tools = NoteDrawingTool.values;
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('手绘笔记'),
-        actions: [
-          IconButton(
-            tooltip: '撤销',
-            onPressed: _strokes.isEmpty ? null : _undo,
-            icon: const Icon(Icons.undo),
-          ),
-          IconButton(
-            tooltip: '重做',
-            onPressed: _redo.isEmpty ? null : _redoStroke,
-            icon: const Icon(Icons.redo),
-          ),
-          IconButton(
-            tooltip: '清空当前图层',
-            onPressed: _strokes.isEmpty
-                ? null
-                : () => setState(() {
-                    _redo.addAll(_strokes);
-                    _strokes.clear();
-                  }),
-            icon: const Icon(Icons.delete_sweep_outlined),
-          ),
-          IconButton(
-            tooltip: '完成',
-            onPressed: () => Navigator.pop(
-              context,
-              NoteDrawingLayer(strokes: List.unmodifiable(_strokes)),
-            ),
-            icon: const Icon(Icons.check),
-          ),
-        ],
-      ),
-      body: Column(
+    return ColoredBox(
+      color: widget.backgroundColor,
+      child: Column(
         children: [
           Expanded(
             child: LayoutBuilder(
@@ -187,12 +224,17 @@ class _NoteDrawingEditorState extends State<NoteDrawingEditor> {
                   onPanStart: (d) => _begin(d.localPosition, size),
                   onPanUpdate: (d) => _update(d.localPosition, size),
                   onPanEnd: (_) => _end(),
+                  onDoubleTap: _tool == NoteDrawingTool.polygon ? _finishPolygon : null,
                   child: CustomPaint(
-                    painter: _DrawingPainter([
-                      ..._strokes,
-                      if (_active != null) _active!,
-                    ]),
-                    size: size,
+                    painter: _DrawingPainter(
+                      strokes: _strokes,
+                      active: _active,
+                      polygon: _polygon,
+                      color: _color,
+                      width: _width,
+                      tool: _tool,
+                    ),
+                    child: const SizedBox.expand(),
                   ),
                 );
               },
@@ -200,43 +242,46 @@ class _NoteDrawingEditorState extends State<NoteDrawingEditor> {
           ),
           SafeArea(
             top: false,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              child: Row(
-                children: [
-                  for (final tool in tools)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 2),
-                      child: ChoiceChip(
-                        label: Text(_label(tool)),
-                        selected: _tool == tool,
-                        onSelected: (_) => setState(() => _tool = tool),
+            child: Material(
+              elevation: 3,
+              color: Theme.of(context).colorScheme.surface.withValues(alpha: .96),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                child: Row(
+                  children: [
+                    for (final tool in NoteDrawingTool.values)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        child: ChoiceChip(
+                          label: Text(_label(tool)),
+                          selected: _tool == tool,
+                          onSelected: (_) {
+                            if (_tool == NoteDrawingTool.polygon && _polygon.isNotEmpty) _polygon.clear();
+                            setState(() => _tool = tool);
+                          },
+                        ),
+                      ),
+                    const SizedBox(width: 6),
+                    IconButton(tooltip: '撤销', onPressed: _undo.isEmpty ? null : _undoOnce, icon: const Icon(Icons.undo)),
+                    IconButton(tooltip: '重做', onPressed: _redo.isEmpty ? null : _redoOnce, icon: const Icon(Icons.redo)),
+                    IconButton(tooltip: '清空当前图层', onPressed: _strokes.isEmpty ? null : _clear, icon: const Icon(Icons.delete_sweep_outlined)),
+                    IconButton(tooltip: '颜色', onPressed: _pickColor, icon: Icon(Icons.palette_outlined, color: _color)),
+                    SizedBox(
+                      width: 170,
+                      child: Slider(
+                        min: 1,
+                        max: 18,
+                        divisions: 17,
+                        value: _width,
+                        label: _width.toStringAsFixed(0),
+                        onChanged: (v) => setState(() => _width = v),
                       ),
                     ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    tooltip: '颜色',
-                    onPressed: _pickColor,
-                    icon: Icon(Icons.palette_outlined, color: _color),
-                  ),
-                  SizedBox(
-                    width: 150,
-                    child: Row(
-                      children: [
-                        const Text('粗细'),
-                        Expanded(
-                          child: Slider(
-                            min: 1,
-                            max: 18,
-                            value: _width,
-                            onChanged: (v) => setState(() => _width = v),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                    if (_tool == NoteDrawingTool.polygon)
+                      TextButton.icon(onPressed: _finishPolygon, icon: const Icon(Icons.check), label: const Text('完成多边形')),
+                  ],
+                ),
               ),
             ),
           ),
@@ -246,46 +291,61 @@ class _NoteDrawingEditorState extends State<NoteDrawingEditor> {
   }
 
   String _label(NoteDrawingTool tool) => switch (tool) {
-    NoteDrawingTool.pen => '笔',
-    NoteDrawingTool.highlighter => '荧光笔',
-    NoteDrawingTool.line => '直线',
-    NoteDrawingTool.rectangle => '矩形',
-    NoteDrawingTool.ellipse => '椭圆',
-    NoteDrawingTool.polygon => '多边形',
-    NoteDrawingTool.eraser => '橡皮擦',
-  };
+        NoteDrawingTool.pen => '笔',
+        NoteDrawingTool.highlighter => '荧光笔',
+        NoteDrawingTool.line => '直线',
+        NoteDrawingTool.rectangle => '矩形',
+        NoteDrawingTool.ellipse => '椭圆',
+        NoteDrawingTool.polygon => '多边形',
+        NoteDrawingTool.eraser => '橡皮擦',
+      };
 }
 
 class _DrawingPainter extends CustomPainter {
-  const _DrawingPainter(this.strokes);
+  const _DrawingPainter({required this.strokes, required this.active, required this.polygon, required this.color, required this.width, required this.tool});
   final List<NoteDrawingStroke> strokes;
+  final NoteDrawingStroke? active;
+  final List<NoteDrawingPoint> polygon;
+  final Color color;
+  final double width;
+  final NoteDrawingTool tool;
+
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawColor(Colors.white, BlendMode.srcOver);
-    for (final stroke in strokes) {
-      if (stroke.points.isEmpty) continue;
-      final paint = Paint()
-        ..color = Color(stroke.color).withOpacity(stroke.opacity)
-        ..strokeWidth = stroke.width
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round
-        ..style = PaintingStyle.stroke;
-      final points = stroke.points.map((p) => p.toOffset(size)).toList();
-      final path = Path()..moveTo(points.first.dx, points.first.dy);
-      if (stroke.tool == NoteDrawingTool.line) {
-        path.lineTo(points.last.dx, points.last.dy);
-      } else if (stroke.tool == NoteDrawingTool.rectangle ||
-          stroke.tool == NoteDrawingTool.ellipse) {
-        final rect = Rect.fromPoints(points.first, points.last);
-        if (stroke.tool == NoteDrawingTool.rectangle)
-          path.addRect(rect);
-        else
-          path.addOval(rect);
-      } else {
-        for (final p in points.skip(1)) path.lineTo(p.dx, p.dy);
-      }
-      canvas.drawPath(path, paint);
+    for (final stroke in strokes) _drawStroke(canvas, size, stroke);
+    if (active != null) _drawStroke(canvas, size, active!);
+    if (polygon.isNotEmpty) {
+      final p = Paint()..color = color.withValues(alpha: .7)..strokeWidth = width..style = PaintingStyle.stroke;
+      final path = Path()..moveTo(polygon.first.x * size.width, polygon.first.y * size.height);
+      for (final point in polygon.skip(1)) path.lineTo(point.x * size.width, point.y * size.height);
+      canvas.drawPath(path, p);
     }
+  }
+
+  void _drawStroke(Canvas canvas, Size size, NoteDrawingStroke stroke) {
+    if (stroke.points.isEmpty) return;
+    final paint = Paint()
+      ..color = Color(stroke.color).withValues(alpha: stroke.opacity)
+      ..strokeWidth = stroke.width
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..style = PaintingStyle.stroke;
+    final points = stroke.points.map((p) => p.toOffset(size)).toList();
+    if (stroke.tool == NoteDrawingTool.line && points.length >= 2) {
+      canvas.drawLine(points.first, points.last, paint);
+      return;
+    }
+    if (stroke.tool == NoteDrawingTool.rectangle && points.length >= 2) {
+      canvas.drawRect(Rect.fromPoints(points.first, points.last), paint);
+      return;
+    }
+    if (stroke.tool == NoteDrawingTool.ellipse && points.length >= 2) {
+      canvas.drawOval(Rect.fromPoints(points.first, points.last), paint);
+      return;
+    }
+    final path = Path()..moveTo(points.first.dx, points.first.dy);
+    for (final point in points.skip(1)) path.lineTo(point.dx, point.dy);
+    canvas.drawPath(path, paint);
   }
 
   @override
