@@ -10,7 +10,7 @@ class ReaderInteractionController {
   const ReaderInteractionController({
     this.swipeThreshold = 48,
     this.pageVelocityThreshold = 260,
-    this.wheelPageThreshold = 0,
+    this.wheelPageThreshold = 100,
   });
 
   /// Minimum horizontal drag distance that can trigger a page turn.
@@ -19,8 +19,12 @@ class ReaderInteractionController {
   /// Minimum horizontal drag velocity that can trigger a page turn.
   final double pageVelocityThreshold;
 
-  /// Reserved for future accumulated-wheel policies. A value of zero keeps
-  /// the current event-by-event behaviour used by the reader.
+  /// Minimum physical wheel delta for one discrete page turn.
+  ///
+  /// Standard desktop mouse wheels commonly report a delta around 100 per
+  /// detent. Requiring a detent-sized movement avoids firing several page
+  /// turns from tiny trackpad/noise events while keeping the familiar
+  /// "scroll wheel = turn page" interaction on Windows.
   final double wheelPageThreshold;
 
   ReaderGestureIntent resolveHorizontalSwipe({
@@ -49,9 +53,9 @@ class ReaderInteractionController {
 
   /// Converts a desktop wheel event into a reader command.
   ///
-  /// When [zoomModifierPressed] is true the wheel is intentionally mapped to
-  /// zoom rather than navigation. The modifier state is supplied by the host
-  /// so this controller stays platform-independent.
+  /// Without Ctrl, a sufficiently large wheel detent turns exactly one page.
+  /// With Ctrl, wheel input remains a zoom command. This keeps wheel paging
+  /// predictable on Windows while preserving the existing Ctrl+wheel zoom.
   ReaderPointerIntent resolvePointerSignal(
     PointerSignalEvent event, {
     bool zoomModifierPressed = false,
@@ -65,6 +69,8 @@ class ReaderInteractionController {
           ? ReaderPointerIntent.zoomIn
           : ReaderPointerIntent.zoomOut;
     }
+
+    if (dy.abs() < wheelPageThreshold) return ReaderPointerIntent.none;
 
     return dy > 0
         ? ReaderPointerIntent.nextPage
