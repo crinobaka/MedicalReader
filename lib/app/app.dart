@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/home/home_page.dart';
 import '../features/library/pages/library_page.dart';
+import '../features/library/providers/library_provider.dart';
 import '../features/search/search_page.dart';
 import '../features/knowledge/pages/knowledge_page.dart';
 import '../features/settings/pages/settings_page.dart';
@@ -25,16 +27,16 @@ class MedicalReaderApp extends StatelessWidget {
 
 /// 自适应主导航：手机优先使用底部导航，大屏使用左侧 NavigationRail。
 ///
-/// 这样同一套页面在 Android、平板和 Windows 上都遵循熟悉的平台习惯，
-/// 而不是要求用户在小屏幕上操作一条挤满文字的桌面导航栏。
-class MainShell extends StatefulWidget {
+/// 切换回书库时主动失效 Library provider，使 Android 上从知识/搜索等页面
+/// 返回书库能够看到刚刚发生的文件变化，而无需用户手动点击刷新。
+class MainShell extends ConsumerStatefulWidget {
   const MainShell({super.key});
 
   @override
-  State<MainShell> createState() => _MainShellState();
+  ConsumerState<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> {
+class _MainShellState extends ConsumerState<MainShell> {
   int index = 0;
 
   static const destinations = <NavigationDestination>[
@@ -61,6 +63,14 @@ class _MainShellState extends State<MainShell> {
     SettingsPage(),
   ];
 
+  void _select(int value) {
+    if (value == index) return;
+    setState(() => index = value);
+    if (value == 1) {
+      ref.invalidate(libraryProvider);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -73,7 +83,7 @@ class _MainShellState extends State<MainShell> {
             body: body,
             bottomNavigationBar: NavigationBar(
               selectedIndex: index,
-              onDestinationSelected: (value) => setState(() => index = value),
+              onDestinationSelected: _select,
               destinations: destinations,
             ),
           );
@@ -84,7 +94,7 @@ class _MainShellState extends State<MainShell> {
             children: [
               NavigationRail(
                 selectedIndex: index,
-                onDestinationSelected: (value) => setState(() => index = value),
+                onDestinationSelected: _select,
                 labelType: NavigationRailLabelType.all,
                 groupAlignment: -0.75,
                 destinations: railDestinations,
