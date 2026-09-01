@@ -1,9 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:medical_reader/features/knowledge/models/note_drawing.dart';
-import 'package:medical_reader/features/knowledge/services/note_drawing_transform_service.dart';
+import 'package:medicalreader/features/knowledge/models/note_drawing.dart';
+import 'package:medicalreader/features/knowledge/services/note_drawing_transform_service.dart';
 
 void main() {
   const service = NoteDrawingTransformService();
