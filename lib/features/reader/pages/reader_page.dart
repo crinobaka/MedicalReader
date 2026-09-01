@@ -26,10 +26,8 @@ import '../widgets/reader_settings_panel.dart';
 
 class ReaderPage extends ConsumerStatefulWidget {
   const ReaderPage({super.key, required this.document, this.initialPage = 0});
-
   final LibraryDocument document;
   final int initialPage;
-
   @override
   ConsumerState<ReaderPage> createState() => _ReaderPageState();
 }
@@ -55,21 +53,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   }
 
   List<ReaderAnnotation> get _annotations => ref
-      .watch(readerAnnotationsProvider(widget.document))
+      .read(readerAnnotationsProvider(widget.document))
       .where((item) => item.pageIndex == _controller.currentPage)
-      .toList(growable: false);
-
-  bool get _bookmarked => _annotations.any((item) => item.type == ReaderAnnotationType.bookmark);
-
-  List<List<Offset>> get _inkStrokes => _annotations
-      .where((item) => item.type == ReaderAnnotationType.ink && item.rect.length >= 4)
-      .map((item) {
-        final values = <Offset>[];
-        for (var i = 0; i + 1 < item.rect.length; i += 2) {
-          values.add(Offset(item.rect[i], item.rect[i + 1]));
-        }
-        return values;
-      })
       .toList(growable: false);
 
   Future<void> _saveInkStroke(List<double> normalized) async {
@@ -172,11 +157,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             createdAt: DateTime.now(),
             updatedAt: DateTime.now(),
           );
+    final directory = await const ReaderAnnotationService().ensureAttachmentsDirectory(widget.document);
+    if (!mounted) return;
     final result = await showDialog<ReaderAnnotation>(
       context: context,
       builder: (dialogContext) => ReaderNoteDialog(
         note: note,
-        documentDirectory: (await const ReaderAnnotationService().ensureAttachmentsDirectory(widget.document)).path,
+        documentDirectory: directory.path,
         onInsertImage: () async {
           final files = await FilePicker.pickFiles(type: FileType.image);
           if (files.isEmpty) return null;
@@ -270,9 +257,19 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   @override
   Widget build(BuildContext context) {
+    final annotations = ref.watch(readerAnnotationsProvider(widget.document));
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, _) {
+        final currentAnnotations = annotations.where((item) => item.pageIndex == _controller.currentPage).toList(growable: false);
+        final bookmarked = currentAnnotations.any((item) => item.type == ReaderAnnotationType.bookmark);
+        final inkStrokes = currentAnnotations.where((item) => item.type == ReaderAnnotationType.ink && item.rect.length >= 4).map((item) {
+          final values = <Offset>[];
+          for (var i = 0; i + 1 < item.rect.length; i += 2) {
+            values.add(Offset(item.rect[i], item.rect[i + 1]));
+          }
+          return values;
+        }).toList(growable: false);
         final path = _controller.currentBookTreePath;
         return ReaderPageLayout(
           locationLabel: _controller.currentLocationLabel,
@@ -284,7 +281,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           previousPageImage: _controller.previousPageImage,
           nextPageImage: _controller.nextPageImage,
           searchHits: _searchHits,
-          bookmarked: _bookmarked,
+          bookmarked: bookmarked,
           cropEnabled: _controller.cropMargins,
           canGoPrevious: _controller.currentPage > 0,
           canGoNext: _controller.currentPage < _controller.pageCount - 1,
@@ -294,7 +291,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           currentBookTreeNode: _controller.currentBookTreeNode,
           searchResultPath: path,
           bookTreeNodes: _controller.bookTreeIndex.nodes,
-          inkStrokes: _inkStrokes,
+          inkStrokes: inkStrokes,
           onInkStroke: _saveInkStroke,
           keyboardFocusNode: _focusNode,
           transformationController: _transformationController,
