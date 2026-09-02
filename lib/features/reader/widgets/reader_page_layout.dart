@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../controllers/reader_interaction_controller.dart';
 import '../models/book_tree_node.dart';
+import '../models/reader_ink_stroke.dart';
 import '../providers/reader_view_options_provider.dart';
 import '../services/reader_search_service.dart';
 import '../services/reader_ui_theme.dart';
@@ -44,7 +45,9 @@ class ReaderPageLayout extends ConsumerStatefulWidget {
   final List<BookTreeNode> searchResultPath;
   final List<BookTreeNode> bookTreeNodes;
   final List<List<Offset>> inkStrokes;
+  final List<ReaderInkStroke> typedInkStrokes;
   final ValueChanged<List<double>>? onInkStroke;
+  final ValueChanged<ReaderInkStroke>? onInkStrokeData;
   final Future<void> Function(int page) onPageSelected;
   final FocusNode keyboardFocusNode;
   final TransformationController transformationController;
@@ -83,7 +86,9 @@ class ReaderPageLayout extends ConsumerStatefulWidget {
     required this.searchResultPath,
     this.bookTreeNodes = const [],
     this.inkStrokes = const [],
+    this.typedInkStrokes = const [],
     this.onInkStroke,
+    this.onInkStrokeData,
     required this.onPageSelected,
     required this.keyboardFocusNode,
     required this.transformationController,
@@ -152,17 +157,11 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
     if (widget.pageLoading || _gestureStartedZooming || _tocVisible || _inkMode) return;
     if ((widget.transformationController.value.getMaxScaleOnAxis() - 1).abs() > 0.01) return;
     if (_gestureDistanceX.abs() < 48 || _gestureDistanceX.abs() <= _gestureDistanceY.abs() * 1.2) return;
-
-    // The touch surface is intentionally divided into three vertical zones.
-    // Zone 2 is reserved for the table-of-contents gesture; only zone 3
-    // performs page navigation. This keeps the two interactions from fighting
-    // each other on phones and leaves zone 1 free for ordinary canvas use.
     if (_gestureZone == 2) {
       _openToc(_gestureDistanceX > 0);
       return;
     }
     if (_gestureZone != 3) return;
-
     final intent = _interaction.resolveHorizontalSwipe(
       distance: _gestureDistanceX,
       velocity: details.velocity.pixelsPerSecond.dx,
@@ -190,6 +189,11 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
           strokes: widget.inkStrokes
               .map((stroke) => stroke.map((p) => Offset(p.dx * size.width, p.dy * size.height)).toList())
               .toList(),
+          typedStrokes: widget.typedInkStrokes
+              .map((stroke) => stroke.copyWith(
+                    points: stroke.points.map((p) => Offset(p.dx * size.width, p.dy * size.height)).toList(),
+                  ))
+              .toList(),
           enabled: _inkMode,
           onStrokeEnd: (stroke) {
             if (widget.onInkStroke == null || stroke.length < 2) return;
@@ -200,6 +204,19 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
             }
             widget.onInkStroke!(normalized);
           },
+          onStrokeEndData: widget.onInkStrokeData == null
+              ? null
+              : (stroke) {
+                  if (stroke.points.length < 2) return;
+                  widget.onInkStrokeData!(stroke.copyWith(
+                    points: stroke.points
+                        .map((point) => Offset(
+                              (point.dx / size.width).clamp(0.0, 1.0),
+                              (point.dy / size.height).clamp(0.0, 1.0),
+                            ))
+                        .toList(growable: false),
+                  ));
+                },
         ),
       ],
     );
@@ -219,7 +236,6 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
     } else {
       pages.add(current);
     }
-
     return ColoredBox(
       color: _canvasColor(context),
       child: LayoutBuilder(
@@ -230,7 +246,6 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
           const gap = 12.0;
           final usableWidth = math.max(1.0, availableWidth - gap * (count - 1));
           final usableHeight = math.max(1.0, availableHeight);
-
           if (count == 1) {
             final image = pages.single;
             final ratio = image.width / image.height;
@@ -250,14 +265,12 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
               ),
             );
           }
-
           final widthByRow = usableWidth / count;
           var pageWidth = widthByRow;
           final ratios = pages.map((page) => page.width / page.height).toList(growable: false);
           final narrowestRatio = ratios.reduce((a, b) => a < b ? a : b);
           final heightForWidth = pageWidth / narrowestRatio;
           if (heightForWidth > usableHeight) pageWidth = usableHeight * narrowestRatio;
-
           final spreadWidth = pageWidth * count + gap * (count - 1);
           return Center(
             child: SizedBox(
@@ -343,43 +356,29 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
       onSettings: widget.onSettings,
     );
     if (widget.loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    if (widget.error != null && widget.image == null) {
-      return Scaffold(body: ReaderErrorView(error: widget.error!, onRetry: widget.onRetry));
-    }
+    if (widget.error != null && widget.image == null) return Scaffold(body: ReaderErrorView(error: widget.error!, onRetry: widget.onRetry));
     if (widget.image == null) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-
     final controls = options.showPageControls
         ? ReaderPageControls(
             canGoPrevious: widget.canGoPrevious,
             canGoNext: widget.canGoNext,
             pageLoading: widget.pageLoading,
-            pageLabel: widget.bookPage == null
-                ? 'PDF P${widget.currentPage + 1} / ${widget.pageCount}'
-                : '书籍 P${widget.bookPage} · PDF P${widget.currentPage + 1} / ${widget.pageCount}',
+            pageLabel: widget.bookPage == null ? 'PDF P${widget.currentPage + 1} / ${widget.pageCount}' : '书籍 P${widget.bookPage} · PDF P${widget.currentPage + 1} / ${widget.pageCount}',
             locationLabel: widget.currentBookTreeNode?.name,
-            searchLabel: widget.searchResultPath.isNotEmpty
-                ? '搜索命中 · ${widget.searchResultPath.map((node) => node.name).join(' › ')}'
-                : null,
+            searchLabel: widget.searchResultPath.isNotEmpty ? '搜索命中 · ${widget.searchResultPath.map((node) => node.name).join(' › ')}' : null,
             onPrevious: widget.onPrevious,
             onNext: widget.onNext,
             onPageTap: widget.onPageJump,
           )
         : null;
-
     final canvas = Listener(
       onPointerSignal: _handlePointerSignal,
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onTap: options.floatingControls ? _toggleControls : null,
-        onLongPressStart: (details) {
-          if (!_inkMode && !_tocVisible) setState(() => _magnifierPosition = details.localPosition);
-        },
-        onLongPressMoveUpdate: (details) {
-          if (_magnifierPosition != null) setState(() => _magnifierPosition = details.localPosition);
-        },
-        onLongPressEnd: (_) {
-          if (_magnifierPosition != null) setState(() => _magnifierPosition = null);
-        },
+        onLongPressStart: (details) { if (!_inkMode && !_tocVisible) setState(() => _magnifierPosition = details.localPosition); },
+        onLongPressMoveUpdate: (details) { if (_magnifierPosition != null) setState(() => _magnifierPosition = details.localPosition); },
+        onLongPressEnd: (_) { if (_magnifierPosition != null) setState(() => _magnifierPosition = null); },
         onDoubleTap: _resetZoom,
         child: ReaderViewport(
           loading: widget.pageLoading,
@@ -395,7 +394,6 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
         ),
       ),
     );
-
     final content = options.floatingControls
         ? Stack(
             fit: StackFit.expand,
@@ -404,11 +402,9 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
               _edgeTocGesture(true),
               _edgeTocGesture(false),
               if (_magnifierPosition != null) ReaderMagnifierOverlay(position: _magnifierPosition!),
-              if (_controlsVisible)
-                Positioned(top: 0, left: 0, right: 0, child: SafeArea(child: toolbar)),
-              if (_controlsVisible && controls != null)
-                Positioned(left: 0, right: 0, bottom: 0, child: SafeArea(child: controls)),
-              if (_controlsVisible && widget.onInkStroke != null)
+              if (_controlsVisible) Positioned(top: 0, left: 0, right: 0, child: SafeArea(child: toolbar)),
+              if (_controlsVisible && controls != null) Positioned(left: 0, right: 0, bottom: 0, child: SafeArea(child: controls)),
+              if (_controlsVisible && (widget.onInkStroke != null || widget.onInkStrokeData != null))
                 Positioned(
                   right: 16,
                   bottom: controls == null ? 20 : 82,
@@ -434,7 +430,6 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
             ],
           )
         : Column(children: [toolbar, Expanded(child: canvas), ?controls]);
-
     return Scaffold(
       body: KeyboardListener(
         focusNode: widget.keyboardFocusNode,
@@ -446,54 +441,32 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
 
   void _handleKeyEvent(KeyEvent event) {
     if (event is! KeyDownEvent) return;
-    if (HardwareKeyboard.instance.isControlPressed && event.logicalKey == LogicalKeyboardKey.keyF) {
-      unawaited(widget.onSearch());
-    } else if (event.logicalKey == LogicalKeyboardKey.escape) {
-      if (_tocVisible || _magnifierPosition != null) {
-        setState(() {
-          _tocVisible = false;
-          _magnifierPosition = null;
-        });
-      } else if (!_controlsVisible) {
-        setState(() => _controlsVisible = true);
-      }
-    } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft || event.logicalKey == LogicalKeyboardKey.pageUp) {
-      unawaited(widget.onPrevious());
-    } else if (event.logicalKey == LogicalKeyboardKey.arrowRight || event.logicalKey == LogicalKeyboardKey.pageDown) {
-      unawaited(widget.onNext());
-    } else if (event.logicalKey == LogicalKeyboardKey.home) {
-      unawaited(widget.onFirst());
-    } else if (event.logicalKey == LogicalKeyboardKey.end) {
-      unawaited(widget.onLast());
-    } else if (event.logicalKey == LogicalKeyboardKey.keyG) {
-      unawaited(widget.onPageJump());
-    } else if (event.logicalKey == LogicalKeyboardKey.keyB) {
-      unawaited(widget.onBookPageJump());
-    }
+    if (HardwareKeyboard.instance.isControlPressed && event.logicalKey == LogicalKeyboardKey.keyF) unawaited(widget.onSearch());
+    else if (event.logicalKey == LogicalKeyboardKey.escape) {
+      if (_tocVisible || _magnifierPosition != null) setState(() { _tocVisible = false; _magnifierPosition = null; });
+      else if (!_controlsVisible) setState(() => _controlsVisible = true);
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft || event.logicalKey == LogicalKeyboardKey.pageUp) unawaited(widget.onPrevious());
+    else if (event.logicalKey == LogicalKeyboardKey.arrowRight || event.logicalKey == LogicalKeyboardKey.pageDown) unawaited(widget.onNext());
+    else if (event.logicalKey == LogicalKeyboardKey.home) unawaited(widget.onFirst());
+    else if (event.logicalKey == LogicalKeyboardKey.end) unawaited(widget.onLast());
+    else if (event.logicalKey == LogicalKeyboardKey.keyG) unawaited(widget.onPageJump());
+    else if (event.logicalKey == LogicalKeyboardKey.keyB) unawaited(widget.onBookPageJump());
   }
 
   void _handlePointerSignal(PointerSignalEvent event) {
     if (widget.pageLoading) return;
-    final intent = _interaction.resolvePointerSignal(
-      event,
-      zoomModifierPressed: HardwareKeyboard.instance.isControlPressed,
-    );
+    final intent = _interaction.resolvePointerSignal(event, zoomModifierPressed: HardwareKeyboard.instance.isControlPressed);
     switch (intent) {
-      case ReaderPointerIntent.previousPage:
-        unawaited(widget.onPrevious());
-      case ReaderPointerIntent.nextPage:
-        unawaited(widget.onNext());
+      case ReaderPointerIntent.previousPage: unawaited(widget.onPrevious());
+      case ReaderPointerIntent.nextPage: unawaited(widget.onNext());
       case ReaderPointerIntent.zoomIn:
       case ReaderPointerIntent.zoomOut:
         final currentScale = widget.transformationController.value.getMaxScaleOnAxis();
         final factor = intent == ReaderPointerIntent.zoomIn ? 1.1 : 0.9;
         final targetScale = (currentScale * factor).clamp(0.5, 4.0).toDouble();
         final actualFactor = targetScale / currentScale;
-        if (actualFactor != 1.0) {
-          widget.transformationController.value = widget.transformationController.value.clone()..scale(actualFactor);
-        }
-      case ReaderPointerIntent.none:
-        break;
+        if (actualFactor != 1.0) widget.transformationController.value = widget.transformationController.value.clone()..scale(actualFactor);
+      case ReaderPointerIntent.none: break;
     }
   }
 }
