@@ -30,6 +30,7 @@ class ReaderInkLayer extends StatefulWidget {
 
 class _ReaderInkLayerState extends State<ReaderInkLayer> {
   List<Offset> _current = const [];
+  List<double> _currentPressure = const [];
   ReaderInkTool _tool = ReaderInkTool.pen;
   Color _color = Colors.red;
   double _width = 2.6;
@@ -44,8 +45,27 @@ class _ReaderInkLayerState extends State<ReaderInkLayer> {
     _width = widget.width;
   }
 
+  void _pointerDown(PointerDownEvent event) {
+    if (!widget.enabled) return;
+    final pressure = event.pressure.isFinite ? event.pressure.clamp(0.0, 1.0).toDouble() : 1.0;
+    setState(() {
+      _currentPressure = [pressure];
+    });
+  }
+
+  void _pointerMove(PointerMoveEvent event) {
+    if (!widget.enabled || _current.isEmpty) return;
+    final pressure = event.pressure.isFinite ? event.pressure.clamp(0.0, 1.0).toDouble() : 1.0;
+    setState(() => _currentPressure = [..._currentPressure, pressure]);
+  }
+
   void _start(DragStartDetails d) {
-    if (widget.enabled) setState(() => _current = [d.localPosition]);
+    if (widget.enabled) {
+      setState(() {
+        _current = [d.localPosition];
+        if (_currentPressure.isEmpty) _currentPressure = [1.0];
+      });
+    }
   }
 
   void _update(DragUpdateDetails d) {
@@ -56,23 +76,25 @@ class _ReaderInkLayerState extends State<ReaderInkLayer> {
 
   void _end(DragEndDetails d) {
     if (!widget.enabled || _current.length < 2) {
-      if (mounted) setState(() => _current = const []);
+      if (mounted) setState(() {
+        _current = const [];
+        _currentPressure = const [];
+      });
       return;
     }
     final stroke = _current;
-    setState(() => _current = const []);
+    final pressure = _normalizedPressure(stroke.length);
+    setState(() {
+      _current = const [];
+      _currentPressure = const [];
+    });
 
     if (_tool == ReaderInkTool.eraser) {
       final typedHit = _hitTyped(stroke);
       if (typedHit != null) {
         setState(() => _localErasedTyped.add(typedHit));
-        widget.onStrokeEndData?.(ReaderInkStroke(
-          tool: ReaderInkTool.eraser,
-          color: _color,
-          width: _width,
-          opacity: 1,
-          points: stroke,
-        ));
+        final eraser = ReaderInkStroke(tool: ReaderInkTool.eraser, color: _color, width: _width, opacity: 1, points: stroke, pressure: pressure);
+        widget.onStrokeEndData?.(eraser);
         if (widget.onStrokeEndData == null) {
           widget.onStrokeEnd([const Offset(0, 0), const Offset(0, 1), ..._strip(typedHit.points)]);
         }
@@ -92,12 +114,25 @@ class _ReaderInkLayerState extends State<ReaderInkLayer> {
       width: _width,
       opacity: _tool == ReaderInkTool.highlighter ? .28 : 1,
       points: stroke,
+      pressure: pressure,
     );
     if (widget.onStrokeEndData != null) {
       widget.onStrokeEndData!(data);
     } else {
       widget.onStrokeEnd(_encode(stroke));
     }
+  }
+
+  List<double> _normalizedPressure(int pointCount) {
+    if (pointCount <= 0) return const [];
+    if (_currentPressure.isEmpty) return List<double>.filled(pointCount, 1.0, growable: false);
+    if (_currentPressure.length == pointCount) return List<double>.unmodifiable(_currentPressure);
+    final result = <double>[];
+    for (var i = 0; i < pointCount; i++) {
+      final source = ((i / mathMax(1, pointCount - 1)) * (_currentPressure.length - 1)).round();
+      result.add(_currentPressure[source].clamp(0.0, 1.0).toDouble());
+    }
+    return List<double>.unmodifiable(result);
   }
 
   List<Offset> _encode(List<Offset> p) {
@@ -171,12 +206,17 @@ class _ReaderInkLayerState extends State<ReaderInkLayer> {
           painter: _Painter(legacyStrokes: legacy, typedStrokes: typed, current: _current, tool: _tool, color: _color, width: _width, size: _size),
           size: Size.infinite,
         ),
-        GestureDetector(
+        Listener(
           behavior: widget.enabled ? HitTestBehavior.opaque : HitTestBehavior.translucent,
-          onPanStart: _start,
-          onPanUpdate: _update,
-          onPanEnd: _end,
-          child: const SizedBox.expand(),
+          onPointerDown: _pointerDown,
+          onPointerMove: _pointerMove,
+          child: GestureDetector(
+            behavior: widget.enabled ? HitTestBehavior.opaque : HitTestBehavior.translucent,
+            onPanStart: _start,
+            onPanUpdate: _update,
+            onPanEnd: _end,
+            child: const SizedBox.expand(),
+          ),
         ),
         if (widget.enabled)
           Positioned(
