@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import '../../library/providers/library_repository_provider.dart';
 import '../controllers/reader_page_controller.dart';
 import '../models/book_tree_node.dart';
 import '../models/reader_annotation.dart';
+import '../models/reader_ink_stroke.dart';
 import '../providers/reader_annotation_provider.dart';
 import '../providers/reader_view_options_provider.dart';
 import '../services/book_tree_service.dart';
@@ -30,7 +32,24 @@ class _ReaderPageState extends ConsumerState<ReaderPage>{
   bool get _bookmarked=>_annotations.any((x)=>x.type==ReaderAnnotationType.bookmark);
   List<List<Offset>> get _inkStrokes=>_annotations.where((x)=>x.type==ReaderAnnotationType.ink&&x.rect.length>=4).map((x)=>_decodeStroke(x.rect)).toList(growable:false);
   List<Offset> _decodeStroke(List<double> r){final values=r.isNotEmpty&&r[0]==-1&&r.length>=5?r.sublist(5):r;return[for(var i=0;i+1<values.length;i+=2)Offset(values[i],values[i+1])];}
-  Future<void> _saveInkStroke(List<double> n)async{if(n.length<4)return;final notifier=ref.read(readerAnnotationsProvider(widget.document).notifier);if(n.length>=6&&n[0]==0&&n[1]==0&&n[2]==0&&n[3]==1){final target=n.sublist(4);final match=_annotations.where((x){if(x.type!=ReaderAnnotationType.ink||x.rect.length!=target.length)return false;for(var i=0;i<target.length;i++)if((x.rect[i]-target[i]).abs()>.002)return false;return true;}).toList(growable:false);for(final x in match)await notifier.remove(x.id);return;}final now=DateTime.now();await notifier.add(ReaderAnnotation(id:'ink_${widget.document.id}_${_controller.currentPage}_${now.microsecondsSinceEpoch}',bookId:widget.document.id,pageIndex:_controller.currentPage,type:ReaderAnnotationType.ink,rect:n,createdAt:now,updatedAt:now));}
+  ReaderInkStroke? _decodeTypedStroke(List<double> n){
+    if(n.length<10)return null;
+    final sentinel=n[0];
+    if(sentinel!=.999999)return null;
+    final toolIndex=(n[1]*10).round().clamp(0,2).toInt();
+    final color=Color((n[2]*0xffffffff).round().clamp(0,0xffffffff).toInt());
+    final width=(n[3]*100).clamp(.1,100.0).toDouble();
+    final opacity=n[4].clamp(.05,1.0).toDouble();
+    final values=n.sublist(5);
+    return ReaderInkStroke(
+      tool:ReaderInkTool.values[toolIndex],
+      color:color,
+      width:width,
+      opacity:opacity,
+      points:[for(var i=0;i+1<values.length;i+=2)Offset(values[i],values[i+1])],
+    );
+  }
+  Future<void> _saveInkStroke(List<double> n)async{if(n.length<4)return;final notifier=ref.read(readerAnnotationsProvider(widget.document).notifier);if(n.length>=6&&n[0]==0&&n[1]==0&&n[2]==0&&n[3]==1){final target=n.sublist(4);final match=_annotations.where((x){if(x.type!=ReaderAnnotationType.ink||x.rect.length!=target.length)return false;for(var i=0;i<target.length;i++)if((x.rect[i]-target[i]).abs()>.002)return false;return true;}).toList(growable:false);for(final x in match)await notifier.remove(x.id);return;}final now=DateTime.now();await notifier.add(ReaderAnnotation(id:'ink_${widget.document.id}_${_controller.currentPage}_${now.microsecondsSinceEpoch}',bookId:widget.document.id,pageIndex:_controller.currentPage,type:ReaderAnnotationType.ink,rect:n,inkStroke:_decodeTypedStroke(n),createdAt:now,updatedAt:now));}
   Future<void> _toggleBookmark()async{if(_controller.pageLoading)return;final notifier=ref.read(readerAnnotationsProvider(widget.document).notifier);final e=_annotations.where((x)=>x.type==ReaderAnnotationType.bookmark);if(e.isNotEmpty){for(final x in e)await notifier.remove(x.id);return;}final now=DateTime.now();await notifier.add(ReaderAnnotation(id:'bookmark_${widget.document.id}_${_controller.currentPage}',bookId:widget.document.id,pageIndex:_controller.currentPage,type:ReaderAnnotationType.bookmark,createdAt:now,updatedAt:now));}
   Future<void> _showSearch()async{final r=await showDialog<ReaderSearchResult>(context:context,builder:(_)=>ReaderSearchDialog(searchService:_searchService,documentId:widget.document.file.id,documentPath:widget.document.file.path,currentPage:_controller.currentPage,bookTreeIndex:_controller.bookTreeIndex,bookPageMapping:_controller.bookPageMapping,bookTemplate:_controller.bookTemplate,searchContext:{...?_controller.bookTemplate?.searchContext,...?_controller.bookManifest?.searchContext}));if(r==null||!mounted)return;setState(()=>_searchHits=r.hits);await _controller.goToPage(r.pageIndex);if(mounted)_focusNode.requestFocus();}
   Future<void> _editBookTree()async{final r=await showDialog<List<BookTreeNode>>(context:context,builder:(_)=>BookTreeEditorDialog(nodes:_controller.bookTreeIndex.nodes));if(r==null||!mounted)return;await BookTreeService().saveTreeForDocument(widget.document,r);await _controller.retry();}
