@@ -23,6 +23,12 @@ import '../widgets/reader_page_layout.dart';
 import '../widgets/reader_serch_dialog.dart';
 import '../widgets/reader_settings_panel.dart';
 
+// PAGE TURN REGISTRATION ONLY:
+// The visual page-turn implementation lives in ../widgets/reader_page_turn.dart.
+// Keep the implementation out of ReaderPage; this comment is the intentional
+// integration boundary for deciding where the transition should be mounted.
+// Do not move page-turn animation/gesture implementation into this file.
+
 class ReaderPage extends ConsumerStatefulWidget { const ReaderPage({super.key,required this.document,this.initialPage=0}); final LibraryDocument document; final int initialPage; @override ConsumerState<ReaderPage> createState()=>_ReaderPageState(); }
 class _ReaderPageState extends ConsumerState<ReaderPage>{
   late final ReaderPageController _controller; final ReaderSearchService _searchService=const ReaderSearchService(); final AudioRecorder _audioRecorder=AudioRecorder(); late final FocusNode _focusNode; late final TransformationController _transformationController; List<ReaderSearchHit> _searchHits=const[];
