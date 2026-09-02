@@ -57,7 +57,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final storage = ref.read(libraryStorageServiceProvider);
     final readerOptions = ref.watch(readerViewOptionsProvider);
     final height = MediaQuery.sizeOf(context).height;
-    final panelHeight = (height * 0.62).clamp(360.0, 720.0);
+    final panelHeight = (height * 0.62).clamp(360.0, 720.0).toDouble();
 
     return Scaffold(
       appBar: AppBar(title: const Text('设置')),
@@ -107,15 +107,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               height: panelHeight,
               child: ReaderSettingsPanel(
                 options: readerOptions,
-                onChanged: (options) => ref
-                    .read(readerViewOptionsProvider.notifier)
-                    .update(options),
+                onChanged: (options) => ref.read(readerViewOptionsProvider.notifier).update(options),
                 onReset: () async {
                   await ref.read(readerViewOptionsProvider.notifier).reset();
                   if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('阅读器显示设置已恢复默认值')),
-                  );
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('阅读器显示设置已恢复默认值')));
                 },
               ),
             ),
@@ -135,15 +131,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 ),
                 const Divider(height: 1),
                 if (_templatesLoading)
-                  const Padding(
-                    padding: EdgeInsets.all(20),
-                    child: CircularProgressIndicator(),
-                  )
+                  const Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator())
                 else if (_templates.isEmpty)
-                  const ListTile(
-                    leading: Icon(Icons.info_outline),
-                    title: Text('暂无模板'),
-                  )
+                  const ListTile(leading: Icon(Icons.info_outline), title: Text('暂无模板'))
                 else
                   ..._templates.map(_buildTemplateTile),
               ],
@@ -166,30 +156,21 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   Widget _buildSectionTitle(String title) => Padding(
         padding: const EdgeInsets.only(left: 4),
-        child: Text(
-          title,
-          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-        ),
+        child: Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
       );
 
   Widget _buildTemplateTile(BookTemplate template) => FutureBuilder<bool>(
-        future: _userTemplateService.getDirectory().then(
-              (directory) => File(
-                '${directory.path}${Platform.pathSeparator}${template.id}.json',
-              ).exists(),
-            ),
+        future: _userTemplateService.getDirectory().then((directory) => File('${directory.path}${Platform.pathSeparator}${template.id}.json').exists()),
         builder: (context, snapshot) {
           final isUserTemplate = snapshot.data == true;
           return ListTile(
             leading: Icon(isUserTemplate ? Icons.edit_note : Icons.menu_book),
             title: Text(template.name),
-            subtitle: Text(
-              [
-                if (template.description != null) template.description!,
-                'ID: ${template.id}',
-                if (isUserTemplate) '用户模板' else '内置/官方模板',
-              ].join('\n'),
-            ),
+            subtitle: Text([
+              if (template.description != null) template.description!,
+              'ID: ${template.id}',
+              if (isUserTemplate) '用户模板' else '内置/官方模板',
+            ].join('\n')),
             isThreeLine: true,
             trailing: isUserTemplate
                 ? PopupMenuButton<String>(
@@ -202,11 +183,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       PopupMenuItem(value: 'delete', child: Text('删除')),
                     ],
                   )
-                : IconButton(
-                    tooltip: '复制为自定义模板',
-                    icon: const Icon(Icons.copy),
-                    onPressed: () => _editTemplate(template),
-                  ),
+                : IconButton(tooltip: '复制为自定义模板', icon: const Icon(Icons.copy), onPressed: () => _editTemplate(template)),
           );
         },
       );
@@ -216,38 +193,27 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     if (selected == null || !mounted) return;
     await ref.read(libraryProvider.notifier).reload();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('文件库已切换到：${selected.path}')),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('文件库已切换到：${selected.path}')));
     setState(() {});
   }
 
   Future<void> _editTemplate([BookTemplate? source]) async {
     final controller = TextEditingController(
-      text: const JsonEncoder.withIndent('  ').convert(
-        source?.toJson() ??
-            {
-              'id': 'my-medical-template',
-              'name': '我的医学书模板',
-              'version': '1.0.0',
-              'description': '用户自定义模板',
-              'author': 'Me',
-              'data': {
-                'metadata': {'category': 'medical', 'language': 'zh-CN'},
-                'aliases': <String>[],
-                'defaults': {
-                  'bookPageMapping': {'enabled': true, 'strategy': 'manual'},
-                  'searchContext': {
-                    'showContext': true,
-                    'showChapter': true,
-                    'showBookPage': true,
-                    'contextBefore': 80,
-                    'contextAfter': 120,
-                  },
-                },
-              },
-            },
-      ),
+      text: const JsonEncoder.withIndent('  ').convert(source?.toJson() ?? {
+        'id': 'my-medical-template',
+        'name': '我的医学书模板',
+        'version': '1.0.0',
+        'description': '用户自定义模板',
+        'author': 'Me',
+        'data': {
+          'metadata': {'category': 'medical', 'language': 'zh-CN'},
+          'aliases': <String>[],
+          'defaults': {
+            'bookPageMapping': {'enabled': true, 'strategy': 'manual'},
+            'searchContext': {'showContext': true, 'showChapter': true, 'showBookPage': true, 'contextBefore': 80, 'contextAfter': 120},
+          },
+        },
+      }),
     );
     final saved = await showDialog<bool>(
       context: context,
@@ -255,41 +221,22 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         title: Text(source == null ? '创建自定义模板' : '编辑自定义模板'),
         content: SizedBox(
           width: 720,
-          child: TextField(
-            controller: controller,
-            minLines: 18,
-            maxLines: 28,
-            keyboardType: TextInputType.multiline,
-            textAlignVertical: TextAlignVertical.top,
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
-              hintText: '在这里编辑完整 BookTemplate JSON',
-            ),
-          ),
+          child: TextField(controller: controller, minLines: 18, maxLines: 28, keyboardType: TextInputType.multiline, textAlignVertical: TextAlignVertical.top, decoration: const InputDecoration(border: OutlineInputBorder(), hintText: '在这里编辑完整 BookTemplate JSON')),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('取消'),
-          ),
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('取消')),
           FilledButton(
             onPressed: () async {
               try {
                 final decoded = jsonDecode(controller.text);
-                if (decoded is! Map<String, dynamic>) {
-                  throw const FormatException('模板根节点必须是 JSON 对象');
-                }
+                if (decoded is! Map<String, dynamic>) throw const FormatException('模板根节点必须是 JSON 对象');
                 final template = BookTemplate.fromJson(decoded);
-                if (template.id.trim().isEmpty || template.name.trim().isEmpty) {
-                  throw const FormatException('模板 id 和 name 不能为空');
-                }
+                if (template.id.trim().isEmpty || template.name.trim().isEmpty) throw const FormatException('模板 id 和 name 不能为空');
                 await _userTemplateService.save(template);
                 if (dialogContext.mounted) Navigator.of(dialogContext).pop(true);
               } catch (error) {
                 if (!dialogContext.mounted) return;
-                ScaffoldMessenger.of(dialogContext).showSnackBar(
-                  SnackBar(content: Text('模板 JSON 无效：$error')),
-                );
+                ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(content: Text('模板 JSON 无效：$error')));
               }
             },
             child: const Text('保存'),
@@ -301,9 +248,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     if (saved == true) {
       await _loadTemplates();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('模板已保存到应用数据目录')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('模板已保存到应用数据目录')));
     }
   }
 
@@ -314,14 +259,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         title: const Text('删除模板'),
         content: Text('确定删除“${template.name}”吗？'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('删除'),
-          ),
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('取消')),
+          FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const Text('删除')),
         ],
       ),
     );
@@ -329,8 +268,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     await _userTemplateService.delete(template.id);
     await _loadTemplates();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('已删除用户模板：${template.name}')),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('已删除用户模板：${template.name}')));
   }
 }
