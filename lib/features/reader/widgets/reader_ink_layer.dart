@@ -125,17 +125,17 @@ class _ReaderInkPainter extends CustomPainter {
     for (final encoded in strokes) {
       if (encoded.length < 2) continue;
       var tool = ReaderInkTool.pen;
-      var color = Colors.red;
+      Color color = Colors.red;
       var width = 2.6;
       var opacity = 1.0;
       var start = 0;
       if (encoded.length >= 5 && encoded.first.dx < 0) {
-        final toolIndex = encoded[0].y.round().clamp(0, ReaderInkTool.values.length - 1).toInt();
+        final toolIndex = encoded[0].dy.round().clamp(0, ReaderInkTool.values.length - 1).toInt();
         tool = ReaderInkTool.values[toolIndex];
-        final colorValue = (encoded[1].y.clamp(0.0, 1.0) * 0xffffffff.toDouble()).round();
+        final colorValue = (encoded[1].dy.clamp(0.0, 1.0) * 0xffffffff.toDouble()).round();
         color = Color(colorValue);
-        width = encoded[2].y.clamp(.001, .05).toDouble() * 1000;
-        opacity = encoded[3].y.clamp(.05, 1.0).toDouble();
+        width = encoded[2].dy.clamp(.001, .05).toDouble() * 1000;
+        opacity = encoded[3].dy.clamp(.05, 1.0).toDouble();
         start = 4;
       }
       final points = encoded.sublist(start);
