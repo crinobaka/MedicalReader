@@ -4,9 +4,26 @@ import 'package:flutter/material.dart';
 
 enum ReaderInkTool { pen, highlighter, eraser }
 
+class ReaderInkStroke {
+  final List<Offset> points;
+  final ReaderInkTool tool;
+  final Color color;
+  final double width;
+  final double opacity;
+
+  const ReaderInkStroke({
+    required this.points,
+    required this.tool,
+    required this.color,
+    required this.width,
+    this.opacity = 1,
+  });
+}
+
 class ReaderInkLayer extends StatefulWidget {
-  final List<List<Offset>> strokes;
-  final ValueChanged<List<Offset>> onStrokeEnd;
+  final List<ReaderInkStroke> strokes;
+  final ValueChanged<ReaderInkStroke> onStrokeEnd;
+  final ValueChanged<ReaderInkStroke>? onErase;
   final bool enabled;
   final Color color;
   final double width;
@@ -15,6 +32,7 @@ class ReaderInkLayer extends StatefulWidget {
     super.key,
     required this.strokes,
     required this.onStrokeEnd,
+    this.onErase,
     required this.enabled,
     this.color = Colors.red,
     this.width = 2.6,
@@ -27,7 +45,7 @@ class ReaderInkLayer extends StatefulWidget {
 class _ReaderInkLayerState extends State<ReaderInkLayer> {
   List<Offset> _current = const [];
   ReaderInkTool _tool = ReaderInkTool.pen;
-  final List<List<Offset>> _localErased = [];
+  final List<ReaderInkStroke> _localErased = [];
 
   void _start(DragStartDetails details) {
     if (!widget.enabled) return;
@@ -44,27 +62,33 @@ class _ReaderInkLayerState extends State<ReaderInkLayer> {
       if (mounted) setState(() => _current = const []);
       return;
     }
-    final stroke = _current;
+    final points = _current;
     setState(() => _current = const []);
+
     if (_tool == ReaderInkTool.eraser) {
-      final hit = _findHit(stroke.last);
+      final hit = _findHit(points.last);
       if (hit != null) {
         setState(() => _localErased.add(hit));
-        // The reserved first two points are an erase command. The reader page
-        // consumes it instead of creating another ink annotation.
-        widget.onStrokeEnd([const Offset(0, 0), const Offset(0, 1), ...hit]);
+        widget.onErase?.call(hit);
       }
       return;
     }
-    widget.onStrokeEnd(stroke);
+
+    widget.onStrokeEnd(ReaderInkStroke(
+      points: points,
+      tool: _tool,
+      color: _tool == ReaderInkTool.highlighter ? Colors.yellow : widget.color,
+      width: _tool == ReaderInkTool.highlighter ? widget.width * 4 : widget.width,
+      opacity: _tool == ReaderInkTool.highlighter ? .32 : 1,
+    ));
   }
 
-  List<Offset>? _findHit(Offset p) {
+  ReaderInkStroke? _findHit(Offset p) {
     const tolerance = 22.0;
     for (final stroke in widget.strokes.reversed) {
-      for (var i = 0; i < stroke.length; i++) {
-        if ((stroke[i] - p).distance <= tolerance) return stroke;
-        if (i > 0 && _segmentDistance(p, stroke[i - 1], stroke[i]) <= tolerance) return stroke;
+      for (var i = 0; i < stroke.points.length; i++) {
+        if ((stroke.points[i] - p).distance <= tolerance) return stroke;
+        if (i > 0 && _segmentDistance(p, stroke.points[i - 1], stroke.points[i]) <= tolerance) return stroke;
       }
     }
     return null;
@@ -82,7 +106,17 @@ class _ReaderInkLayerState extends State<ReaderInkLayer> {
 
   @override
   Widget build(BuildContext context) {
-    final visible = widget.strokes.where((stroke) => !_localErased.any((erased) => _sameStroke(erased, stroke))).toList();
+    final visible = widget.strokes.where((stroke) => !_localErased.any((erased) => _sameStroke(erased.points, stroke.points))).toList();
+    final rendered = [...visible];
+    if (_current.length >= 2 && _tool != ReaderInkTool.eraser) {
+      rendered.add(ReaderInkStroke(
+        points: _current,
+        tool: _tool,
+        color: _tool == ReaderInkTool.highlighter ? Colors.yellow : widget.color,
+        width: _tool == ReaderInkTool.highlighter ? widget.width * 4 : widget.width,
+        opacity: _tool == ReaderInkTool.highlighter ? .32 : 1,
+      ));
+    }
     final scheme = Theme.of(context).colorScheme;
     return Stack(
       fit: StackFit.expand,
@@ -93,12 +127,7 @@ class _ReaderInkLayerState extends State<ReaderInkLayer> {
           onPanUpdate: _update,
           onPanEnd: _end,
           child: CustomPaint(
-            painter: _ReaderInkPainter(
-              strokes: [...visible, if (_current.isNotEmpty) _current],
-              color: _tool == ReaderInkTool.highlighter ? Colors.yellow : widget.color,
-              width: _tool == ReaderInkTool.highlighter ? widget.width * 4 : widget.width,
-              opacity: _tool == ReaderInkTool.highlighter ? .32 : 1,
-            ),
+            painter: _ReaderInkPainter(strokes: rendered),
             size: Size.infinite,
           ),
         ),
@@ -149,36 +178,32 @@ class _ReaderInkLayerState extends State<ReaderInkLayer> {
 }
 
 class _ReaderInkPainter extends CustomPainter {
-  final List<List<Offset>> strokes;
-  final Color color;
-  final double width;
-  final double opacity;
+  final List<ReaderInkStroke> strokes;
 
-  const _ReaderInkPainter({required this.strokes, required this.color, required this.width, this.opacity = 1});
+  const _ReaderInkPainter({required this.strokes});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color.withValues(alpha: opacity)
-      ..strokeWidth = width
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..style = PaintingStyle.stroke;
     for (final stroke in strokes) {
-      if (stroke.length < 2) continue;
-      final path = ui.Path()..moveTo(stroke.first.dx, stroke.first.dy);
-      for (var i = 1; i < stroke.length; i++) {
-        final p = stroke[i];
-        final previous = stroke[i - 1];
+      if (stroke.points.length < 2) continue;
+      final paint = Paint()
+        ..color = stroke.color.withValues(alpha: stroke.opacity)
+        ..strokeWidth = stroke.width
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..style = PaintingStyle.stroke;
+      final path = ui.Path()..moveTo(stroke.points.first.dx, stroke.points.first.dy);
+      for (var i = 1; i < stroke.points.length; i++) {
+        final p = stroke.points[i];
+        final previous = stroke.points[i - 1];
         final midpoint = Offset((previous.dx + p.dx) / 2, (previous.dy + p.dy) / 2);
         path.quadraticBezierTo(previous.dx, previous.dy, midpoint.dx, midpoint.dy);
       }
-      path.lineTo(stroke.last.dx, stroke.last.dy);
+      path.lineTo(stroke.points.last.dx, stroke.points.last.dy);
       canvas.drawPath(path, paint);
     }
   }
 
   @override
-  bool shouldRepaint(covariant _ReaderInkPainter oldDelegate) =>
-      oldDelegate.strokes != strokes || oldDelegate.color != color || oldDelegate.width != width || oldDelegate.opacity != opacity;
+  bool shouldRepaint(covariant _ReaderInkPainter oldDelegate) => oldDelegate.strokes != strokes;
 }
