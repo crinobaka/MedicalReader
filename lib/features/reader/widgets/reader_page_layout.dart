@@ -19,6 +19,7 @@ import 'reader_location_bar.dart';
 import 'reader_magnifier_overlay.dart';
 import 'reader_page_controls.dart';
 import 'reader_page_image.dart';
+import 'reader_page_turn_transition.dart';
 import 'reader_radial_toc.dart';
 import 'reader_search_highlight.dart';
 import 'reader_toolbar.dart';
@@ -125,6 +126,16 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
   double _gestureStartScale = 1;
   double _gestureStartY = 0;
   int _gestureZone = 3;
+  int _pageTurnDirection = 1;
+
+  @override
+  void didUpdateWidget(covariant ReaderPageLayout oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.currentPage != oldWidget.currentPage) {
+      _pageTurnDirection = widget.currentPage > oldWidget.currentPage ? 1 : -1;
+      widget.transformationController.value = Matrix4.identity();
+    }
+  }
 
   void _toggleControls() {
     if (mounted) setState(() => _controlsVisible = !_controlsVisible);
@@ -157,11 +168,6 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
     if (widget.pageLoading || _gestureStartedZooming || _tocVisible || _inkMode) return;
     if ((widget.transformationController.value.getMaxScaleOnAxis() - 1).abs() > 0.01) return;
     if (_gestureDistanceX.abs() < 48 || _gestureDistanceX.abs() <= _gestureDistanceY.abs() * 1.2) return;
-    if (_gestureZone == 2) {
-      _openToc(_gestureDistanceX > 0);
-      return;
-    }
-    if (_gestureZone != 3) return;
     final intent = _interaction.resolveHorizontalSwipe(
       distance: _gestureDistanceX,
       velocity: details.velocity.pixelsPerSecond.dx,
@@ -389,7 +395,11 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
             onInteractionStart: _onInteractionStart,
             onInteractionUpdate: _onInteractionUpdate,
             onInteractionEnd: _onInteractionEnd,
-            child: _readingSurface(context, options.pageLayout),
+            child: ReaderPageTurnTransition(
+              pageKey: widget.currentPage,
+              direction: _pageTurnDirection,
+              child: _readingSurface(context, options.pageLayout),
+            ),
           ),
         ),
       ),
