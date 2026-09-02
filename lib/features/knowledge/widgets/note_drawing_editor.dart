@@ -88,7 +88,7 @@ class _NoteDrawingEditorState extends State<NoteDrawingEditor> {
     setState(() {
       _active = NoteDrawingStroke(
         tool: _tool,
-        color: _color.value,
+        color: _color.toARGB32(),
         width: _width * pressure,
         opacity: _tool == NoteDrawingTool.highlighter ? .28 : 1,
         points: [p],
@@ -158,7 +158,7 @@ class _NoteDrawingEditorState extends State<NoteDrawingEditor> {
         ..._strokes,
         NoteDrawingStroke(
           tool: NoteDrawingTool.polygon,
-          color: _color.value,
+          color: _color.toARGB32(),
           width: _width,
           points: points,
         ),
@@ -190,8 +190,9 @@ class _NoteDrawingEditorState extends State<NoteDrawingEditor> {
     for (var i = 0; i < s.points.length; i++) {
       if (_distance(s.points[i], p) <= tolerance) return true;
       if (i > 0 &&
-          _segmentDistance(p, s.points[i - 1], s.points[i]) <= tolerance)
+          _segmentDistance(p, s.points[i - 1], s.points[i]) <= tolerance) {
         return true;
+      }
     }
     return false;
   }
@@ -480,8 +481,9 @@ class _NoteDrawingEditorState extends State<NoteDrawingEditor> {
 
   Widget _selectionHandles(Size size) {
     final rect = _selectionRect(size);
-    if (_selectedIndex == null || rect == Rect.zero)
+    if (_selectedIndex == null || rect == Rect.zero) {
       return const SizedBox.shrink();
+    }
     return Stack(
       children: [
         Positioned(
@@ -597,8 +599,9 @@ class _NoteDrawingEditorState extends State<NoteDrawingEditor> {
                       onSelected: (value) => setState(() {
                         _selectMode = value;
                         if (!value) _selectedIndex = null;
-                        if (_tool == NoteDrawingTool.polygon && value)
+                        if (_tool == NoteDrawingTool.polygon && value) {
                           _polygon.clear();
+                        }
                       }),
                     ),
                     for (final tool in NoteDrawingTool.values)
@@ -609,8 +612,9 @@ class _NoteDrawingEditorState extends State<NoteDrawingEditor> {
                           selected: !_selectMode && _tool == tool,
                           onSelected: (_) => setState(() {
                             _selectMode = false;
-                            if (_tool == NoteDrawingTool.polygon)
+                            if (_tool == NoteDrawingTool.polygon) {
                               _polygon.clear();
+                            }
                             _tool = tool;
                           }),
                         ),

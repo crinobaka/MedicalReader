@@ -76,10 +76,12 @@ class _ReaderInkLayerState extends State<ReaderInkLayer> {
 
   void _end(DragEndDetails d) {
     if (!widget.enabled || _current.length < 2) {
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _current = const [];
         _currentPressure = const [];
       });
+      }
       return;
     }
     final stroke = _current;
@@ -94,7 +96,7 @@ class _ReaderInkLayerState extends State<ReaderInkLayer> {
       if (typedHit != null) {
         setState(() => _localErasedTyped.add(typedHit));
         final eraser = ReaderInkStroke(tool: ReaderInkTool.eraser, color: _color, width: _width, opacity: 1, points: stroke, pressure: pressure);
-        widget.onStrokeEndData?.(eraser);
+        widget.onStrokeEndData?.call(eraser);
         if (widget.onStrokeEndData == null) {
           widget.onStrokeEnd([const Offset(0, 0), const Offset(0, 1), ..._strip(typedHit.points)]);
         }
@@ -140,7 +142,7 @@ class _ReaderInkLayerState extends State<ReaderInkLayer> {
     final metadata = <Offset>[
       const Offset(.999999, .999999),
       Offset(_tool.index / 10, .5),
-      Offset(_color.value / 0xffffffff, .5),
+      Offset(_color.toARGB32() / 0xffffffff, .5),
       Offset(_width / 100, .5),
       Offset(opacity, .5),
     ];
@@ -263,7 +265,7 @@ class _ReaderInkLayerState extends State<ReaderInkLayer> {
             color: color,
             shape: BoxShape.circle,
             border: Border.all(
-              color: _color.value == color.value ? Theme.of(context).colorScheme.onSurface : Colors.transparent,
+              color: _color.toARGB32() == color.toARGB32() ? Theme.of(context).colorScheme.onSurface : Colors.transparent,
               width: 2,
             ),
           ),
@@ -283,13 +285,17 @@ class _ReaderInkLayerState extends State<ReaderInkLayer> {
   bool _same(List<Offset> a, List<Offset> b) {
     final x = _strip(a), y = _strip(b);
     if (x.length != y.length) return false;
-    for (var i = 0; i < x.length; i++) if ((x[i] - y[i]).distance > .5) return false;
+    for (var i = 0; i < x.length; i++) {
+      if ((x[i] - y[i]).distance > .5) return false;
+    }
     return true;
   }
 
   bool _sameTyped(ReaderInkStroke a, ReaderInkStroke b) {
-    if (a.tool != b.tool || a.color.value != b.color.value || a.points.length != b.points.length) return false;
-    for (var i = 0; i < a.points.length; i++) if ((a.points[i] - b.points[i]).distance > .5) return false;
+    if (a.tool != b.tool || a.color.toARGB32() != b.color.toARGB32() || a.points.length != b.points.length) return false;
+    for (var i = 0; i < a.points.length; i++) {
+      if ((a.points[i] - b.points[i]).distance > .5) return false;
+    }
     return true;
   }
 }
@@ -335,18 +341,18 @@ class _Painter extends CustomPainter {
     for (final e in legacyStrokes) {
       if (e.length < 2) continue;
       var t = ReaderInkTool.pen;
-      var col = Colors.red;
+      Color color = Colors.red;
       var w = 2.6;
       var opacity = 1.0;
       var start = 0;
       if (e.length >= 5 && e.first.dx > size.width * .99 && e.first.dy > size.height * .99) {
         t = ReaderInkTool.values[(e[1].dx / size.width * 10).round().clamp(0, 2).toInt()];
-        col = Color(((e[2].dx / size.width).clamp(0.0, 1.0) * 0xffffffff).round());
+        color = Color(((e[2].dx / size.width).clamp(0.0, 1.0) * 0xffffffff).round());
         w = (e[3].dx / size.width).clamp(.001, 1.0) * 100;
         opacity = (e[4].dx / size.width).clamp(.05, 1.0);
         start = 5;
       }
-      _drawPath(c, e.sublist(start), _paint(t, col, w, opacity));
+      _drawPath(c, e.sublist(start), _paint(t, color, w, opacity));
     }
     if (current.length >= 2 && tool != ReaderInkTool.eraser) {
       final opacity = tool == ReaderInkTool.highlighter ? .28 : 1.0;

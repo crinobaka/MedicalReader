@@ -1,4 +1,3 @@
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
@@ -39,10 +38,10 @@ class ReaderInkStroke {
 
   Map<String, dynamic> toJson() => {
     'tool': tool.name,
-    'color': color.value,
+    'color': color.toARGB32(),
     'width': width,
     'opacity': opacity,
-    'points': [for (final p in points) p.dx, p.dy],
+    'points': points.expand((p) => [p.dx, p.dy]).toList(),
     if (pressure.isNotEmpty) 'pressure': pressure,
   };
 

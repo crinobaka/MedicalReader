@@ -147,8 +147,9 @@ class _KnowledgeNotePageState extends ConsumerState<KnowledgeNotePage> {
     );
     if (layer == null || !mounted) return;
     if (layer.strokes.isEmpty) {
-      if (previousPath != null)
+      if (previousPath != null) {
         setState(() => _attachments.remove(previousPath));
+      }
       return;
     }
     try {
@@ -174,12 +175,13 @@ class _KnowledgeNotePageState extends ConsumerState<KnowledgeNotePage> {
     await ref
         .read(readerAnnotationsProvider(widget.document!).notifier)
         .remove(widget.note!.id);
-    if (mounted)
+    if (mounted) {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => KnowledgeNotePage(detachedNote: detached),
         ),
       );
+    }
   }
 
   Future<void> _export() async {
@@ -209,10 +211,11 @@ class _KnowledgeNotePageState extends ConsumerState<KnowledgeNotePage> {
     final path = choice == 'md'
         ? await service.exportMarkdown(note)
         : await service.exportPdf(note);
-    if (mounted && path != null)
+    if (mounted && path != null) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('已导出：$path')));
+    }
   }
 
   Future<void> _delete() async {
@@ -234,12 +237,13 @@ class _KnowledgeNotePageState extends ConsumerState<KnowledgeNotePage> {
       ),
     );
     if (confirmed != true) return;
-    if (_detached)
+    if (_detached) {
       await const DetachedNoteStorage().delete(_draft.id);
-    else
+    } else {
       await ref
           .read(readerAnnotationsProvider(widget.document!).notifier)
           .remove(widget.note!.id);
+    }
     if (mounted) Navigator.of(context).pop();
   }
 
@@ -292,11 +296,12 @@ class _KnowledgeNotePageState extends ConsumerState<KnowledgeNotePage> {
         const RecordConfig(encoder: AudioEncoder.wav),
         path: path,
       );
-      if (mounted)
+      if (mounted) {
         setState(() {
           _recording = true;
           _recordingPath = path;
         });
+      }
     } catch (error) {
       _showMessage('开始录音失败：$error');
     }
@@ -400,8 +405,9 @@ class _KnowledgeNotePageState extends ConsumerState<KnowledgeNotePage> {
                   onChanged: _previewMode || _recording
                       ? null
                       : (value) {
-                          if (value != null)
+                          if (value != null) {
                             setState(() => _noteFormat = value);
+                          }
                         },
                   items: const [
                     DropdownMenuItem(
@@ -536,10 +542,11 @@ class _CameraCapturePageState extends State<_CameraCapturePage> {
       final file = await _controller.takePicture();
       if (mounted) Navigator.of(context).pop(file);
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('拍照失败：$error')));
+      }
     }
   }
 
@@ -549,10 +556,12 @@ class _CameraCapturePageState extends State<_CameraCapturePage> {
     body: FutureBuilder<void>(
       future: _initializeFuture,
       builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done)
+        if (snapshot.connectionState != ConnectionState.done) {
           return const Center(child: CircularProgressIndicator());
-        if (snapshot.hasError)
+        }
+        if (snapshot.hasError) {
           return Center(child: Text('摄像头初始化失败：${snapshot.error}'));
+        }
         return Stack(
           alignment: Alignment.bottomCenter,
           children: [
