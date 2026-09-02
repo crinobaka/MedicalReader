@@ -18,6 +18,7 @@ import '../services/reader_annotation_service.dart';
 import '../services/reader_search_service.dart';
 import '../widgets/book_tree_editor_dialog.dart';
 import '../widgets/book_tree_panel.dart';
+import '../widgets/reader_ink_layer.dart';
 import '../widgets/reader_note_dialog.dart';
 import '../widgets/reader_page_jump_dialogs.dart';
 import '../widgets/reader_page_layout.dart';
@@ -50,37 +51,80 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   List<ReaderAnnotation> get _annotations => ref.read(readerAnnotationsProvider(widget.document)).where((item) => item.pageIndex == _controller.currentPage).toList(growable: false);
   bool get _bookmarked => _annotations.any((item) => item.type == ReaderAnnotationType.bookmark);
-  List<List<Offset>> get _inkStrokes => _annotations.where((item) => item.type == ReaderAnnotationType.ink && item.rect.length >= 4).map((item) {
-    final values = <Offset>[];
-    for (var i = 0; i + 1 < item.rect.length; i += 2) values.add(Offset(item.rect[i], item.rect[i + 1]));
-    return values;
-  }).toList(growable: false);
 
-  Future<void> _saveInkStroke(List<double> normalized) async {
-    if (normalized.length < 4) return;
-    final notifier = ref.read(readerAnnotationsProvider(widget.document).notifier);
-    if (normalized.length >= 6 && normalized[0] == 0 && normalized[1] == 0 && normalized[2] == 0 && normalized[3] == 1) {
-      final target = normalized.sublist(4);
-      final match = _annotations.where((item) {
-        if (item.type != ReaderAnnotationType.ink || item.rect.length != target.length) return false;
-        for (var i = 0; i < target.length; i++) {
-          if ((item.rect[i] - target[i]).abs() > .002) return false;
-        }
-        return true;
-      }).toList();
-      for (final item in match) await notifier.remove(item.id);
-      return;
+  List<ReaderInkStroke> get _inkStrokes => _annotations
+      .where((item) => item.type == ReaderAnnotationType.ink && item.rect.length >= 4)
+      .map(_decodeInkStroke)
+      .toList(growable: false);
+
+  ReaderInkStroke _decodeInkStroke(ReaderAnnotation item) {
+    final values = item.rect;
+    // New format: [-1, tool, colorValue, width, opacity, x1, y1, ...].
+    if (values.length >= 10 && values[0] == -1) {
+      final toolIndex = values[1].round().clamp(0, ReaderInkTool.values.length - 1);
+      return ReaderInkStroke(
+        points: [
+          for (var i = 5; i + 1 < values.length; i += 2)
+            Offset(values[i], values[i + 1]),
+        ],
+        tool: ReaderInkTool.values[toolIndex],
+        color: Color(values[2].round()),
+        width: values[3],
+        opacity: values[4].clamp(0.05, 1.0).toDouble(),
+      );
     }
+    // Backward compatibility with strokes written by the original 1.5 build.
+    return ReaderInkStroke(
+      points: [for (var i = 0; i + 1 < values.length; i += 2) Offset(values[i], values[i + 1])],
+      tool: ReaderInkTool.pen,
+      color: Colors.red,
+      width: 2.6,
+    );
+  }
+
+  List<double> _encodeInkStroke(ReaderInkStroke stroke) => [
+        -1,
+        stroke.tool.index.toDouble(),
+        stroke.color.value.toDouble(),
+        stroke.width,
+        stroke.opacity,
+        ...[
+          for (final point in stroke.points) ...[
+            point.dx.clamp(0.0, 1.0),
+            point.dy.clamp(0.0, 1.0),
+          ],
+        ],
+      ];
+
+  Future<void> _saveInkStroke(ReaderInkStroke stroke) async {
+    if (stroke.points.length < 2) return;
     final now = DateTime.now();
-    await notifier.add(ReaderAnnotation(
-      id: 'ink_${widget.document.id}_${_controller.currentPage}_${now.microsecondsSinceEpoch}',
-      bookId: widget.document.id,
-      pageIndex: _controller.currentPage,
-      type: ReaderAnnotationType.ink,
-      rect: normalized,
-      createdAt: now,
-      updatedAt: now,
-    ));
+    await ref.read(readerAnnotationsProvider(widget.document).notifier).add(
+          ReaderAnnotation(
+            id: 'ink_${widget.document.id}_${_controller.currentPage}_${now.microsecondsSinceEpoch}',
+            bookId: widget.document.id,
+            pageIndex: _controller.currentPage,
+            type: ReaderAnnotationType.ink,
+            rect: _encodeInkStroke(stroke),
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+  }
+
+  Future<void> _eraseInkStroke(ReaderInkStroke stroke) async {
+    final notifier = ref.read(readerAnnotationsProvider(widget.document).notifier);
+    final target = stroke.points;
+    final match = _annotations.where((item) {
+      if (item.type != ReaderAnnotationType.ink) return false;
+      final decoded = _decodeInkStroke(item).points;
+      if (decoded.length != target.length) return false;
+      for (var i = 0; i < target.length; i++) {
+        if ((decoded[i].dx - target[i].dx).abs() > .002 || (decoded[i].dy - target[i].dy).abs() > .002) return false;
+      }
+      return true;
+    });
+    for (final item in match) await notifier.remove(item.id);
   }
 
   Future<void> _toggleBookmark() async {
@@ -204,6 +248,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         bookTreeNodes: _controller.bookTreeIndex.nodes,
         inkStrokes: _inkStrokes,
         onInkStroke: _saveInkStroke,
+        onEraseInkStroke: _eraseInkStroke,
         keyboardFocusNode: _focusNode,
         transformationController: _transformationController,
         onPrevious: _controller.previousPage,
