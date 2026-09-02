@@ -59,7 +59,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   Future<void> _saveInkStroke(List<double> normalized) async {
     if (normalized.length < 4) return;
     final notifier = ref.read(readerAnnotationsProvider(widget.document).notifier);
-    // [0,0,0,1,...] is the private erase command emitted by ReaderInkLayer.
     if (normalized.length >= 6 && normalized[0] == 0 && normalized[1] == 0 && normalized[2] == 0 && normalized[3] == 1) {
       final target = normalized.sublist(4);
       final match = _annotations.where((item) {
@@ -214,6 +213,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         onPageJump: _showPageJump,
         onBookPageJump: _showBookPageJump,
         onPageSelected: (page) => _controller.goToPage(page),
+        // RADIAL TOC REGISTRATION ONLY: implementation lives in
+        // reader_radial_toc.dart; keep ReaderPage free of radial UI logic.
         onBookTree: _showBookTree,
         onSearch: _showSearch,
         onBookmark: _toggleBookmark,
