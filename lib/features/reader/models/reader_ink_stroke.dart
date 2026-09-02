@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 enum ReaderInkTool { pen, highlighter, eraser }
@@ -35,6 +34,20 @@ class ReaderInkStroke {
     points: points ?? this.points,
     pressure: pressure ?? this.pressure,
   );
+
+  double pressureAt(int index) {
+    if (pressure.isEmpty) return 1.0;
+    final safe = index.clamp(0, pressure.length - 1).toInt();
+    final value = pressure[safe];
+    if (!value.isFinite || value <= 0) return 1.0;
+    return value.clamp(.12, 1.0).toDouble();
+  }
+
+  double widthAt(int index, {double minFactor = .55, double maxFactor = 1.35}) {
+    final p = pressureAt(index);
+    final factor = minFactor + (maxFactor - minFactor) * p;
+    return width * factor;
+  }
 
   Map<String, dynamic> toJson() => {
     'tool': tool.name,
