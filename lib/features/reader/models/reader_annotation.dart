@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'reader_ink_stroke.dart';
+
 enum ReaderAnnotationType { highlight, note, bookmark, tag, ink }
 
 enum ReaderNoteFormat { markdown, markdownHtml }
@@ -14,6 +16,7 @@ class ReaderAnnotation {
   final ReaderNoteFormat noteFormat;
   final List<double> rect;
   final List<String> attachments;
+  final ReaderInkStroke? inkStroke;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -27,6 +30,7 @@ class ReaderAnnotation {
     this.noteFormat = ReaderNoteFormat.markdown,
     this.rect = const [],
     this.attachments = const [],
+    this.inkStroke,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -41,6 +45,7 @@ class ReaderAnnotation {
     ReaderNoteFormat? noteFormat,
     List<double>? rect,
     List<String>? attachments,
+    ReaderInkStroke? inkStroke,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => ReaderAnnotation(
@@ -53,6 +58,7 @@ class ReaderAnnotation {
     noteFormat: noteFormat ?? this.noteFormat,
     rect: rect ?? this.rect,
     attachments: attachments ?? this.attachments,
+    inkStroke: inkStroke ?? this.inkStroke,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -67,6 +73,7 @@ class ReaderAnnotation {
     'noteFormat': noteFormat.name,
     'rect': rect,
     'attachments': attachments,
+    if (inkStroke != null) 'inkStroke': inkStroke!.toJson(),
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt.toIso8601String(),
   };
@@ -74,6 +81,7 @@ class ReaderAnnotation {
   factory ReaderAnnotation.fromJson(Map<String, dynamic> json) {
     final typeName = json['type']?.toString() ?? 'bookmark';
     final noteFormatName = json['noteFormat']?.toString() ?? 'markdown';
+    final rawInk = json['inkStroke'];
     return ReaderAnnotation(
       id: json['id']?.toString() ?? '',
       bookId: json['bookId']?.toString() ?? '',
@@ -94,6 +102,9 @@ class ReaderAnnotation {
       attachments: json['attachments'] is List
           ? (json['attachments'] as List).map((v) => v.toString()).toList()
           : const [],
+      inkStroke: rawInk is Map
+          ? ReaderInkStroke.fromJson(Map<String, dynamic>.from(rawInk))
+          : null,
       createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? '') ?? DateTime.now(),
       updatedAt: DateTime.tryParse(json['updatedAt']?.toString() ?? '') ?? DateTime.now(),
     );
