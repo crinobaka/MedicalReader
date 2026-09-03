@@ -94,10 +94,13 @@ class _ReaderPageTurnRegistrationState
               child: const SizedBox.expand(),
             ),
           ),
+          // The handwriting button is a floating control in the lower-right
+          // corner. Keep the page-turn hit area above it so its tap reaches
+          // ReaderPageLayout and can enter ink mode normally.
           Positioned(
             right: 0,
             top: widget.toolBarHeight,
-            bottom: widget.toolBarHeight,
+            bottom: widget.toolBarHeight + 80,
             width: edgeWidth,
             child: GestureDetector(
               behavior: HitTestBehavior.translucent,
