@@ -17,10 +17,10 @@ final libraryMetadataStorageFutureProvider =
 final libraryRepositoryProvider = Provider<LibraryRepository>(
   (ref) {
     return LibraryRepository(
-      loadFiles: ref.read(loadFilesProvider),
-      addFileAction: ref.read(addFileActionProvider),
-      initializeFilesAction: ref.read(initializeFilesActionProvider),
-      metadataStorageFactory: ref.read(libraryMetadataStorageFactoryProvider),
+      loadFiles: () {return ref.read(documentFilesProvider,);},
+      addFileAction: () {return ref.read(documentFilesProvider.notifier,).addFile();},
+      initializeFilesAction: () {return ref.read(documentFilesProvider.notifier,).initialize();},
+      metadataStorageFactory: ref.read(libraryMetadataStorageFutureProvider,),
     );
   },
 );
