@@ -133,34 +133,18 @@ class LibraryNotifier
   }
 
   Future<void> changeLibraryDirectory() async {
-    final storage =
-        ref.read(
-          libraryStorageServiceProvider,
-        );
+    final storage = ref.read(libraryStorageServiceProvider,);
+    final selected = await storage.pickLibraryDirectory();
+    if (selected == null) {return;}
 
-    final selected =
-        await storage.pickLibraryDirectory();
-
-    if (selected == null) {
-      return;
-    }
-
-    final fileNotifier =
-        ref.read(
-          documentFilesProvider.notifier,
-        );
-
+    final fileNotifier = ref.read(documentFilesProvider.notifier,);
     await fileNotifier.reload();
 
-    if (!mounted) {
-      return;
-    }
+    final repository = ref.read(libraryRepositoryProvider);
+    await repository.reloadMetadata();
 
-    state =
-        ref
-            .read(
-              libraryRepositoryProvider,
-            )
-            .getDocuments();
+    if (!mounted) {return;}
+
+    state = repository.getDocuments();
   }
 }

@@ -8,13 +8,13 @@ class LibraryRepository {
   final List<DocumentFile> Function() loadFiles;
   final Future<DocumentFile?> Function() addFileAction;
   final Future<void> Function() initializeFilesAction;
-  final Future<LibraryMetadataStorage> metadataStorageFuture;
+  final Future<LibraryMetadataStorage> Function() metadataStorageFactory;
 
   final Map<String, Map<String, dynamic>> _documentJsonById = {};
   Future<void>? _initializeFuture;
   Future<void> _writeQueue = Future<void>.value();
 
-  LibraryRepository({required this.loadFiles, required this.addFileAction, required this.initializeFilesAction, required this.metadataStorageFuture});
+  LibraryRepository({required this.loadFiles,required this.addFileAction,required this.initializeFilesAction,required this.metadataStorageFactory,});
 
   Future<void> addFile() async { await initializeFilesAction(); await addFileAction(); }
   Future<void> initialize() => _initializeFuture ??= _loadMetadata();
@@ -29,7 +29,7 @@ class LibraryRepository {
   }
 
   Future<void> _loadMetadata() async {
-    final storage = await metadataStorageFuture;
+    final storage = await metadataStorageFactory();
     final documents = await storage.load();
     _documentJsonById.clear();
     for (final document in documents) {
@@ -74,7 +74,7 @@ class LibraryRepository {
   }
 
   Future<void> _persist() async {
-    final storage = await metadataStorageFuture;
+    final storage = await metadataStorageFactory();
     final files = loadFiles();
     final fileIds = files.map((file) => file.id).toSet();
     final output = <Map<String, dynamic>>[];
@@ -98,5 +98,20 @@ class LibraryRepository {
     final operation = _writeQueue.then((_) => storage.saveJson(output));
     _writeQueue = operation.then<void>((_) {}, onError: (_, _) {});
     await operation;
+  }
+
+  /// 强制重新从当前目录加载 metadata，并刷新内存缓存
+  Future<void> reloadMetadata() async {
+    final storage = await metadataStorageFactory();
+    final documents = await storage.load();
+
+    _documentJsonById.clear();
+
+    for (final document in documents) {
+      final id = document['id'];
+      if (id is String && id.isNotEmpty) {
+        _documentJsonById[id] = Map<String, dynamic>.from(document);
+      }
+    }
   }
 }
