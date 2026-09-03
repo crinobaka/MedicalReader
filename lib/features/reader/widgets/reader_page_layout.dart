@@ -451,10 +451,12 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
 
   void _handleKeyEvent(KeyEvent event) {
     if (event is! KeyDownEvent) return;
-    if (HardwareKeyboard.instance.isControlPressed && event.logicalKey == LogicalKeyboardKey.keyF) unawaited(widget.onSearch());
-    else if (event.logicalKey == LogicalKeyboardKey.escape) {
-      if (_tocVisible || _magnifierPosition != null) setState(() { _tocVisible = false; _magnifierPosition = null; });
-      else if (!_controlsVisible) setState(() => _controlsVisible = true);
+    if (HardwareKeyboard.instance.isControlPressed && event.logicalKey == LogicalKeyboardKey.keyF) {
+      unawaited(widget.onSearch());
+    } else if (event.logicalKey == LogicalKeyboardKey.escape) {
+      if (_tocVisible || _magnifierPosition != null) {
+        setState(() { _tocVisible = false; _magnifierPosition = null; });
+      } else if (!_controlsVisible) setState(() => _controlsVisible = true);
     } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft || event.logicalKey == LogicalKeyboardKey.pageUp) unawaited(widget.onPrevious());
     else if (event.logicalKey == LogicalKeyboardKey.arrowRight || event.logicalKey == LogicalKeyboardKey.pageDown) unawaited(widget.onNext());
     else if (event.logicalKey == LogicalKeyboardKey.home) unawaited(widget.onFirst());

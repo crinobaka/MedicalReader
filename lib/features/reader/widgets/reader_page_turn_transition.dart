@@ -32,7 +32,7 @@ class ReaderPageTurnTransition extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           ...previousChildren,
-          if (currentChild != null) currentChild,
+          ?currentChild,
         ],
       ),
       transitionBuilder: (animatedChild, animation) {
