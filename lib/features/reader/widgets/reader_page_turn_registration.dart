@@ -4,14 +4,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../controllers/reader_page_controller.dart';
 import 'reader_page_turn.dart';
 
-/// 翻页注册组件：将手势分区与翻页动画绑定，作为 ReaderPage 的插件。
+/// 翻页注册组件：将左右翻页手势与翻页动画绑定，作为 ReaderPage 的插件。
+///
+/// 手势只占用左右边缘区域，不使用全屏透明层拦截 ReaderPage 内部的
+/// 缩放、绘制和其它页面交互。
 class ReaderPageTurnRegistration extends ConsumerStatefulWidget {
   const ReaderPageTurnRegistration({
     super.key,
     required this.controller,
-    required this.pageLayoutBuilder, // 构建 ReaderPageLayout 的 builder 函数
+    required this.pageLayoutBuilder,
     this.toolBarHeight = 80.0,
-    this.middleAreaAction = MiddleAreaAction.settings,
+    this.middleAreaAction = MiddleAreaAction.none,
     this.enabled = true,
     this.onSettingsTap,
     this.onBookTreeTap,
@@ -49,14 +52,16 @@ class _ReaderPageTurnRegistrationState
   }
 
   void _onControllerChanged() {
+    if (!mounted) return;
+
     final current = widget.controller.currentPage;
-    if (current != _previousPage) {
-      setState(() {
-        _turnDirection = current > _previousPage ? 1 : -1;
-        _turnPageKey = current;
-        _previousPage = current;
-      });
-    }
+    if (current == _previousPage || widget.controller.pageLoading) return;
+
+    setState(() {
+      _turnDirection = current > _previousPage ? 1 : -1;
+      _turnPageKey = current;
+      _previousPage = current;
+    });
   }
 
   @override
@@ -68,54 +73,39 @@ class _ReaderPageTurnRegistrationState
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
+    final edgeWidth = size.width / 3;
+
     return Stack(
       children: [
-        // 翻页动画组件
         ReaderPageTurn(
           pageKey: _turnPageKey,
           direction: _turnDirection,
           child: widget.pageLayoutBuilder(context),
         ),
-        // 透明手势层
-        Positioned.fill(
-          child: IgnorePointer(
-            ignoring: !widget.enabled,
+        if (widget.enabled) ...[
+          Positioned(
+            left: 0,
+            top: widget.toolBarHeight,
+            bottom: widget.toolBarHeight,
+            width: edgeWidth,
             child: GestureDetector(
               behavior: HitTestBehavior.translucent,
-              onTapDown: (details) {
-                final x = details.localPosition.dx;
-                final y = details.localPosition.dy;
-
-                // 忽略工具栏区域
-                if (y < widget.toolBarHeight ||
-                    y > size.height - widget.toolBarHeight) {
-                  return;
-                }
-
-                final width = size.width;
-                final isLeft = x < width / 3;
-                final isRight = x > width * 2 / 3;
-                final isMiddle = !isLeft && !isRight;
-
-                if (isMiddle) {
-                  // 中间区域：始终响应
-                  _handleMiddleArea();
-                  return;
-                }
-
-                // 左右区域：只有 enabled 为 true 时才翻页
-                if (!widget.enabled) return;
-
-                if (isLeft) {
-                  widget.controller.previousPage();
-                } else if (isRight) {
-                  widget.controller.nextPage();
-                }
-              },
-              child: Container(color: Colors.transparent),
+              onTap: widget.controller.previousPage,
+              child: const SizedBox.expand(),
             ),
           ),
-        ),
+          Positioned(
+            right: 0,
+            top: widget.toolBarHeight,
+            bottom: widget.toolBarHeight,
+            width: edgeWidth,
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: widget.controller.nextPage,
+              child: const SizedBox.expand(),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -123,12 +113,13 @@ class _ReaderPageTurnRegistrationState
   void _handleMiddleArea() {
     switch (widget.middleAreaAction) {
       case MiddleAreaAction.settings:
-        // 你需要传递 context 来弹出设置面板，这里可以通过回调或全局导航
-        // 建议通过 widget 传入 onSettings 回调
+        widget.onSettingsTap?.call();
         break;
       case MiddleAreaAction.bookTree:
+        widget.onBookTreeTap?.call();
         break;
       case MiddleAreaAction.note:
+        widget.onNoteTap?.call();
         break;
       case MiddleAreaAction.none:
         break;
