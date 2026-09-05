@@ -494,7 +494,7 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
     else if (event.logicalKey == LogicalKeyboardKey.home) unawaited(widget.onFirst());
     else if (event.logicalKey == LogicalKeyboardKey.end) unawaited(widget.onLast());
     else if (event.logicalKey == LogicalKeyboardKey.keyG) unawaited(widget.onPageJump());
-    else if (event.logicalKey == LogicalKeyboardLogicalKey.keyB) unawaited(widget.onBookPageJump());
+    else if (event.logicalKey == LogicalKeyboardKey.keyB) unawaited(widget.onBookPageJump());
   }
 
   void _handlePointerSignal(PointerSignalEvent event) {
