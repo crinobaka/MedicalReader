@@ -54,20 +54,30 @@ impl Document {
     }
 
     pub fn outlines_json(&self) -> Result<String, Error> {
-        fn map_outline(outline: &mupdf::Outline) -> serde_json::Value {
+        fn map_outline(
+            outline: &mupdf::Outline,
+            next_id: &mut usize,
+        ) -> serde_json::Value {
+            let id = *next_id;
+            *next_id += 1;
             serde_json::json!({
-                "id": format!("pdf-outline-{}", outline.title),
+                "id": format!("pdf-outline-{id}"),
                 "name": outline.title,
                 "page_start": outline.dest.as_ref().map(|dest| dest.loc.page_number + 1),
-                "children": outline.down.iter().map(map_outline).collect::<Vec<_>>(),
+                "children": outline
+                    .down
+                    .iter()
+                    .map(|child| map_outline(child, next_id))
+                    .collect::<Vec<_>>(),
             })
         }
 
         let outlines = self.inner.outlines()?;
+        let mut next_id = 0usize;
         Ok(serde_json::to_string(
             &outlines
                 .iter()
-                .map(map_outline)
+                .map(|outline| map_outline(outline, &mut next_id))
                 .collect::<Vec<_>>(),
         )
         .unwrap_or_else(|_| "[]".to_string()))
