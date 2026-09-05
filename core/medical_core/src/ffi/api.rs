@@ -39,9 +39,7 @@ pub unsafe extern "C" fn medical_core_open_book(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn medical_core_close_book(
-    handle: *mut Document,
-) {
+pub unsafe extern "C" fn medical_core_close_book(handle: *mut Document) {
     if handle.is_null() {
         return;
     }
@@ -65,7 +63,6 @@ pub unsafe extern "C" fn medical_core_get_page_count(
             *out_page_count = page_count;
             0
         }
-
         Err(_) => -1,
     }
 }
@@ -97,9 +94,7 @@ pub unsafe extern "C" fn medical_core_render_page(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn medical_core_free_page(
-    page: *mut MedicalCorePage,
-) {
+pub unsafe extern "C" fn medical_core_free_page(page: *mut MedicalCorePage) {
     if page.is_null() {
         return;
     }
@@ -107,12 +102,28 @@ pub unsafe extern "C" fn medical_core_free_page(
     let page = Box::from_raw(page);
 
     if !page.data.is_null() && page.data_len > 0 {
-        let slice = std::slice::from_raw_parts_mut(
-            page.data,
-            page.data_len,
-        );
-
+        let slice = std::slice::from_raw_parts_mut(page.data, page.data_len);
         let _ = Box::from_raw(slice);
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn medical_core_get_outline(
+    handle: *const Document,
+) -> *mut c_char {
+    if handle.is_null() {
+        return ptr::null_mut();
+    }
+
+    let document = &*handle;
+    let payload = match document.outlines_json() {
+        Ok(value) => value,
+        Err(_) => return ptr::null_mut(),
+    };
+
+    match CString::new(payload) {
+        Ok(value) => value.into_raw(),
+        Err(_) => ptr::null_mut(),
     }
 }
 
@@ -135,7 +146,12 @@ pub unsafe extern "C" fn medical_core_search_book(
         Err(_) => return ptr::null_mut(),
     };
 
-    let results = match document.search(query, max_results, context_before as usize, context_after as usize,) {
+    let results = match document.search(
+        query,
+        max_results,
+        context_before as usize,
+        context_after as usize,
+    ) {
         Ok(results) => results,
         Err(_) => return ptr::null_mut(),
     };
@@ -162,7 +178,7 @@ pub unsafe extern "C" fn medical_core_search_book(
             })
         })
         .collect::<Vec<_>>();
-    
+
     let payload = match serde_json::to_string(&payload) {
         Ok(value) => value,
         Err(_) => return ptr::null_mut(),
@@ -175,9 +191,7 @@ pub unsafe extern "C" fn medical_core_search_book(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn medical_core_free_string(
-    value: *mut c_char,
-) {
+pub unsafe extern "C" fn medical_core_free_string(value: *mut c_char) {
     if value.is_null() {
         return;
     }
