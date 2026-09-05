@@ -66,7 +66,7 @@ class ReaderAnnotationService {
         return const [];
       }
 
-      return decoded
+      final annotations = decoded
           .whereType<Map>()
           .map(
             (item) =>
@@ -74,6 +74,21 @@ class ReaderAnnotationService {
           )
           .where((annotation) => annotation.bookId == document.id)
           .toList();
+
+      // 旧版本在保存/转换笔记时可能产生相同 id 的重复记录。
+      // Annotation id 本身就是单条笔记的稳定身份，因此加载时去重，
+      // 避免同一条笔记在知识库里显示两次，同时兼容已有 annotations.json。
+      final unique = <String, ReaderAnnotation>{};
+      for (final annotation in annotations) {
+        final id = annotation.id;
+        if (id.isEmpty) {
+          unique['__empty_${unique.length}'] = annotation;
+        } else {
+          unique[id] = annotation;
+        }
+      }
+
+      return unique.values.toList();
     } catch (_) {
       // Annotation 文件损坏不能影响 PDF 阅读。
       return const [];
