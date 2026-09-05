@@ -29,10 +29,10 @@ class ReaderRadialToc extends StatefulWidget {
 
 class _ReaderRadialTocState extends State<ReaderRadialToc> {
   static const int _maxDepth = 4;
-  static const int _visibleSlots = 9;
-  static const double _itemStep = 48.0;
-  static const double _enterThreshold = 40.0;
-  static const double _exitThreshold = 25.0;
+  static const int _maxVisibleSlots = 9;
+  static const double _enterThreshold = 24.0;
+  static const double _exitThreshold = 18.0;
+  static const double _axisLockRatio = 1.2;
 
   late List<BookTreeNode> _nodes;
   final List<_TocLevel> _history = [];
@@ -41,6 +41,7 @@ class _ReaderRadialTocState extends State<ReaderRadialToc> {
   double _horizontalTravel = 0;
   Offset _lastExternalDragDelta = Offset.zero;
   int _lastExternalDragEnd = 0;
+  _TocAxis _axis = _TocAxis.none;
   bool _committed = false;
 
   @override
@@ -114,13 +115,22 @@ class _ReaderRadialTocState extends State<ReaderRadialToc> {
   }
 
   void _moveSelection(double delta) {
+    if (_nodes.length < 2) return;
     _verticalRemainder += delta;
-    while (_verticalRemainder.abs() >= _itemStep) {
+    final itemStep = _itemStepForHeight(MediaQuery.sizeOf(context).height);
+    var changed = false;
+    while (_verticalRemainder.abs() >= itemStep) {
       final direction = _verticalRemainder > 0 ? 1 : -1;
-      _index = (_index + direction).clamp(0, _nodes.length - 1);
-      _verticalRemainder -= direction * _itemStep;
+      final next = (_index + direction).clamp(0, _nodes.length - 1);
+      if (next == _index) {
+        _verticalRemainder = 0;
+        break;
+      }
+      _index = next;
+      _verticalRemainder -= direction * itemStep;
+      changed = true;
     }
-    setState(() {});
+    if (changed || delta != 0) setState(() {});
   }
 
   void _moveDepth(double delta) {
@@ -128,14 +138,16 @@ class _ReaderRadialTocState extends State<ReaderRadialToc> {
     _horizontalTravel += inwardDelta;
 
     if (_horizontalTravel >= _enterThreshold &&
+        _nodes.isNotEmpty &&
         _nodes[_index].children.isNotEmpty &&
         _history.length < _maxDepth - 1) {
       final idx = _index;
       _history.add(_TocLevel(nodes: _nodes, index: idx));
       _nodes = _nodes[idx].children;
       _index = _closestIndex(_nodes, widget.currentPage);
-      _horizontalTravel -= _enterThreshold;
+      _horizontalTravel = 0;
       _verticalRemainder = 0;
+      _axis = _TocAxis.none;
       setState(() {});
       return;
     }
@@ -144,16 +156,34 @@ class _ReaderRadialTocState extends State<ReaderRadialToc> {
       final prev = _history.removeLast();
       _nodes = prev.nodes;
       _index = prev.index.clamp(0, _nodes.length - 1);
-      _horizontalTravel += _enterThreshold;
+      _horizontalTravel = 0;
       _verticalRemainder = 0;
+      _axis = _TocAxis.none;
       setState(() {});
     }
   }
 
   void _applyPanDelta(Offset delta) {
     if (_nodes.isEmpty) return;
-    _moveSelection(delta.dy);
-    _moveDepth(delta.dx);
+
+    if (_axis == _TocAxis.none) {
+      final dx = delta.dx.abs();
+      final dy = delta.dy.abs();
+      if (dx == 0 && dy == 0) return;
+      if (dy >= dx * _axisLockRatio) {
+        _axis = _TocAxis.vertical;
+      } else if (dx >= dy * _axisLockRatio) {
+        _axis = _TocAxis.horizontal;
+      } else {
+        return;
+      }
+    }
+
+    if (_axis == _TocAxis.vertical) {
+      _moveSelection(delta.dy);
+    } else {
+      _moveDepth(delta.dx);
+    }
   }
 
   void _commit() {
@@ -165,11 +195,23 @@ class _ReaderRadialTocState extends State<ReaderRadialToc> {
   void _handleEnd() {
     if (_committed) return;
     final outward = widget.fromLeft ? _horizontalTravel : -_horizontalTravel;
-    if (outward < -_exitThreshold && _history.isEmpty) {
+    if (_axis == _TocAxis.horizontal && outward < -_exitThreshold && _history.isEmpty) {
       widget.onDismiss();
       return;
     }
     _commit();
+  }
+
+  double _itemStepForHeight(double height) {
+    final usable = (height - 48).clamp(320.0, 900.0).toDouble();
+    final slots = _visibleSlotsForHeight(height);
+    return (usable / slots).clamp(38.0, 52.0).toDouble();
+  }
+
+  int _visibleSlotsForHeight(double height) {
+    if (height < 620) return 5;
+    if (height < 740) return 7;
+    return _maxVisibleSlots;
   }
 
   @override
@@ -179,13 +221,13 @@ class _ReaderRadialTocState extends State<ReaderRadialToc> {
     final size = MediaQuery.sizeOf(context);
     final safeTop = MediaQuery.paddingOf(context).top;
     final safeBottom = MediaQuery.paddingOf(context).bottom;
-    final maxRadius = math.min(
-      size.width * 0.35,
-      (size.height - safeTop - safeBottom) * 0.30,
-    );
-    final radius = math.max(70.0, maxRadius);
+    final availableHeight = math.max(1.0, size.height - safeTop - safeBottom);
+    final maxRadius = math.min(size.width * 0.38, availableHeight * 0.33);
+    final radius = math.max(64.0, maxRadius);
     final centerX = widget.fromLeft ? 0.0 : size.width;
     final centerY = size.height / 2;
+    final visibleSlots = _visibleSlotsForHeight(size.height);
+    final itemStep = _itemStepForHeight(size.height);
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -201,14 +243,16 @@ class _ReaderRadialTocState extends State<ReaderRadialToc> {
           center: Offset(centerX, centerY),
           fromLeft: widget.fromLeft,
           verticalRemainder: _verticalRemainder,
-          itemStep: _itemStep,
-          visibleSlots: _visibleSlots,
+          itemStep: itemStep,
+          visibleSlots: visibleSlots,
           accent: Theme.of(context).colorScheme.primary,
         ),
       ),
     );
   }
 }
+
+enum _TocAxis { none, vertical, horizontal }
 
 class _TocLevel {
   final List<BookTreeNode> nodes;
@@ -268,7 +312,7 @@ class _RevolverPainter extends CustomPainter {
     final halfSlots = (slots - 1) / 2.0;
     final firstIndex = (selectedIndex - halfSlots).round().clamp(0, math.max(0, count - slots));
     final lastIndex = firstIndex + slots - 1;
-    final angleSpan = math.pi * 0.78;
+    final angleSpan = slots <= 5 ? math.pi * 0.62 : math.pi * 0.72;
     final angleStep = slots > 1 ? angleSpan / (slots - 1) : 0.0;
     final textPainter = TextPainter(textDirection: TextDirection.ltr);
 
