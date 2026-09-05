@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:ui' as ui;
 
 import 'package:flutter/widgets.dart';
@@ -93,7 +94,13 @@ class ReaderPageController extends ChangeNotifier {
       final manifest = await _bookManifestService.loadForDocument(documentInfo);
       if (_disposed) { opened.close(); return; }
       final template = _bookTemplateMatcher.match(documentInfo, manifest: manifest);
-      final tree = await _bookTreeService.loadIndexForDocument(documentInfo, pageCount: count, manifest: manifest);
+      final outline = _parseNativeOutline(opened.getOutlineJson());
+      final tree = await _bookTreeService.loadIndexForDocument(
+        documentInfo,
+        pageCount: count,
+        manifest: manifest,
+        nativeOutline: outline,
+      );
       if (_disposed) { opened.close(); return; }
       final mappingConfig = {...?template?.bookPageMapping, ...?manifest?.bookPageMapping};
       final mapping = BookPageMapping.fromTemplate(index: tree, config: mappingConfig);
@@ -120,6 +127,20 @@ class ReaderPageController extends ChangeNotifier {
       pageLoading = false;
       error = e;
       notifyListeners();
+    }
+  }
+
+  List<BookTreeNode> _parseNativeOutline(String json) {
+    try {
+      final decoded = jsonDecode(json);
+      if (decoded is! List) return const [];
+      return decoded
+          .whereType<Map>()
+          .map((node) => BookTreeNode.fromJson(Map<String, dynamic>.from(node)))
+          .where((node) => node.name.isNotEmpty)
+          .toList(growable: false);
+    } catch (_) {
+      return const [];
     }
   }
 
@@ -170,19 +191,13 @@ class ReaderPageController extends ChangeNotifier {
 
   void _replaceNeighbor(int slot, ui.Image? next) {
     final old = slot == 0 ? previousPageImage : nextPageImage;
-    if (slot == 0) {
-      previousPageImage = next;
-    } else {
-      nextPageImage = next;
-    }
+    if (slot == 0) previousPageImage = next; else nextPageImage = next;
     if (old != null && !identical(old, next)) old.dispose();
   }
 
   Future<void> goToPage(int pageIndex) async {
     if (_disposed || pageLoading || pageIndex < 0 || pageIndex >= pageCount || pageIndex == currentPage) return;
     currentPage = pageIndex;
-    // Persist the navigation immediately. Rendering is asynchronous and should
-    // never be allowed to determine whether the user's reading position survives.
     await _readerProgressService.savePage(documentId: documentInfo.id, lastPage: currentPage);
     await renderCurrent();
   }
@@ -198,10 +213,7 @@ class ReaderPageController extends ChangeNotifier {
     await renderCurrent(clearCache: true);
   }
 
-  Future<void> saveProgress() => _readerProgressService.savePage(
-        documentId: documentInfo.id,
-        lastPage: currentPage,
-      );
+  Future<void> saveProgress() => _readerProgressService.savePage(documentId: documentInfo.id, lastPage: currentPage);
 
   void _replaceImage(ui.Image next) {
     final previous = image;
@@ -218,9 +230,9 @@ class ReaderPageController extends ChangeNotifier {
     image?.dispose();
     previousPageImage?.dispose();
     nextPageImage?.dispose();
-    image = previousPageImage = nextPageImage = null;
-    currentPage = initialPage;
-    pageCount = 0;
+    image = null;
+    previousPageImage = null;
+    nextPageImage = null;
     loading = true;
     pageLoading = false;
     error = null;
@@ -232,20 +244,10 @@ class ReaderPageController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _pagePreloader.cancel();
-    unawaitedSaveProgress();
     document?.close();
-    _readerEngine.dispose();
     image?.dispose();
     previousPageImage?.dispose();
     nextPageImage?.dispose();
-    image = previousPageImage = nextPageImage = null;
     super.dispose();
   }
-
-  void unawaitedSaveProgress() => unawaited(
-        _readerProgressService.savePage(
-          documentId: documentInfo.id,
-          lastPage: currentPage,
-        ),
-      );
 }
