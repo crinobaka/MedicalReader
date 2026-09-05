@@ -115,6 +115,7 @@ class ReaderPageLayout extends ConsumerStatefulWidget {
 
 class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
   static const _interaction = ReaderInteractionController();
+  static const double _tocStartThreshold = 18.0;
   bool _controlsVisible = true;
   bool _tocVisible = false;
   bool _tocFromLeft = true;
@@ -127,6 +128,8 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
   double _gestureStartY = 0;
   int _gestureZone = 3;
   int _pageTurnDirection = 1;
+  final ValueNotifier<Offset> _tocDragDelta = ValueNotifier(Offset.zero);
+  final ValueNotifier<int> _tocDragEnd = ValueNotifier(0);
 
   @override
   void didUpdateWidget(covariant ReaderPageLayout oldWidget) {
@@ -329,7 +332,19 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
         width: 64,
         child: GestureDetector(
           behavior: HitTestBehavior.translucent,
-          onHorizontalDragStart: (_) => _openToc(fromLeft),
+          onHorizontalDragStart: (_) {
+            _tocDragDelta.value = Offset.zero;
+          },
+          onHorizontalDragUpdate: (details) {
+            _tocDragDelta.value += details.delta;
+            final inward = fromLeft ? _tocDragDelta.value.dx : -_tocDragDelta.value.dx;
+            if (!_tocVisible && inward >= _tocStartThreshold) {
+              _openToc(fromLeft);
+            }
+          },
+          onHorizontalDragEnd: (_) {
+            if (_tocVisible) _tocDragEnd.value++;
+          },
           child: const SizedBox.expand(),
         ),
       );
@@ -430,6 +445,8 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
                   nodes: widget.bookTreeNodes,
                   fromLeft: _tocFromLeft,
                   currentPage: widget.currentPage,
+                  externalDragDelta: _tocDragDelta,
+                  externalDragEnd: _tocDragEnd,
                   onSelected: (node) {
                     setState(() => _tocVisible = false);
                     final page = node.resolvePdfPageIndex();
@@ -480,5 +497,12 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
         if (actualFactor != 1.0) widget.transformationController.value = widget.transformationController.value.clone()..scale(actualFactor);
       case ReaderPointerIntent.none: break;
     }
+  }
+
+  @override
+  void dispose() {
+    _tocDragDelta.dispose();
+    _tocDragEnd.dispose();
+    super.dispose();
   }
 }
