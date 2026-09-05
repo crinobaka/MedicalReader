@@ -26,53 +26,21 @@ final class _MedicalCorePage extends Struct {
 
 typedef _MedicalCoreHelloNative = Int32 Function();
 typedef _MedicalCoreHelloDart = int Function();
-
-typedef _MedicalCoreOpenBookNative =
-    Pointer<_MedicalCoreDocument> Function(Pointer<Utf8>, Pointer<Utf8>);
-typedef _MedicalCoreOpenBookDart =
-    Pointer<_MedicalCoreDocument> Function(Pointer<Utf8>, Pointer<Utf8>);
-
-typedef _MedicalCoreCloseBookNative =
-    Void Function(Pointer<_MedicalCoreDocument>);
-typedef _MedicalCoreCloseBookDart =
-    void Function(Pointer<_MedicalCoreDocument>);
-
-typedef _MedicalCoreGetPageCountNative =
-    Int32 Function(Pointer<_MedicalCoreDocument>, Pointer<Uint32>);
-typedef _MedicalCoreGetPageCountDart =
-    int Function(Pointer<_MedicalCoreDocument>, Pointer<Uint32>);
-
-typedef _MedicalCoreRenderPageNative =
-    Pointer<_MedicalCorePage> Function(
-      Pointer<_MedicalCoreDocument>,
-      Uint32,
-      Uint32,
-    );
-typedef _MedicalCoreRenderPageDart =
-    Pointer<_MedicalCorePage> Function(Pointer<_MedicalCoreDocument>, int, int);
-
+typedef _MedicalCoreOpenBookNative = Pointer<_MedicalCoreDocument> Function(Pointer<Utf8>, Pointer<Utf8>);
+typedef _MedicalCoreOpenBookDart = Pointer<_MedicalCoreDocument> Function(Pointer<Utf8>, Pointer<Utf8>);
+typedef _MedicalCoreCloseBookNative = Void Function(Pointer<_MedicalCoreDocument>);
+typedef _MedicalCoreCloseBookDart = void Function(Pointer<_MedicalCoreDocument>);
+typedef _MedicalCoreGetPageCountNative = Int32 Function(Pointer<_MedicalCoreDocument>, Pointer<Uint32>);
+typedef _MedicalCoreGetPageCountDart = int Function(Pointer<_MedicalCoreDocument>, Pointer<Uint32>);
+typedef _MedicalCoreRenderPageNative = Pointer<_MedicalCorePage> Function(Pointer<_MedicalCoreDocument>, Uint32, Uint32);
+typedef _MedicalCoreRenderPageDart = Pointer<_MedicalCorePage> Function(Pointer<_MedicalCoreDocument>, int, int);
 typedef _MedicalCoreFreePageNative = Void Function(Pointer<_MedicalCorePage>);
 typedef _MedicalCoreFreePageDart = void Function(Pointer<_MedicalCorePage>);
-typedef _MedicalCoreSearchBookNative =
-    Pointer<Utf8> Function(
-      Pointer<_MedicalCoreDocument>,
-      Pointer<Utf8>,
-      Uint32,
-      Uint32,
-      Uint32,
-    );
-
-typedef _MedicalCoreSearchBookDart =
-    Pointer<Utf8> Function(
-      Pointer<_MedicalCoreDocument>,
-      Pointer<Utf8>,
-      int,
-      int,
-      int,
-    );
-
+typedef _MedicalCoreGetOutlineNative = Pointer<Utf8> Function(Pointer<_MedicalCoreDocument>);
+typedef _MedicalCoreGetOutlineDart = Pointer<Utf8> Function(Pointer<_MedicalCoreDocument>);
+typedef _MedicalCoreSearchBookNative = Pointer<Utf8> Function(Pointer<_MedicalCoreDocument>, Pointer<Utf8>, Uint32, Uint32, Uint32);
+typedef _MedicalCoreSearchBookDart = Pointer<Utf8> Function(Pointer<_MedicalCoreDocument>, Pointer<Utf8>, int, int, int);
 typedef _MedicalCoreFreeStringNative = Void Function(Pointer<Utf8>);
-
 typedef _MedicalCoreFreeStringDart = void Function(Pointer<Utf8>);
 
 class MedicalCorePage {
@@ -82,152 +50,78 @@ class MedicalCorePage {
   final int components;
   final List<int> data;
 
-  const MedicalCorePage({
-    required this.width,
-    required this.height,
-    required this.stride,
-    required this.components,
-    required this.data,
-  });
+  const MedicalCorePage({required this.width, required this.height, required this.stride, required this.components, required this.data});
 }
 
 class MedicalCoreDocument {
   final Pointer<_MedicalCoreDocument> _handle;
   final MedicalCore _core;
-
   bool _closed = false;
 
-  MedicalCoreDocument._({
-    required this._handle,
-    required this._core,
-  });
+  MedicalCoreDocument._({required this._handle, required this._core});
 
   int get pageCount {
-    if (_closed) {
-      throw StateError('MedicalCoreDocument is already closed.');
-    }
-
+    if (_closed) throw StateError('MedicalCoreDocument is already closed.');
     return _core.getPageCount(_handle);
   }
 
   MedicalCorePage renderPage({required int pageIndex, required int dpi}) {
-    if (_closed) {
-      throw StateError('MedicalCoreDocument is already closed.');
-    }
-
+    if (_closed) throw StateError('MedicalCoreDocument is already closed.');
     return _core.renderPage(_handle, pageIndex: pageIndex, dpi: dpi);
   }
 
-  void close() {
-    if (_closed) {
-      return;
-    }
+  String getOutlineJson() {
+    if (_closed) throw StateError('MedicalCoreDocument is already closed.');
+    return _core.getOutline(_handle);
+  }
 
+  void close() {
+    if (_closed) return;
     _core.closeBook(_handle);
     _closed = true;
   }
 
-  String searchBook({
-    required String query,
-    int maxResults = 50,
-    int contextBefore = 80,
-    int contextAfter = 80,
-  }) {
-    if (_closed) {
-      throw StateError('MedicalCoreDocument is already closed.');
-    }
-
-    return _core.searchBook(
-      _handle,
-      query: query,
-      maxResults: maxResults,
-      contextBefore: contextBefore,
-      contextAfter: contextAfter,
-    );
+  String searchBook({required String query, int maxResults = 50, int contextBefore = 80, int contextAfter = 80}) {
+    if (_closed) throw StateError('MedicalCoreDocument is already closed.');
+    return _core.searchBook(_handle, query: query, maxResults: maxResults, contextBefore: contextBefore, contextAfter: contextAfter);
   }
 }
 
 class MedicalCore {
   MedicalCore._(this._library) {
-    _hello = _library
-        .lookup<NativeFunction<_MedicalCoreHelloNative>>('medical_core_hello')
-        .asFunction<_MedicalCoreHelloDart>();
-
-    _openBook = _library
-        .lookup<NativeFunction<_MedicalCoreOpenBookNative>>(
-          'medical_core_open_book',
-        )
-        .asFunction<_MedicalCoreOpenBookDart>();
-
-    _closeBook = _library
-        .lookup<NativeFunction<_MedicalCoreCloseBookNative>>(
-          'medical_core_close_book',
-        )
-        .asFunction<_MedicalCoreCloseBookDart>();
-
-    _getPageCount = _library
-        .lookup<NativeFunction<_MedicalCoreGetPageCountNative>>(
-          'medical_core_get_page_count',
-        )
-        .asFunction<_MedicalCoreGetPageCountDart>();
-
-    _renderPage = _library
-        .lookup<NativeFunction<_MedicalCoreRenderPageNative>>(
-          'medical_core_render_page',
-        )
-        .asFunction<_MedicalCoreRenderPageDart>();
-
-    _freePage = _library
-        .lookup<NativeFunction<_MedicalCoreFreePageNative>>(
-          'medical_core_free_page',
-        )
-        .asFunction<_MedicalCoreFreePageDart>();
-
-    _searchBook = _library
-        .lookup<NativeFunction<_MedicalCoreSearchBookNative>>(
-          'medical_core_search_book',
-        )
-        .asFunction<_MedicalCoreSearchBookDart>();
-
-    _freeString = _library
-        .lookup<NativeFunction<_MedicalCoreFreeStringNative>>(
-          'medical_core_free_string',
-        )
-        .asFunction<_MedicalCoreFreeStringDart>();
+    _hello = _library.lookup<NativeFunction<_MedicalCoreHelloNative>>('medical_core_hello').asFunction<_MedicalCoreHelloDart>();
+    _openBook = _library.lookup<NativeFunction<_MedicalCoreOpenBookNative>>('medical_core_open_book').asFunction<_MedicalCoreOpenBookDart>();
+    _closeBook = _library.lookup<NativeFunction<_MedicalCoreCloseBookNative>>('medical_core_close_book').asFunction<_MedicalCoreCloseBookDart>();
+    _getPageCount = _library.lookup<NativeFunction<_MedicalCoreGetPageCountNative>>('medical_core_get_page_count').asFunction<_MedicalCoreGetPageCountDart>();
+    _renderPage = _library.lookup<NativeFunction<_MedicalCoreRenderPageNative>>('medical_core_render_page').asFunction<_MedicalCoreRenderPageDart>();
+    _freePage = _library.lookup<NativeFunction<_MedicalCoreFreePageNative>>('medical_core_free_page').asFunction<_MedicalCoreFreePageDart>();
+    _getOutline = _library.lookup<NativeFunction<_MedicalCoreGetOutlineNative>>('medical_core_get_outline').asFunction<_MedicalCoreGetOutlineDart>();
+    _searchBook = _library.lookup<NativeFunction<_MedicalCoreSearchBookNative>>('medical_core_search_book').asFunction<_MedicalCoreSearchBookDart>();
+    _freeString = _library.lookup<NativeFunction<_MedicalCoreFreeStringNative>>('medical_core_free_string').asFunction<_MedicalCoreFreeStringDart>();
   }
 
   static MedicalCore? _instance;
-
   final DynamicLibrary _library;
-
   late final _MedicalCoreHelloDart _hello;
   late final _MedicalCoreOpenBookDart _openBook;
   late final _MedicalCoreCloseBookDart _closeBook;
   late final _MedicalCoreGetPageCountDart _getPageCount;
   late final _MedicalCoreRenderPageDart _renderPage;
   late final _MedicalCoreFreePageDart _freePage;
+  late final _MedicalCoreGetOutlineDart _getOutline;
   late final _MedicalCoreSearchBookDart _searchBook;
   late final _MedicalCoreFreeStringDart _freeString;
 
-  factory MedicalCore() {
-    return _instance ??= MedicalCore._(_openLibrary());
-  }
+  factory MedicalCore() => _instance ??= MedicalCore._(_openLibrary());
 
-  int hello() {
-    return _hello();
-  }
+  int hello() => _hello();
 
   MedicalCoreDocument openBook({required String id, required String path}) {
     final idPointer = id.toNativeUtf8();
     final pathPointer = path.toNativeUtf8();
-
     try {
       final handle = _openBook(idPointer, pathPointer);
-
-      if (handle == nullptr) {
-        throw StateError('Failed to open document: $path');
-      }
-
+      if (handle == nullptr) throw StateError('Failed to open document: $path');
       return MedicalCoreDocument._(handle: handle, core: this);
     } finally {
       calloc.free(idPointer);
@@ -236,147 +130,64 @@ class MedicalCore {
   }
 
   void closeBook(Pointer<_MedicalCoreDocument> handle) {
-    if (handle == nullptr) {
-      return;
-    }
-
-    _closeBook(handle);
+    if (handle != nullptr) _closeBook(handle);
   }
 
   int getPageCount(Pointer<_MedicalCoreDocument> handle) {
-    if (handle == nullptr) {
-      throw ArgumentError('Document handle cannot be null.');
-    }
-
+    if (handle == nullptr) throw ArgumentError('Document handle cannot be null.');
     final pageCountPointer = calloc<Uint32>();
-
     try {
       final result = _getPageCount(handle, pageCountPointer);
-
-      if (result != 0) {
-        throw StateError('Failed to get PDF page count.');
-      }
-
+      if (result != 0) throw StateError('Failed to get PDF page count.');
       return pageCountPointer.value;
     } finally {
       calloc.free(pageCountPointer);
     }
   }
 
-  MedicalCorePage renderPage(
-    Pointer<_MedicalCoreDocument> handle, {
-    required int pageIndex,
-    required int dpi,
-  }) {
-    if (handle == nullptr) {
-      throw ArgumentError('Document handle cannot be null.');
-    }
-
-    if (pageIndex < 0) {
-      throw ArgumentError.value(
-        pageIndex,
-        'pageIndex',
-        'Page index cannot be negative.',
-      );
-    }
-
-    if (dpi <= 0) {
-      throw ArgumentError.value(dpi, 'dpi', 'DPI must be greater than zero.');
-    }
-
+  MedicalCorePage renderPage(Pointer<_MedicalCoreDocument> handle, {required int pageIndex, required int dpi}) {
+    if (handle == nullptr) throw ArgumentError('Document handle cannot be null.');
+    if (pageIndex < 0) throw ArgumentError.value(pageIndex, 'pageIndex', 'Page index cannot be negative.');
+    if (dpi <= 0) throw ArgumentError.value(dpi, 'dpi', 'DPI must be greater than zero.');
     final pagePointer = _renderPage(handle, pageIndex, dpi);
-
-    if (pagePointer == nullptr) {
-      throw StateError('Failed to render PDF page: $pageIndex');
-    }
-
+    if (pagePointer == nullptr) throw StateError('Failed to render PDF page: $pageIndex');
     try {
       final page = pagePointer.ref;
       final data = List<int>.from(page.data.asTypedList(page.dataLen));
-
-      return MedicalCorePage(
-        width: page.width,
-        height: page.height,
-        stride: page.stride,
-        components: page.components,
-        data: data,
-      );
+      return MedicalCorePage(width: page.width, height: page.height, stride: page.stride, components: page.components, data: data);
     } finally {
       _freePage(pagePointer);
     }
   }
 
+  String getOutline(Pointer<_MedicalCoreDocument> handle) {
+    if (handle == nullptr) throw ArgumentError('Document handle cannot be null.');
+    final resultPointer = _getOutline(handle);
+    if (resultPointer == nullptr) throw StateError('Failed to read PDF outline.');
+    try {
+      return resultPointer.toDartString();
+    } finally {
+      _freeString(resultPointer);
+    }
+  }
+
   static DynamicLibrary _openLibrary() {
-    // Android 的 native library 会由 APK 打包到：
-    // lib/<ABI>/libmedical_core.so
-    //
-    // DynamicLibrary.open() 使用库文件名加载，
-    // Android 会根据当前设备 ABI 找到对应的 .so。
-    if (Platform.isAndroid) {
-      return DynamicLibrary.open('libmedical_core.so');
-    }
-
-    // Windows:
-    // build/windows/x64/runner/Debug/medical_core.dll
-    if (Platform.isWindows) {
-      return DynamicLibrary.open('medical_core.dll');
-    }
-
-    // macOS:
-    // libmedical_core.dylib
-    if (Platform.isMacOS) {
-      return DynamicLibrary.open('libmedical_core.dylib');
-    }
-
-    // Linux:
-    // libmedical_core.so
-    if (Platform.isLinux) {
-      return DynamicLibrary.open('libmedical_core.so');
-    }
-
+    if (Platform.isAndroid) return DynamicLibrary.open('libmedical_core.so');
+    if (Platform.isWindows) return DynamicLibrary.open('medical_core.dll');
+    if (Platform.isMacOS) return DynamicLibrary.open('libmedical_core.dylib');
+    if (Platform.isLinux) return DynamicLibrary.open('libmedical_core.so');
     throw UnsupportedError('MedicalCore is not supported on this platform.');
   }
 
-  String searchBook(
-    Pointer<_MedicalCoreDocument> handle, {
-    required String query,
-    required int maxResults,
-    int contextBefore = 80,
-    int contextAfter = 80,
-  }) {
-    if (handle == nullptr) {
-      throw ArgumentError('Document handle cannot be null.');
-    }
-
+  String searchBook(Pointer<_MedicalCoreDocument> handle, {required String query, required int maxResults, int contextBefore = 80, int contextAfter = 80}) {
+    if (handle == nullptr) throw ArgumentError('Document handle cannot be null.');
     final normalizedQuery = query.trim();
-
-    if (normalizedQuery.isEmpty) {
-      return '';
-    }
-
-    if (maxResults <= 0) {
-      throw ArgumentError.value(
-        maxResults,
-        'maxResults',
-        'Maximum results must be greater than zero.',
-      );
-    }
-
+    if (normalizedQuery.isEmpty) return '';
+    if (maxResults <= 0) throw ArgumentError.value(maxResults, 'maxResults', 'Maximum results must be greater than zero.');
     final queryPointer = normalizedQuery.toNativeUtf8();
-
     try {
-      final resultPointer = _searchBook(
-        handle,
-        queryPointer,
-        maxResults,
-        contextBefore,
-        contextAfter,
-      );
-
-      if (resultPointer == nullptr) {
-        throw StateError('Failed to search PDF document.');
-      }
-
+      final resultPointer = _searchBook(handle, queryPointer, maxResults, contextBefore, contextAfter);
+      if (resultPointer == nullptr) throw StateError('Failed to search PDF document.');
       try {
         return resultPointer.toDartString();
       } finally {
