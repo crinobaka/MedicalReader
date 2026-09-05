@@ -1,14 +1,8 @@
 import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
-
 import '../models/book_tree_node.dart';
 
-/// Touch-first directory navigator.
-///
-/// The directory is a side-mounted curved sheet rather than a conventional
-/// drawer. Vertical travel selects an entry, inward travel enters children,
-/// reverse travel returns/cancels, and release commits the highlighted entry.
+/// 左轮弹夹式目录导航（垂直条幅排布）
 class ReaderRadialToc extends StatefulWidget {
   final List<BookTreeNode> nodes;
   final bool fromLeft;
@@ -30,10 +24,10 @@ class ReaderRadialToc extends StatefulWidget {
 }
 
 class _ReaderRadialTocState extends State<ReaderRadialToc> {
-  static const _maxDepth = 3;
-  static const _rowHeight = 46.0;
-  static const _enterThreshold = 58.0;
-  static const _commitThreshold = 28.0;
+  static const int _maxDepth = 4;
+  static const double _itemHeight = 46.0;
+  static const double _enterThreshold = 40.0;
+  static const double _exitThreshold = 25.0;
 
   late List<BookTreeNode> _nodes;
   final List<_TocLevel> _history = [];
@@ -56,9 +50,9 @@ class _ReaderRadialTocState extends State<ReaderRadialToc> {
     for (var i = 0; i < nodes.length; i++) {
       final candidate = nodes[i].resolvePdfPageIndex();
       if (candidate == null) continue;
-      final nextDistance = (candidate - page).abs().toDouble();
-      if (nextDistance < distance) {
-        distance = nextDistance;
+      final d = (candidate - page).abs().toDouble();
+      if (d < distance) {
+        distance = d;
         best = i;
       }
     }
@@ -66,12 +60,11 @@ class _ReaderRadialTocState extends State<ReaderRadialToc> {
   }
 
   void _moveSelection(double delta) {
-    if (_nodes.length < 2) return;
     _verticalRemainder += delta;
-    while (_verticalRemainder.abs() >= _rowHeight) {
+    while (_verticalRemainder.abs() >= _itemHeight) {
       final direction = _verticalRemainder > 0 ? 1 : -1;
       _index = (_index + direction).clamp(0, _nodes.length - 1);
-      _verticalRemainder -= direction * _rowHeight;
+      _verticalRemainder -= direction * _itemHeight;
     }
     setState(() {});
   }
@@ -79,25 +72,28 @@ class _ReaderRadialTocState extends State<ReaderRadialToc> {
   void _moveDepth(double delta) {
     final inwardDelta = widget.fromLeft ? delta : -delta;
     _horizontalTravel += inwardDelta;
+
     if (_horizontalTravel >= _enterThreshold &&
         _nodes[_index].children.isNotEmpty &&
         _history.length < _maxDepth - 1) {
-      final selectedIndex = _index;
-      _history.add(_TocLevel(nodes: _nodes, index: selectedIndex));
-      _nodes = _nodes[selectedIndex].children;
+      final idx = _index;
+      _history.add(_TocLevel(nodes: _nodes, index: idx));
+      _nodes = _nodes[idx].children;
       _index = _closestIndex(_nodes, widget.currentPage);
       _horizontalTravel = 0;
       _verticalRemainder = 0;
       setState(() {});
       return;
     }
+
     if (_horizontalTravel <= -_enterThreshold && _history.isNotEmpty) {
-      final previous = _history.removeLast();
-      _nodes = previous.nodes;
-      _index = previous.index.clamp(0, _nodes.length - 1);
+      final prev = _history.removeLast();
+      _nodes = prev.nodes;
+      _index = prev.index.clamp(0, _nodes.length - 1);
       _horizontalTravel = 0;
       _verticalRemainder = 0;
       setState(() {});
+      return;
     }
   }
 
@@ -110,7 +106,7 @@ class _ReaderRadialTocState extends State<ReaderRadialToc> {
   void _handleEnd() {
     if (_committed) return;
     final outward = widget.fromLeft ? _horizontalTravel : -_horizontalTravel;
-    if (outward < -_commitThreshold && _history.isEmpty) {
+    if (outward < -_exitThreshold && _history.isEmpty) {
       widget.onDismiss();
       return;
     }
@@ -120,110 +116,52 @@ class _ReaderRadialTocState extends State<ReaderRadialToc> {
   @override
   Widget build(BuildContext context) {
     if (_nodes.isEmpty) return const SizedBox.shrink();
+
     final size = MediaQuery.sizeOf(context);
     final safeTop = MediaQuery.paddingOf(context).top;
     final safeBottom = MediaQuery.paddingOf(context).bottom;
-    final scheme = Theme.of(context).colorScheme;
-    final panelWidth = math.min(380.0, size.width * .82);
-    final radius = math.max(72.0, math.min(size.height * .28, panelWidth * .72));
-    final selected = _nodes[_index];
-    final level = _history.length + 1;
 
-    return Positioned.fill(
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onTap: widget.onDismiss,
-              child: ColoredBox(color: Colors.black.withValues(alpha: .10)),
-            ),
+    // 半径：基于宽度，避免太大
+    final maxRadius = math.min(
+      size.width * 0.35,
+      (size.height - safeTop - safeBottom) * 0.30,
+    );
+    final radius = math.max(70.0, maxRadius);
+
+    final count = _nodes.length;
+    // 垂直分布：每个条目占用的垂直步长（弧度对应的高度）
+    final verticalStep = count > 1 ? (radius * 1.6) / (count - 1) : 0.0;
+
+    // 圆心位置
+    final centerX = widget.fromLeft ? 0.0 : size.width;
+    final centerY = size.height / 2;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: widget.onDismiss,
+      child: Container(
+        color: Colors.transparent,
+        child: CustomPaint(
+          size: size,
+          painter: _RevolverPainter(
+            nodes: _nodes,
+            selectedIndex: _index,
+            radius: radius,
+            center: Offset(centerX, centerY),
+            fromLeft: widget.fromLeft,
+            verticalStep: verticalStep,
+            verticalRemainder: _verticalRemainder,
+            itemHeight: _itemHeight,
+            accent: Theme.of(context).colorScheme.primary,
           ),
-          Positioned(
-            top: safeTop + 8,
-            bottom: safeBottom + 8,
-            left: widget.fromLeft ? 0 : null,
-            right: widget.fromLeft ? null : 0,
-            width: panelWidth,
-            child: Material(
-              color: scheme.surface.withValues(alpha: .98),
-              elevation: 10,
-              clipBehavior: Clip.antiAlias,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.only(
-                  topLeft: widget.fromLeft ? Radius.zero : Radius.circular(radius),
-                  bottomLeft: widget.fromLeft ? Radius.zero : Radius.circular(radius),
-                  topRight: widget.fromLeft ? Radius.circular(radius) : Radius.zero,
-                  bottomRight: widget.fromLeft ? Radius.circular(radius) : Radius.zero,
-                ),
-              ),
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onVerticalDragUpdate: (details) => _moveSelection(details.delta.dy),
-                onHorizontalDragUpdate: (details) => _moveDepth(details.delta.dx),
-                onVerticalDragEnd: (_) => _handleEnd(),
-                onHorizontalDragEnd: (_) => _handleEnd(),
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(widget.fromLeft ? 24 : 18, 18, widget.fromLeft ? 18 : 24, 18),
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          IconButton(tooltip: '关闭目录', onPressed: widget.onDismiss, icon: const Icon(Icons.close)),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              level == 1 ? '目录' : '目录 · $level级',
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                            ),
-                          ),
-                          Text('${_index + 1}/${_nodes.length}', style: Theme.of(context).textTheme.labelMedium),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          Icon(Icons.account_tree_outlined, size: 17, color: scheme.primary),
-                          const SizedBox(width: 7),
-                          Expanded(
-                            child: Text(
-                              selected.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(selected.pageLabel.isEmpty ? '第 ${_index + 1} 项' : 'P ${selected.pageLabel}', style: Theme.of(context).textTheme.bodySmall),
-                      const SizedBox(height: 14),
-                      Expanded(
-                        child: _ArcSelectionRail(
-                          nodes: _nodes,
-                          selectedIndex: _index,
-                          fromLeft: widget.fromLeft,
-                          rowHeight: _rowHeight,
-                          accent: scheme.primary,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        selected.children.isNotEmpty && level < _maxDepth
-                            ? '上下滑选择 · 向内滑进入 · 反向滑返回'
-                            : _history.isNotEmpty
-                                ? '上下滑选择 · 反向滑返回 · 松手跳转'
-                                : '上下滑选择 · 松手跳转 · 反向滑动取消',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onVerticalDragUpdate: (d) => _moveSelection(d.delta.dy),
+            onHorizontalDragUpdate: (d) => _moveDepth(d.delta.dx),
+            onVerticalDragEnd: (_) => _handleEnd(),
+            onHorizontalDragEnd: (_) => _handleEnd(),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -235,93 +173,158 @@ class _TocLevel {
   const _TocLevel({required this.nodes, required this.index});
 }
 
-class _ArcSelectionRail extends StatelessWidget {
+class _RevolverPainter extends CustomPainter {
   final List<BookTreeNode> nodes;
   final int selectedIndex;
+  final double radius;
+  final Offset center;
   final bool fromLeft;
-  final double rowHeight;
+  final double verticalStep;
+  final double verticalRemainder;
+  final double itemHeight;
   final Color accent;
 
-  const _ArcSelectionRail({required this.nodes, required this.selectedIndex, required this.fromLeft, required this.rowHeight, required this.accent});
-
-  @override
-  Widget build(BuildContext context) {
-    final start = math.max(0, selectedIndex - 3);
-    final end = math.min(nodes.length, start + 7);
-    final visible = [for (var i = start; i < end; i++) i];
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final centerY = constraints.maxHeight / 2;
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            CustomPaint(painter: _ArcGuidePainter(fromLeft: fromLeft, color: accent.withValues(alpha: .10), radius: math.max(150.0, constraints.maxHeight * .72))),
-            for (var position = 0; position < visible.length; position++)
-              _arcItem(context, index: visible[position], position: position, count: visible.length, centerY: centerY),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _arcItem(BuildContext context, {required int index, required int position, required int count, required double centerY}) {
-    final selected = index == selectedIndex;
-    final relative = position - (count - 1) / 2;
-    final y = centerY + relative * rowHeight;
-    final normalized = (relative / math.max(1, (count - 1) / 2)).abs().clamp(0.0, 1.0);
-    final inset = math.pow(normalized, 1.7).toDouble() * 42;
-    final width = math.min(270.0, MediaQuery.sizeOf(context).width * .58);
-    return Positioned(
-      left: fromLeft ? inset : null,
-      right: fromLeft ? null : inset,
-      top: y - rowHeight / 2,
-      width: width,
-      height: rowHeight,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
-        curve: Curves.easeOut,
-        decoration: BoxDecoration(
-          color: selected ? accent.withValues(alpha: .14) : Colors.transparent,
-          borderRadius: BorderRadius.circular(rowHeight / 2),
-          border: selected ? Border.all(color: accent.withValues(alpha: .48)) : null,
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        child: Row(
-          textDirection: fromLeft ? TextDirection.ltr : TextDirection.rtl,
-          children: [
-            CircleAvatar(
-              radius: 15,
-              backgroundColor: selected ? accent : accent.withValues(alpha: .12),
-              foregroundColor: selected ? Theme.of(context).colorScheme.onPrimary : accent,
-              child: Text('${index + 1}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-            ),
-            const SizedBox(width: 9),
-            Expanded(
-              child: Text(nodes[index].name, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: fromLeft ? TextAlign.left : TextAlign.right, style: selected ? const TextStyle(fontWeight: FontWeight.w700) : null),
-            ),
-            if (nodes[index].children.isNotEmpty) Icon(fromLeft ? Icons.chevron_right : Icons.chevron_left, size: 18),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ArcGuidePainter extends CustomPainter {
-  final bool fromLeft;
-  final Color color;
-  final double radius;
-  const _ArcGuidePainter({required this.fromLeft, required this.color, required this.radius});
+  const _RevolverPainter({
+    required this.nodes,
+    required this.selectedIndex,
+    required this.radius,
+    required this.center,
+    required this.fromLeft,
+    required this.verticalStep,
+    required this.verticalRemainder,
+    required this.itemHeight,
+    required this.accent,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
-    final center = Offset(fromLeft ? -radius * .62 : size.width + radius * .62, size.height / 2);
+    final count = nodes.length;
+    if (count == 0) return;
+
     final rect = Rect.fromCircle(center: center, radius: radius);
-    final paint = Paint()..color = color..style = PaintingStyle.stroke..strokeWidth = 2.5;
-    final start = fromLeft ? -math.pi * .34 : math.pi * .66;
-    canvas.drawArc(rect, start, math.pi * .68, false, paint);
+
+    // 1. 半透明背景弧
+    final bgPaint = Paint()
+      ..style = PaintingStyle.fill
+      ..shader = RadialGradient(
+        center: Alignment.center,
+        radius: 1.0,
+        colors: [
+          Colors.white.withOpacity(0.96),
+          Colors.white.withOpacity(0.80),
+        ],
+        stops: const [0.2, 1.0],
+      ).createShader(rect);
+    canvas.drawArc(rect, -math.pi / 2, math.pi, true, bgPaint);
+
+    // 2. 边框
+    final strokePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..color = accent.withOpacity(0.25)
+      ..strokeWidth = 1.5;
+    canvas.drawArc(rect, -math.pi / 2, math.pi, false, strokePaint);
+
+    // 3. 计算垂直范围：使得选中项在垂直中心，其他项上下均匀分布
+    // 实际垂直偏移量 = (i - selectedIndex) * verticalStep + verticalRemainder
+    // 但我们需要让条目水平位置随垂直偏移略微弯曲，形成弧形
+    // 我们取水平偏移 = 半径 - sqrt(半径^2 - 垂直偏移^2)  (内弧)
+    final halfCount = (count - 1) / 2.0;
+    final maxVertical = halfCount * verticalStep; // 最大垂直偏移
+
+    final textPainter = TextPainter(textDirection: TextDirection.ltr);
+
+    for (int i = 0; i < count; i++) {
+      final verticalOffset = (i - selectedIndex) * verticalStep + verticalRemainder;
+      // 限制垂直偏移在 -radius 到 radius 之间，避免超出弧线
+      final clampedVertical = verticalOffset.clamp(-radius * 0.95, radius * 0.95);
+
+      // 计算水平偏移（弧线弯曲）：根据垂直偏移计算对应的水平缩进
+      // 从圆心到弧上的点：x = centerX + 水平偏移, y = centerY + 垂直偏移
+      // 但我们要让条目在弧线上，所以水平偏移 = sqrt(radius^2 - verticalOffset^2) * (fromLeft ? 1 : -1)
+      final horizontalOffset = math.sqrt(math.max(0, radius * radius - clampedVertical * clampedVertical));
+      final posX = center.dx + (fromLeft ? horizontalOffset : -horizontalOffset);
+      final posY = center.dy + clampedVertical;
+
+      final position = Offset(posX, posY);
+
+      final isSelected = (i == selectedIndex);
+      final distance = (i - selectedIndex).abs().toDouble();
+      final maxDist = (count - 1) / 2.0;
+      final ratio = maxDist > 0 ? distance / maxDist : 0.0;
+      final opacity = isSelected ? 1.0 : (1.0 - ratio * 0.5).clamp(0.2, 1.0);
+
+      // 高亮背景
+      if (isSelected) {
+        final hlPaint = Paint()
+          ..color = accent.withOpacity(0.18)
+          ..style = PaintingStyle.fill;
+        canvas.drawCircle(position, 20, hlPaint);
+        final borderPaint = Paint()
+          ..color = accent.withOpacity(0.5)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.8;
+        canvas.drawCircle(position, 20, borderPaint);
+      }
+
+      // 文本（水平显示）
+      final textStyle = TextStyle(
+        color: isSelected ? accent : Colors.black.withOpacity(opacity),
+        fontSize: isSelected ? 16 : 13,
+        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
+      );
+      textPainter.text = TextSpan(text: nodes[i].name, style: textStyle);
+      textPainter.layout();
+      // 文本居中显示在 position 处
+      final textOffset = Offset(
+        position.dx - textPainter.width / 2,
+        position.dy - textPainter.height / 2,
+      );
+      textPainter.paint(canvas, textOffset);
+
+      // 子目录箭头
+      if (nodes[i].children.isNotEmpty) {
+        final arrowPainter = TextPainter(
+          text: TextSpan(
+            text: ' ›',
+            style: TextStyle(
+              color: accent.withOpacity(opacity * 0.6),
+              fontSize: 14,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        );
+        arrowPainter.layout();
+        final arrowOffset = Offset(
+          position.dx + textPainter.width / 2 + 2,
+          position.dy - arrowPainter.height / 2,
+        );
+        arrowPainter.paint(canvas, arrowOffset);
+      }
+    }
+
+    // 4. 上下渐隐指示点（表示还有更多条目）
+    if (count > 3) {
+      final tipPaint = Paint()
+        ..color = accent.withOpacity(0.2)
+        ..style = PaintingStyle.fill;
+      // 顶部点
+      if (selectedIndex > 0) {
+        final topY = center.dy - radius * 0.9;
+        final topX = center.dx + (fromLeft ? radius * 0.4 : -radius * 0.4);
+        canvas.drawCircle(Offset(topX, topY), 4, tipPaint);
+      }
+      if (selectedIndex < count - 1) {
+        final bottomY = center.dy + radius * 0.9;
+        final bottomX = center.dx + (fromLeft ? radius * 0.4 : -radius * 0.4);
+        canvas.drawCircle(Offset(bottomX, bottomY), 4, tipPaint);
+      }
+    }
   }
 
   @override
-  bool shouldRepaint(covariant _ArcGuidePainter oldDelegate) => oldDelegate.fromLeft != fromLeft || oldDelegate.color != color || oldDelegate.radius != radius;
+  bool shouldRepaint(covariant _RevolverPainter oldDelegate) {
+    return oldDelegate.selectedIndex != selectedIndex ||
+        oldDelegate.verticalRemainder != verticalRemainder ||
+        oldDelegate.nodes != nodes;
+  }
 }
