@@ -145,7 +145,7 @@ class _Cover extends StatelessWidget {
               child: LayoutBuilder(
                 builder: (context, constraints) => Icon(
                   Icons.menu_book_rounded,
-                  size: constraints.biggest.shortestSide.clamp(24, 54),
+                  size: constraints.biggest.shortestSide.clamp(24, 54).toDouble(),
                   color: theme.colorScheme.primary,
                 ),
               ),
