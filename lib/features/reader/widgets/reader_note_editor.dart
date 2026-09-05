@@ -51,14 +51,7 @@ class _ReaderNoteTextEditingController extends TextEditingController {
             style: base.copyWith(color: quote, fontWeight: FontWeight.w600),
           ));
         }
-        spans.addAll(_inlineSpans(
-          line.substring(prefixEnd),
-          base,
-          syntax,
-          emphasis,
-          code,
-          link,
-        ));
+        spans.addAll(_inlineSpans(line.substring(prefixEnd), base, syntax, emphasis, code, link));
       }
       if (lineIndex < lines.length - 1) spans.add(const TextSpan(text: '\\n'));
     }
@@ -82,6 +75,7 @@ class _ReaderNoteTextEditingController extends TextEditingController {
       Color tokenColor = syntax;
       FontWeight? weight;
       FontStyle? fontStyle;
+      String? fontFamily;
       if (token.startsWith('**') || token.startsWith('__')) {
         tokenColor = emphasis;
         weight = FontWeight.w700;
