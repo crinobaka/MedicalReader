@@ -3,24 +3,29 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/file_manager/providers/file_manager_provider.dart';
 
 import '../repositories/library_repository.dart';
+import '../storage/library_collections_storage.dart';
 import '../storage/library_metadata_storage.dart';
 
-final libraryMetadataStorageFutureProvider =
-    Provider<Future<LibraryMetadataStorage> Function()>((ref) {
-      return () async {
-        final libraryDirectory = await ref.read(libraryStorageServiceProvider).getLibraryDirectory();
+final libraryMetadataStorageFutureProvider = Provider<Future<LibraryMetadataStorage> Function()>((ref) {
+  return () async {
+    final libraryDirectory = await ref.read(libraryStorageServiceProvider).getLibraryDirectory();
+    return LibraryMetadataStorage(directory: libraryDirectory);
+  };
+});
 
-        return LibraryMetadataStorage(directory: libraryDirectory);
-      };
-    });
+final libraryCollectionsStorageFutureProvider = Provider<Future<LibraryCollectionsStorage> Function()>((ref) {
+  return () async {
+    final libraryDirectory = await ref.read(libraryStorageServiceProvider).getLibraryDirectory();
+    return LibraryCollectionsStorage(directory: libraryDirectory);
+  };
+});
 
-final libraryRepositoryProvider = Provider<LibraryRepository>(
-  (ref) {
-    return LibraryRepository(
-      loadFiles: () {return ref.read(documentFilesProvider,);},
-      addFileAction: () {return ref.read(documentFilesProvider.notifier,).addFile();},
-      initializeFilesAction: () {return ref.read(documentFilesProvider.notifier,).initialize();},
-      metadataStorageFactory: ref.read(libraryMetadataStorageFutureProvider,),
-    );
-  },
-);
+final libraryRepositoryProvider = Provider<LibraryRepository>((ref) {
+  return LibraryRepository(
+    loadFiles: () => ref.read(documentFilesProvider),
+    addFileAction: () => ref.read(documentFilesProvider.notifier).addFile(),
+    initializeFilesAction: () => ref.read(documentFilesProvider.notifier).initialize(),
+    metadataStorageFactory: ref.read(libraryMetadataStorageFutureProvider),
+    collectionsStorageFactory: ref.read(libraryCollectionsStorageFutureProvider),
+  );
+});
