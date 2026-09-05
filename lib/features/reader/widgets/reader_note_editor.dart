@@ -12,10 +12,10 @@ class _ReaderNoteTextEditingController extends TextEditingController {
   _ReaderNoteTextEditingController({super.text});
 
   static final _inlineSyntax = RegExp(
-    r'(\\`[^\\`]*\\`|\\*\\*[^\\*]+\\*\\*|__[^_]+__|\\*[^\\*]+\\*|_[^_]+_|~~[^~]+~~|\\[[^\\]]+\\]\\([^\\)]+\\)|<[^>]+>)',
+    r'(\`[^\`]*\`|\*\*[^\*]+\*\*|__[^_]+__|\*[^\*]+\*|_[^_]+_|~~[^~]+~~|\[[^\]]+\]\([^\)]+\)|<[^>]+>)',
   );
-  static final _heading = RegExp(r'^(#{1,6})(\\s+)(.*)\$');
-  static final _quoteOrList = RegExp(r'^(\\s*(?:>|[-*+] |\\d+\\. ))');
+  static final _heading = RegExp(r'^(#{1,6})(\s+)(.*)');
+  static final _quoteOrList = RegExp(r'^(\s*(?:>|[-*+] |\d+\. ))');
 
   @override
   TextSpan buildTextSpan({required BuildContext context, TextStyle? style, required bool withComposing}) {
@@ -29,7 +29,7 @@ class _ReaderNoteTextEditingController extends TextEditingController {
     final quote = markdown ? const Color(0xFF6A9955) : const Color(0xFF008000);
 
     final spans = <InlineSpan>[];
-    final lines = text.split('\\n');
+    final lines = text.split('\n');
     for (var lineIndex = 0; lineIndex < lines.length; lineIndex++) {
       final line = lines[lineIndex];
       final headingMatch = _heading.firstMatch(line);
@@ -53,20 +53,13 @@ class _ReaderNoteTextEditingController extends TextEditingController {
         }
         spans.addAll(_inlineSpans(line.substring(prefixEnd), base, syntax, emphasis, code, link));
       }
-      if (lineIndex < lines.length - 1) spans.add(const TextSpan(text: '\\n'));
+      if (lineIndex < lines.length - 1) spans.add(const TextSpan(text: '\n'));
     }
 
     return TextSpan(style: base, children: spans);
   }
 
-  List<InlineSpan> _inlineSpans(
-    String value,
-    TextStyle base,
-    Color syntax,
-    Color emphasis,
-    Color code,
-    Color link,
-  ) {
+  List<InlineSpan> _inlineSpans(String value, TextStyle base, Color syntax, Color emphasis, Color code, Color link) {
     final result = <InlineSpan>[];
     var cursor = 0;
     for (final match in _inlineSyntax.allMatches(value)) {
@@ -91,8 +84,6 @@ class _ReaderNoteTextEditingController extends TextEditingController {
       } else if (token.startsWith('[')) {
         tokenColor = link;
         weight = FontWeight.w500;
-      } else if (token.startsWith('<')) {
-        tokenColor = syntax;
       }
       result.add(TextSpan(
         text: token,
@@ -162,7 +153,7 @@ class ReaderNoteEditorState extends State<ReaderNoteEditor> {
   }
 
   String _resolveMarkdown(String content) {
-    final imagePattern = RegExp(r'!\\[([^\\]]*)\\]\\(([^)]+)\\)');
+    final imagePattern = RegExp(r'!\[([^\]]*)\]\(([^)]+)\)');
     return content.replaceAllMapped(imagePattern, (match) {
       final alt = match.group(1) ?? '图片';
       final path = _resolvePath(match.group(2) ?? '');
@@ -171,7 +162,7 @@ class ReaderNoteEditorState extends State<ReaderNoteEditor> {
   }
 
   String _resolveHtml(String content) {
-    final srcPattern = RegExp(r'''((?:src|href)=["\\'])([^"\\']+)(["\\'])''', caseSensitive: false);
+    final srcPattern = RegExp(r'''((?:src|href)=["\'])([^"\']+)(["\'])''', caseSensitive: false);
     return content.replaceAllMapped(srcPattern, (match) {
       final path = _resolvePath(match.group(2) ?? '');
       if (path == match.group(2)) return match.group(0)!;
