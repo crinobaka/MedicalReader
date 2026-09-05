@@ -6,26 +6,38 @@ import '../models/book_manifest.dart';
 import '../models/book_tree_index.dart';
 import '../models/book_tree_node.dart';
 import 'book_manifest_service.dart';
-import 'pdf_outline_service.dart';
 
 class BookTreeService {
   final BookManifestService _manifestService;
-  final PdfOutlineService _outlineService;
 
-  BookTreeService({this._manifestService = const BookManifestService(), this._outlineService = const PdfOutlineService()});
+  BookTreeService({this._manifestService = const BookManifestService()});
 
-  Future<BookTreeIndex> loadIndexForDocument(LibraryDocument document, {required int pageCount, BookManifest? manifest}) async {
-    final nodes = await loadForDocument(document, manifest: manifest);
+  Future<BookTreeIndex> loadIndexForDocument(
+    LibraryDocument document, {
+    required int pageCount,
+    BookManifest? manifest,
+    List<BookTreeNode>? nativeOutline,
+  }) async {
+    final nodes = await loadForDocument(
+      document,
+      manifest: manifest,
+      nativeOutline: nativeOutline,
+    );
     return BookTreeIndex(nodes: _normalizeTree(nodes, pageCount: pageCount), pageCount: pageCount);
   }
 
-  Future<List<BookTreeNode>> loadForDocument(LibraryDocument document, {BookManifest? manifest}) async {
+  Future<List<BookTreeNode>> loadForDocument(
+    LibraryDocument document, {
+    BookManifest? manifest,
+    List<BookTreeNode>? nativeOutline,
+  }) async {
     final currentManifest = manifest ?? await _manifestService.loadForDocument(document);
     if (currentManifest != null) {
       if (currentManifest.bookTree.isNotEmpty) return _parseNodeList(currentManifest.bookTree);
       if (currentManifest.metadata['outlineImportAttempted'] == true) return const [];
     }
-    final imported = await _outlineService.extractFromFile(document.file.path);
+
+    final imported = nativeOutline ?? const <BookTreeNode>[];
     if (imported.isNotEmpty) {
       await _saveImportedTree(document, currentManifest, imported);
       return imported;
@@ -39,7 +51,6 @@ class BookTreeService {
     return _loadFile('${document.file.path}.booktree.json');
   }
 
-  /// Saves user-edited directory data without touching the PDF itself.
   Future<void> saveTreeForDocument(LibraryDocument document, List<BookTreeNode> nodes) async {
     final existing = await _manifestService.loadForDocument(document) ?? const BookManifest();
     final manifest = BookManifest(
@@ -59,14 +70,45 @@ class BookTreeService {
     await _manifestService.saveForDocument(document, manifest);
   }
 
-  Future<void> _saveImportedTree(LibraryDocument document, BookManifest? currentManifest, List<BookTreeNode> nodes) async {
+  Future<void> _saveImportedTree(
+    LibraryDocument document,
+    BookManifest? currentManifest,
+    List<BookTreeNode> nodes,
+  ) async {
     final existing = currentManifest ?? const BookManifest();
-    final manifest = BookManifest(version: existing.version, templateId: existing.templateId, metadata: {...existing.metadata, 'outlineImportAttempted': true, 'outlineSource': nodes.isEmpty ? 'none' : 'pdf-embedded-outline', 'outlineImportedAt': DateTime.now().toIso8601String()}, bookPageMapping: existing.bookPageMapping, searchContext: existing.searchContext, crop: existing.crop, bookTree: nodes.map(_nodeToJson).toList(growable: false));
+    final manifest = BookManifest(
+      version: existing.version,
+      templateId: existing.templateId,
+      metadata: {
+        ...existing.metadata,
+        'outlineImportAttempted': true,
+        'outlineSource': nodes.isEmpty ? 'none' : 'pdf-embedded-outline',
+        'outlineImportedAt': DateTime.now().toIso8601String(),
+      },
+      bookPageMapping: existing.bookPageMapping,
+      searchContext: existing.searchContext,
+      crop: existing.crop,
+      bookTree: nodes.map(_nodeToJson).toList(growable: false),
+    );
     await _manifestService.saveForDocument(document, manifest);
   }
 
-  Map<String, dynamic> _nodeToJson(BookTreeNode node) => {'id': node.id, 'name': node.name, if (node.pageStart != null) 'page_start': node.pageStart, if (node.pageEnd != null) 'page_end': node.pageEnd, if (node.bookPageStart != null) 'book_page_start': node.bookPageStart, if (node.bookPageEnd != null) 'book_page_end': node.bookPageEnd, if (node.children.isNotEmpty) 'children': node.children.map(_nodeToJson).toList(growable: false)};
-  String? _metadataBookTreePath(LibraryDocument document) { final value = document.metadata['booktree_path']; if (value == null) return null; final path = value.toString().trim(); return path.isEmpty ? null : path; }
+  Map<String, dynamic> _nodeToJson(BookTreeNode node) => {
+        'id': node.id,
+        'name': node.name,
+        if (node.pageStart != null) 'page_start': node.pageStart,
+        if (node.pageEnd != null) 'page_end': node.pageEnd,
+        if (node.bookPageStart != null) 'book_page_start': node.bookPageStart,
+        if (node.bookPageEnd != null) 'book_page_end': node.bookPageEnd,
+        if (node.children.isNotEmpty) 'children': node.children.map(_nodeToJson).toList(growable: false),
+      };
+
+  String? _metadataBookTreePath(LibraryDocument document) {
+    final value = document.metadata['booktree_path'];
+    if (value == null) return null;
+    final path = value.toString().trim();
+    return path.isEmpty ? null : path;
+  }
 
   Future<List<BookTreeNode>> _loadFile(String path) async {
     final file = File(path);
@@ -74,14 +116,24 @@ class BookTreeService {
     try {
       final decoded = jsonDecode(await file.readAsString());
       if (decoded is List) return _parseNodeList(decoded);
-      if (decoded is Map) { final map = Map<String, dynamic>.from(decoded); final children = map['children']; if (children is List) return _parseNodeList(children); if (_looksLikeNode(map)) return [BookTreeNode.fromJson(map)]; }
+      if (decoded is Map) {
+        final map = Map<String, dynamic>.from(decoded);
+        final children = map['children'];
+        if (children is List) return _parseNodeList(children);
+        if (_looksLikeNode(map)) return [BookTreeNode.fromJson(map)];
+      }
     } catch (_) {}
     return const [];
   }
 
   List<BookTreeNode> _parseNodeList(List<dynamic> rawNodes) {
     final result = <BookTreeNode>[];
-    for (final rawNode in rawNodes) { if (rawNode is! Map) continue; final node = BookTreeNode.fromJson(Map<String, dynamic>.from(rawNode)); if (node.id.isEmpty && node.name.isEmpty) continue; result.add(node); }
+    for (final rawNode in rawNodes) {
+      if (rawNode is! Map) continue;
+      final node = BookTreeNode.fromJson(Map<String, dynamic>.from(rawNode));
+      if (node.id.isEmpty && node.name.isEmpty) continue;
+      result.add(node);
+    }
     return List.unmodifiable(result);
   }
 
