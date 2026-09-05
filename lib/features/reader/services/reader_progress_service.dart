@@ -5,12 +5,14 @@ class ReaderProgress {
   final double zoom;
   final String mode;
   final bool cropMargins;
+  final DateTime? lastReadAt;
 
   const ReaderProgress({
     required this.lastPage,
     required this.zoom,
     required this.mode,
     required this.cropMargins,
+    this.lastReadAt,
   });
 
   static const ReaderProgress initial = ReaderProgress(
@@ -34,12 +36,14 @@ class ReaderProgressService {
     final zoom = _readDouble(metadata['zoom'], 1.0);
     final mode = metadata['mode'] is String ? metadata['mode'] as String : 'medical';
     final cropMargins = metadata['crop_margins'] is bool ? metadata['crop_margins'] as bool : false;
+    final lastReadAt = _readDateTime(metadata['last_read_at']);
 
     return ReaderProgress(
       lastPage: lastPage < 0 ? 0 : lastPage,
       zoom: zoom > 0 ? zoom : 1.0,
       mode: mode,
       cropMargins: cropMargins,
+      lastReadAt: lastReadAt,
     );
   }
 
@@ -58,6 +62,7 @@ class ReaderProgressService {
         'zoom': zoom,
         'mode': mode,
         'crop_margins': cropMargins,
+        'last_read_at': DateTime.now().toIso8601String(),
       },
     );
   }
@@ -70,7 +75,10 @@ class ReaderProgressService {
   }) async {
     await libraryRepository.updateDocumentMetadata(
       documentId: documentId,
-      metadata: {'last_page': lastPage},
+      metadata: {
+        'last_page': lastPage,
+        'last_read_at': DateTime.now().toIso8601String(),
+      },
     );
   }
 
@@ -84,5 +92,10 @@ class ReaderProgressService {
     if (value is double) return value;
     if (value is num) return value.toDouble();
     return fallback;
+  }
+
+  DateTime? _readDateTime(dynamic value) {
+    if (value is! String || value.isEmpty) return null;
+    return DateTime.tryParse(value);
   }
 }
