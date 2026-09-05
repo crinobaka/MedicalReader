@@ -48,13 +48,17 @@ class _ReaderRadialTocState extends State<ReaderRadialToc> {
     super.initState();
     _nodes = widget.nodes;
     _index = _closestIndex(_nodes, widget.currentPage);
-    _lastExternalDragDelta = widget.externalDragDelta?.value ?? Offset.zero;
+    _lastExternalDragDelta = Offset.zero;
     _lastExternalDragEnd = widget.externalDragEnd?.value ?? 0;
     widget.externalDragDelta?.addListener(_onExternalDragDelta);
     widget.externalDragEnd?.addListener(_onExternalDragEnd);
-    if (_lastExternalDragDelta != Offset.zero) {
-      _applyPanDelta(_lastExternalDragDelta);
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final value = widget.externalDragDelta?.value ?? Offset.zero;
+      final delta = value - _lastExternalDragDelta;
+      _lastExternalDragDelta = value;
+      if (delta != Offset.zero) _applyPanDelta(delta);
+    });
   }
 
   @override
@@ -262,7 +266,6 @@ class _RevolverPainter extends CustomPainter {
 
     final slots = math.min(visibleSlots, count);
     final halfSlots = (slots - 1) / 2.0;
-    final selectedSlot = math.min(halfSlots, math.min(selectedIndex.toDouble(), count - 1 - selectedIndex));
     final firstIndex = (selectedIndex - halfSlots).round().clamp(0, math.max(0, count - slots));
     final lastIndex = firstIndex + slots - 1;
     final angleSpan = math.pi * 0.78;
