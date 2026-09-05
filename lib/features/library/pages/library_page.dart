@@ -6,6 +6,8 @@ import '../models/library_document.dart';
 import '../providers/library_provider.dart';
 import '../widgets/document_card.dart';
 
+enum _LibraryViewMode { list, compact, grid }
+
 class LibraryPage extends ConsumerStatefulWidget {
   const LibraryPage({super.key});
 
@@ -15,6 +17,7 @@ class LibraryPage extends ConsumerStatefulWidget {
 
 class _LibraryPageState extends ConsumerState<LibraryPage> with WidgetsBindingObserver {
   bool _refreshing = false;
+  _LibraryViewMode _viewMode = _LibraryViewMode.list;
 
   @override
   void initState() {
@@ -58,6 +61,17 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with WidgetsBindingOb
       appBar: AppBar(
         title: const Text('Medical Library'),
         actions: [
+          PopupMenuButton<_LibraryViewMode>(
+            tooltip: '显示方式',
+            initialValue: _viewMode,
+            onSelected: (value) => setState(() => _viewMode = value),
+            icon: Icon(_viewIcon),
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: _LibraryViewMode.list, child: Text('详细列表')),
+              PopupMenuItem(value: _LibraryViewMode.compact, child: Text('紧凑列表')),
+              PopupMenuItem(value: _LibraryViewMode.grid, child: Text('书架网格')),
+            ],
+          ),
           IconButton(
             tooltip: '刷新文件库',
             onPressed: _refreshing ? null : _refresh,
@@ -67,34 +81,39 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with WidgetsBindingOb
       ),
       body: RefreshIndicator(
         onRefresh: _refresh,
-        child: ListView(
+        child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          children: [
-            FutureBuilder<String>(
-              future: notifier.libraryPath(),
-              builder: (context, snapshot) {
-                final path = snapshot.data;
-                if (path == null) return const SizedBox.shrink();
-                return Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  child: Row(children: [
-                    const Icon(Icons.folder, size: 18),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(path, maxLines: 2, overflow: TextOverflow.ellipsis)),
-                  ]),
-                );
-              },
+          slivers: [
+            SliverToBoxAdapter(
+              child: FutureBuilder<String>(
+                future: notifier.libraryPath(),
+                builder: (context, snapshot) {
+                  final path = snapshot.data;
+                  if (path == null) return const SizedBox.shrink();
+                  return Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    child: Row(children: [
+                      const Icon(Icons.folder, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(path, maxLines: 2, overflow: TextOverflow.ellipsis)),
+                    ]),
+                  );
+                },
+              ),
             ),
             if (documents.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 120, horizontal: 24),
-                child: Center(child: Text('还没有导入医学 PDF')),
+              const SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Text('还没有导入医学 PDF'),
+                )),
               )
             else
-              ...documents.map(_buildDocumentCard),
-            const SizedBox(height: 96),
+              _buildDocuments(documents),
+            const SliverToBoxAdapter(child: SizedBox(height: 96)),
           ],
         ),
       ),
@@ -106,9 +125,49 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with WidgetsBindingOb
     );
   }
 
-  Widget _buildDocumentCard(LibraryDocument document) {
+  IconData get _viewIcon => switch (_viewMode) {
+        _LibraryViewMode.list => Icons.view_list_outlined,
+        _LibraryViewMode.compact => Icons.view_agenda_outlined,
+        _LibraryViewMode.grid => Icons.grid_view_outlined,
+      };
+
+  Widget _buildDocuments(List<LibraryDocument> documents) {
+    final layout = switch (_viewMode) {
+      _LibraryViewMode.list => DocumentCardLayout.list,
+      _LibraryViewMode.compact => DocumentCardLayout.compact,
+      _LibraryViewMode.grid => DocumentCardLayout.grid,
+    };
+
+    if (_viewMode == _LibraryViewMode.grid) {
+      return SliverPadding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+        sliver: SliverGrid(
+          delegate: SliverChildBuilderDelegate(
+            (context, index) => _buildDocumentCard(documents[index], layout),
+            childCount: documents.length,
+          ),
+          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: 230,
+            mainAxisExtent: 310,
+            crossAxisSpacing: 2,
+            mainAxisSpacing: 2,
+          ),
+        ),
+      );
+    }
+
+    return SliverList(
+      delegate: SliverChildBuilderDelegate(
+        (context, index) => _buildDocumentCard(documents[index], layout),
+        childCount: documents.length,
+      ),
+    );
+  }
+
+  Widget _buildDocumentCard(LibraryDocument document, DocumentCardLayout layout) {
     return DocumentCard(
       document: document,
+      layout: layout,
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => ReaderPage(document: document)),
