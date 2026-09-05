@@ -52,6 +52,27 @@ impl Document {
     ) -> Result<RenderedPage, Error> {
         render_page(&self.inner, page_index, dpi)
     }
+
+    pub fn outlines_json(&self) -> Result<String, Error> {
+        fn map_outline(outline: &mupdf::Outline) -> serde_json::Value {
+            serde_json::json!({
+                "id": format!("pdf-outline-{}", outline.title),
+                "name": outline.title,
+                "page_start": outline.dest.as_ref().map(|dest| dest.loc.page_number + 1),
+                "children": outline.down.iter().map(map_outline).collect::<Vec<_>>(),
+            })
+        }
+
+        let outlines = self.inner.outlines()?;
+        serde_json::to_string(
+            &outlines
+                .iter()
+                .map(map_outline)
+                .collect::<Vec<_>>(),
+        )
+        .map_err(|_| mupdf::Error::GenericError)
+    }
+
     pub fn search(
         &self,
         query: &str,
@@ -179,14 +200,9 @@ impl Document {
         let lower_text = text.to_lowercase();
         let lower_query = query.to_lowercase();
 
-        let text_chars: Vec<char> =
-            text.chars().collect();
-
-        let lower_text_chars: Vec<char> =
-            lower_text.chars().collect();
-
-        let lower_query_chars: Vec<char> =
-            lower_query.chars().collect();
+        let text_chars: Vec<char> = text.chars().collect();
+        let lower_text_chars: Vec<char> = lower_text.chars().collect();
+        let lower_query_chars: Vec<char> = lower_query.chars().collect();
 
         if lower_query_chars.is_empty()
             || lower_query_chars.len() > lower_text_chars.len()
@@ -195,31 +211,24 @@ impl Document {
         }
 
         let mut contexts = Vec::new();
-
         let mut search_start = 0usize;
 
         while search_start < lower_text_chars.len()
             && contexts.len() < MAX_CONTEXTS
         {
             let mut match_start = None;
-
-            let remaining =
-                &lower_text_chars[search_start..];
+            let remaining = &lower_text_chars[search_start..];
 
             if remaining.len() >= lower_query_chars.len() {
                 for offset in 0..=
                     remaining.len() - lower_query_chars.len()
                 {
-                    let candidate =
-                        &remaining[
-                            offset
-                                ..offset
-                                    + lower_query_chars.len()
-                        ];
+                    let candidate = &remaining[
+                        offset..offset + lower_query_chars.len()
+                    ];
 
                     if candidate == lower_query_chars.as_slice() {
-                        match_start =
-                            Some(search_start + offset);
+                        match_start = Some(search_start + offset);
                         break;
                     }
                 }
@@ -229,20 +238,13 @@ impl Document {
                 break;
             };
 
-            let match_end =
-                match_start + lower_query_chars.len();
+            let match_end = match_start + lower_query_chars.len();
+            let context_start = match_start.saturating_sub(context_before);
+            let context_end = (match_end + context_after).min(text_chars.len());
 
-            let context_start =
-                match_start.saturating_sub(context_before);
-
-            let context_end =
-                (match_end + context_after)
-                    .min(text_chars.len());
-
-            let mut context =
-                text_chars[context_start..context_end]
-                    .iter()
-                    .collect::<String>();
+            let mut context = text_chars[context_start..context_end]
+                .iter()
+                .collect::<String>();
 
             context = context
                 .replace('\n', " ")
@@ -262,10 +264,9 @@ impl Document {
             }
 
             contexts.push(context);
-
             search_start = match_end;
         }
 
         contexts
-}
+    }
 }
