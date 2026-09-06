@@ -90,7 +90,7 @@ class ReaderPageController extends ChangeNotifier {
     return ReaderOutlineItem(
       id: node.id,
       title: node.name,
-      target: PdfOutlineTarget(pageIndex: pageIndex ?? 0),
+      target: PdfOutlineTarget(pageIndex ?? 0),
       children: [
         for (final child in node.children) _toReaderOutline(child),
       ],

@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import '../../../core/file_manager/models/document_file.dart';
+import '../../../../core/file_manager/models/document_file.dart';
 import '../../../library/models/library_document.dart';
 import '../../epub/models/epub_book.dart';
 import '../../epub/services/epub_archive_service.dart';
