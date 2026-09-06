@@ -14,6 +14,10 @@ dependencies:
   file_picker: ^12.0.0-beta.5
   path_provider: ^2.1.4
   ffi: ^2.2.0
+  archive: ^4.2.0
+  xml: ^7.0.1
+  flutter_inappwebview: ^6.1.5
+  path: any
   markdown: ^7.3.1
   flutter_markdown_plus: ^1.0.12
   record: ^7.1.1
@@ -26,7 +30,6 @@ dependencies:
   pdf: ^3.11.3
   cupertino_icons: ^1.0.8
 
-  path: any
 dev_dependencies:
   flutter_test:
     sdk: flutter
