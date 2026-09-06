@@ -69,7 +69,7 @@ class EpubParser {
       if (raw == null) continue;
       try {
         final xml = _xml(utf8.decode(raw.content as List<int>, allowMalformed: true));
-        final nav = xml.descendants.whereType<XmlElement>().where((e) => e.name.local == 'nav').firstOrNull;
+        final nav = _firstElement(xml, 'nav');
         if (nav != null) {
           final result = _parseNavChildren(nav, _parent(item.href));
           if (result.isNotEmpty) return result;
@@ -81,43 +81,98 @@ class EpubParser {
 
   List<EpubNavItem> _parseNavChildren(XmlElement parent, String base) {
     final result = <EpubNavItem>[];
-    for (final li in parent.childElements.where((e) => e.name.local == 'ol' || e.name.local == 'ul').expand((e) => e.childElements).where((e) => e.name.local == 'li')) {
-      final link = li.childElements.where((e) => e.name.local == 'a').firstOrNull;
+    final containers = parent.childElements.where((e) => e.name.local == 'ol' || e.name.local == 'ul');
+    for (final li in containers.expand((e) => e.childElements).where((e) => e.name.local == 'li')) {
+      XmlElement? link;
+      for (final child in li.childElements) {
+        if (child.name.local == 'a') {
+          link = child;
+          break;
+        }
+      }
       if (link == null) continue;
       final href = link.getAttribute('href');
-      final resolved = href == null ? null : _resolve(base, _decodeHref(href));
-      if (resolved == null) continue;
-      final nested = li.childElements.where((e) => e.name.local == 'ol' || e.name.local == 'ul').firstOrNull;
-      result.add(EpubNavItem(title: _text(link).trim(), href: resolved, children: nested == null ? const [] : _parseNavChildren(nested, base)));
+      final target = href == null ? null : _resolveTarget(base, href);
+      if (target == null) continue;
+      XmlElement? nested;
+      for (final child in li.childElements) {
+        if (child.name.local == 'ol' || child.name.local == 'ul') {
+          nested = child;
+          break;
+        }
+      }
+      result.add(EpubNavItem(
+        title: _text(link).trim(),
+        href: target.path,
+        fragment: target.fragment,
+        children: nested == null ? const [] : _parseNavChildren(nested, base),
+      ));
     }
     return result;
   }
 
-  XmlDocument _xml(String value) {
-    try { return XmlDocument.parse(value); } catch (e) { throw EpubFormatException('Invalid EPUB XML: $e'); }
+  Uri? _resolveTarget(String base, String href) {
+    final hash = href.indexOf('#');
+    final rawPath = hash < 0 ? href : href.substring(0, hash);
+    final rawFragment = hash < 0 ? null : href.substring(hash + 1);
+    final path = _resolve(base, _decodeHref(rawPath));
+    if (path == null) return null;
+    return Uri(path: path, fragment: rawFragment == null || rawFragment.isEmpty ? null : Uri.decodeComponent(rawFragment));
   }
+
+  XmlDocument _xml(String value) {
+    try {
+      return XmlDocument.parse(value);
+    } catch (e) {
+      throw EpubFormatException('Invalid EPUB XML: $e');
+    }
+  }
+
   String _readRequired(Map<String, ArchiveFile> entries, String path) {
     final value = entries[path];
     if (value == null) throw EpubFormatException('Missing EPUB entry: $path');
     return utf8.decode(value.content as List<int>, allowMalformed: true);
   }
+
   String _readText(Map<String, ArchiveFile> entries, String path) => entries[path] == null ? '' : utf8.decode(entries[path]!.content as List<int>, allowMalformed: true);
+
   String? _safePath(String path) {
     final normalized = path.replaceAll('\\', '/').replaceFirst(RegExp(r'^/+'), '');
     if (normalized.isEmpty || normalized.startsWith('../') || normalized.contains('/../') || normalized == '..') return null;
     return normalized.split('/').where((p) => p.isNotEmpty && p != '.').join('/');
   }
+
   String _parent(String path) => path.contains('/') ? path.substring(0, path.lastIndexOf('/')) : '';
   String? _resolve(String base, String href) => _safePath(base.isEmpty ? href : '$base/$href');
-  String _decodeHref(String href) => Uri.decodeFull(href.split('#').first);
-  XmlElement? _firstElement(XmlNode node, String name) => node.descendants.whereType<XmlElement>().where((e) => e.name.local == name).firstOrNull;
+  String _decodeHref(String href) => Uri.decodeFull(href);
+  XmlElement? _firstElement(XmlNode node, String name) {
+    for (final element in node.descendants.whereType<XmlElement>()) {
+      if (element.name.local == name) return element;
+    }
+    return null;
+  }
   String _text(XmlElement e) => e.descendants.whereType<XmlText>().map((n) => n.value).join(' ');
-  String? _metadataText(XmlElement? metadata, String name) => metadata == null ? null : metadata.descendants.whereType<XmlElement>().where((e) => e.name.local == name).map(_text).map((v) => v.trim()).firstOrNull;
-  List<String> _metadataValues(XmlElement? metadata, String name) => metadata == null ? const [] : metadata.descendants.whereType<XmlElement>().where((e) => e.name.local == name).map(_text).map((v) => v.trim()).where((v) => v.isNotEmpty).toList(growable: false);
+
+  String? _metadataText(XmlElement? metadata, String name) {
+    if (metadata == null) return null;
+    for (final element in metadata.descendants.whereType<XmlElement>()) {
+      if (element.name.local == name) return _text(element).trim();
+    }
+    return null;
+  }
+
+  List<String> _metadataValues(XmlElement? metadata, String name) {
+    if (metadata == null) return const [];
+    return [
+      for (final element in metadata.descendants.whereType<XmlElement>())
+        if (element.name.local == name && _text(element).trim().isNotEmpty) _text(element).trim(),
+    ];
+  }
 }
 
 class EpubFormatException implements Exception {
   final String message;
   const EpubFormatException(this.message);
-  @override String toString() => 'EpubFormatException: $message';
+  @override
+  String toString() => 'EpubFormatException: $message';
 }
