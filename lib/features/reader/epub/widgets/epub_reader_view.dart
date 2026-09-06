@@ -9,6 +9,7 @@ class EpubReaderView extends StatefulWidget {
   final EpubArchive archive;
   final int chapterIndex;
   final String? fragment;
+  final double initialProgress;
   final void Function(String href, double progress)? onPositionChanged;
 
   const EpubReaderView({
@@ -16,6 +17,7 @@ class EpubReaderView extends StatefulWidget {
     required this.archive,
     required this.chapterIndex,
     this.fragment,
+    this.initialProgress = 0,
     this.onPositionChanged,
   });
 
@@ -56,7 +58,7 @@ class _EpubReaderViewState extends State<EpubReaderView> {
         _html = html;
         _loadedHref = chapter.href;
       });
-      _scrollController.jumpTo(0);
+      WidgetsBinding.instance.addPostFrameCallback((_) => _restoreProgress());
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -67,15 +69,18 @@ class _EpubReaderViewState extends State<EpubReaderView> {
     }
   }
 
+  void _restoreProgress() {
+    if (!_scrollController.hasClients) return;
+    final progress = widget.initialProgress.clamp(0.0, 1.0).toDouble();
+    final offset = _scrollController.position.maxScrollExtent * progress;
+    _scrollController.jumpTo(offset.clamp(0.0, _scrollController.position.maxScrollExtent));
+  }
+
   @override
   Widget build(BuildContext context) {
     final chapter = widget.archive.chapterAt(widget.chapterIndex);
-    if (chapter == null) {
-      return const Center(child: Text('EPUB chapter unavailable'));
-    }
-    if (_html == null || _loadedHref != chapter.href) {
-      return const Center(child: CircularProgressIndicator());
-    }
+    if (chapter == null) return const Center(child: Text('EPUB chapter unavailable'));
+    if (_html == null || _loadedHref != chapter.href) return const Center(child: CircularProgressIndicator());
 
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
