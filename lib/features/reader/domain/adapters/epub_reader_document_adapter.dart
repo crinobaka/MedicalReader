@@ -13,19 +13,30 @@ import 'reader_document_adapter.dart';
 class EpubReaderDocument implements ReaderDocument {
   final LibraryDocument libraryDocument;
   final EpubArchive archive;
+
   const EpubReaderDocument({required this.libraryDocument, required this.archive});
-  @override String get id => libraryDocument.id;
-  @override String get title => archive.book.title;
-  @override ReaderDocumentFormat get format => ReaderDocumentFormat.epub;
-  @override ReaderPositionData get initialPositionData => const ReaderPositionData(progress: 0);
+
+  @override
+  String get id => libraryDocument.id;
+
+  @override
+  String get title => archive.book.title;
+
+  @override
+  ReaderDocumentFormat get format => ReaderDocumentFormat.epub;
+
+  @override
+  ReaderPositionData get initialPositionData => const ReaderPositionData(progress: 0);
 }
 
 class EpubReaderDocumentAdapter implements ReaderDocumentAdapter {
   final EpubArchiveService archiveService;
   final Future<Directory> Function()? cacheProvider;
+
   const EpubReaderDocumentAdapter({this.archiveService = const EpubArchiveService(), this.cacheProvider});
 
-  @override ReaderDocumentFormat get format => ReaderDocumentFormat.epub;
+  @override
+  ReaderDocumentFormat get format => ReaderDocumentFormat.epub;
 
   @override
   Future<ReaderDocument> open({required String id, required String path}) async {
@@ -46,16 +57,17 @@ class EpubReaderDocumentAdapter implements ReaderDocumentAdapter {
 
   @override
   Future<ReaderPosition> resolvePosition(ReaderDocument document, ReaderLocator locator) async {
-    if (document is! EpubReaderDocument || locator is! EpubReaderLocator) throw ArgumentError('Expected EPUB document and EPUB locator.');
+    if (document is! EpubReaderDocument || locator is! EpubReaderLocator) {
+      throw ArgumentError('Expected EPUB document and EPUB locator.');
+    }
     return ReaderPosition(locator: locator, progress: locator.progress ?? 0);
   }
 
   ReaderOutlineItem _outline(EpubNavItem item) {
-    final uri = Uri.parse(item.href);
     return ReaderOutlineItem(
-      id: item.href,
+      id: item.fragment == null ? item.href : '${item.href}#${item.fragment}',
       title: item.title,
-      target: EpubOutlineTarget(href: uri.path, fragment: uri.fragment.isEmpty ? null : uri.fragment),
+      target: EpubOutlineTarget(href: item.href, fragment: item.fragment),
       children: [for (final child in item.children) _outline(child)],
     );
   }
@@ -63,10 +75,10 @@ class EpubReaderDocumentAdapter implements ReaderDocumentAdapter {
   Future<Directory> _cacheDirectory() async => cacheProvider == null ? Directory.systemTemp : cacheProvider!();
 
   DocumentFile _file(String path, String id) => DocumentFile(
-    id: id,
-    name: path.split(RegExp(r'[\\/]')).last,
-    path: path,
-    size: File(path).lengthSync(),
-    createdAt: DateTime.now(),
-  );
+        id: id,
+        name: path.split(RegExp(r'[\\/]')).last,
+        path: path,
+        size: File(path).lengthSync(),
+        createdAt: DateTime.now(),
+      );
 }
