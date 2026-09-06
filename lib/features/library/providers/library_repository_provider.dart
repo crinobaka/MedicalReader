@@ -6,6 +6,9 @@ import '../repositories/library_repository.dart';
 import '../storage/library_collections_storage.dart';
 import '../storage/library_metadata_storage.dart';
 
+export '../../../core/file_manager/providers/file_manager_provider.dart'
+    show libraryStorageServiceProvider;
+
 final libraryMetadataStorageFutureProvider = Provider<Future<LibraryMetadataStorage> Function()>((ref) {
   return () async {
     final libraryDirectory = await ref.read(libraryStorageServiceProvider).getLibraryDirectory();
