@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import '../reader/domain/models/reader_locator.dart';
+import '../domain/models/reader_locator.dart';
 import 'reader_ink_stroke.dart';
 
 enum ReaderAnnotationType { highlight, note, bookmark, tag, ink }
@@ -37,6 +37,11 @@ class ReaderAnnotation {
     required this.createdAt,
     required this.updatedAt,
   });
+
+  /// Semantic position used by the 2.0 reader domain.
+  /// Legacy annotations without a stored locator are upgraded in memory.
+  ReaderLocator get effectiveLocator =>
+      locator ?? PdfReaderLocator(pageIndex: pageIndex, rect: rect);
 
   ReaderAnnotation copyWith({
     String? id,
