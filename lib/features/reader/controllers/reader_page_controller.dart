@@ -7,6 +7,11 @@ import 'package:flutter/widgets.dart';
 import '../../../core/ffi/medical_core.dart';
 import '../../library/models/library_document.dart';
 import '../../library/repositories/library_repository.dart';
+import '../domain/adapters/pdf_reader_document_adapter.dart';
+import '../domain/models/reader_document.dart';
+import '../domain/models/reader_locator.dart';
+import '../domain/models/reader_outline.dart';
+import '../domain/models/reader_position.dart';
 import '../models/book_manifest.dart';
 import '../models/book_page_mapping.dart';
 import '../models/book_template.dart';
@@ -28,10 +33,12 @@ class ReaderPageController extends ChangeNotifier {
     ReaderEngineService? readerEngine,
     BookTemplateService? bookTemplateService,
     BookManifestService? bookManifestService,
+    PdfReaderDocumentAdapter? documentAdapter,
   })  : _readerEngine = readerEngine ?? ReaderEngineService(),
         _bookTemplateService = bookTemplateService ?? BookTemplateService(),
         _bookManifestService = bookManifestService ?? const BookManifestService(),
-        _readerProgressService = ReaderProgressService(libraryRepository: libraryRepository) {
+        _readerProgressService = ReaderProgressService(libraryRepository: libraryRepository),
+        _documentAdapter = documentAdapter ?? const PdfReaderDocumentAdapter() {
     _pagePreloader = PagePreloader(readerEngine: _readerEngine);
     currentPage = initialPage;
   }
@@ -43,11 +50,13 @@ class ReaderPageController extends ChangeNotifier {
   final BookTemplateService _bookTemplateService;
   final BookManifestService _bookManifestService;
   final ReaderProgressService _readerProgressService;
+  final PdfReaderDocumentAdapter _documentAdapter;
   late BookTemplateMatcher _bookTemplateMatcher;
   late BookTreeService _bookTreeService;
   bool _disposed = false;
 
   MedicalCoreDocument? document;
+  ReaderDocument? readerDocument;
   ui.Image? image;
   ui.Image? previousPageImage;
   ui.Image? nextPageImage;
@@ -62,6 +71,30 @@ class ReaderPageController extends ChangeNotifier {
   bool pageLoading = false;
   bool cropMargins = false;
   Object? error;
+
+  ReaderLocator get currentLocator => PdfReaderLocator(pageIndex: currentPage);
+
+  ReaderPosition get currentPosition => ReaderPosition(
+        locator: currentLocator,
+        progress: pageCount <= 1 ? 0 : currentPage / (pageCount - 1),
+      );
+
+  ReaderDocumentFormat get documentFormat => readerDocument?.format ?? ReaderDocumentFormat.pdf;
+
+  List<ReaderOutlineItem> get readerOutline => [
+        for (final node in bookTreeIndex.nodes) _toReaderOutline(node),
+      ];
+
+  ReaderOutlineItem _toReaderOutline(BookTreeNode node) {
+    return ReaderOutlineItem(
+      id: node.id,
+      title: node.name,
+      target: PdfOutlineTarget(pageIndex: node.startPage),
+      children: [
+        for (final child in node.children) _toReaderOutline(child),
+      ],
+    );
+  }
 
   BookTreeNode? get currentBookTreeNode => bookTreeIndex.isNotEmpty ? bookTreeIndex.findNodeForPage(currentPage) : null;
   int? get currentBookPage => bookPageMapping.bookPageForPdfPage(currentPage);
@@ -86,6 +119,7 @@ class ReaderPageController extends ChangeNotifier {
       if (_disposed) return;
       _bookTemplateMatcher = BookTemplateMatcher(templates: _bookTemplateService.templates);
       _bookTreeService = BookTreeService(manifestService: _bookManifestService);
+      readerDocument = await _documentAdapter.open(id: documentInfo.file.id, path: documentInfo.file.path);
       opened = _readerEngine.openDocument(id: documentInfo.file.id, path: documentInfo.file.path);
       final count = opened.pageCount;
       if (count <= 0) throw StateError('PDF contains no pages.');
@@ -121,6 +155,7 @@ class ReaderPageController extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       opened?.close();
+      readerDocument = null;
       if (_disposed) return;
       document = null;
       loading = false;
@@ -198,7 +233,7 @@ class ReaderPageController extends ChangeNotifier {
   Future<void> goToPage(int pageIndex) async {
     if (_disposed || pageLoading || pageIndex < 0 || pageIndex >= pageCount || pageIndex == currentPage) return;
     currentPage = pageIndex;
-    await _readerProgressService.savePage(documentId: documentInfo.id, lastPage: currentPage);
+    await _readerProgressService.savePosition(documentId: documentInfo.id, position: currentPosition);
     await renderCurrent();
   }
 
@@ -213,7 +248,7 @@ class ReaderPageController extends ChangeNotifier {
     await renderCurrent(clearCache: true);
   }
 
-  Future<void> saveProgress() => _readerProgressService.savePage(documentId: documentInfo.id, lastPage: currentPage);
+  Future<void> saveProgress() => _readerProgressService.savePosition(documentId: documentInfo.id, position: currentPosition);
 
   void _replaceImage(ui.Image next) {
     final previous = image;
@@ -227,6 +262,8 @@ class ReaderPageController extends ChangeNotifier {
     _readerEngine.clearPageCache();
     document?.close();
     document = null;
+    await _documentAdapter.close(readerDocument ?? const PdfReaderDocumentPlaceholder());
+    readerDocument = null;
     image?.dispose();
     previousPageImage?.dispose();
     nextPageImage?.dispose();
@@ -245,9 +282,26 @@ class ReaderPageController extends ChangeNotifier {
     _disposed = true;
     _pagePreloader.cancel();
     document?.close();
+    readerDocument = null;
     image?.dispose();
     previousPageImage?.dispose();
     nextPageImage?.dispose();
     super.dispose();
   }
+}
+
+final class PdfReaderDocumentPlaceholder implements ReaderDocument {
+  const PdfReaderDocumentPlaceholder();
+
+  @override
+  String get id => '';
+
+  @override
+  String get title => '';
+
+  @override
+  ReaderDocumentFormat get format => ReaderDocumentFormat.pdf;
+
+  @override
+  ReaderPositionData get initialPositionData => const ReaderPositionData(pageIndex: 0);
 }
