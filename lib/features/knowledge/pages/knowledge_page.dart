@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../library/models/library_document.dart';
 import '../../library/providers/library_provider.dart';
 import '../../reader/models/reader_annotation.dart';
+import '../../reader/pages/reader_page.dart';
 import '../../reader/providers/reader_annotation_provider.dart';
 import '../models/note_document.dart';
 import '../services/detached_note_storage.dart';
@@ -39,7 +40,11 @@ class _KnowledgePageState extends ConsumerState<KnowledgePage> {
     for (final document in documents) {
       final annotations = ref.watch(readerAnnotationsProvider(document));
       for (final annotation in annotations) {
-        if (annotation.type == ReaderAnnotationType.note) notes.add(_KnowledgeNote(document: document, note: annotation));
+        // 知识库统一把“文字笔记”和 PDF 上的手写批注视为笔记。
+        // 两者底层仍保留各自 Annotation 类型，避免破坏阅读器的绘制语义。
+        if (annotation.type == ReaderAnnotationType.note || annotation.type == ReaderAnnotationType.ink) {
+          notes.add(_KnowledgeNote(document: document, note: annotation));
+        }
       }
     }
     final filteredNotes = _filterNotes(notes);
@@ -104,12 +109,16 @@ class _KnowledgePageState extends ConsumerState<KnowledgePage> {
                 else
                   for (final item in filteredNotes)
                     ListTile(
-                      leading: const Icon(Icons.note_alt_outlined),
+                      leading: Icon(item.note.type == ReaderAnnotationType.ink ? Icons.draw_outlined : Icons.note_alt_outlined),
                       title: Text(_noteTitle(item)),
-                      subtitle: Text('${item.document.title} · 第 ${item.note.pageIndex + 1} 页\n${_preview(item.note.content)}', maxLines: 3, overflow: TextOverflow.ellipsis),
+                      subtitle: Text('${item.document.title} · 第 ${item.note.pageIndex + 1} 页\n${_preview(item.note.content, isInk: item.note.type == ReaderAnnotationType.ink)}', maxLines: 3, overflow: TextOverflow.ellipsis),
                       isThreeLine: true,
                       onTap: () async {
-                        await Navigator.of(context).push(MaterialPageRoute(builder: (_) => KnowledgeNotePage(document: item.document, note: item.note)));
+                        if (item.note.type == ReaderAnnotationType.ink) {
+                          await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ReaderPage(document: item.document, initialPage: item.note.pageIndex)));
+                        } else {
+                          await Navigator.of(context).push(MaterialPageRoute(builder: (_) => KnowledgeNotePage(document: item.document, note: item.note)));
+                        }
                         if (mounted) setState(() {});
                       },
                     ),
@@ -189,8 +198,14 @@ class _KnowledgePageState extends ConsumerState<KnowledgePage> {
     return result;
   }
 
-  String _noteTitle(_KnowledgeNote item) => item.note.title.trim().isNotEmpty ? item.note.title.trim() : '第 ${item.note.pageIndex + 1} 页笔记';
-  String _preview(String content) {
+  String _noteTitle(_KnowledgeNote item) {
+    if (item.note.title.trim().isNotEmpty) return item.note.title.trim();
+    if (item.note.type == ReaderAnnotationType.ink) return '第 ${item.note.pageIndex + 1} 页手写笔记';
+    return '第 ${item.note.pageIndex + 1} 页笔记';
+  }
+
+  String _preview(String content, {bool isInk = false}) {
+    if (isInk && content.trim().isEmpty) return '手写批注';
     final text = content.replaceAll(RegExp(r'[#*_>`]'), '').replaceAll(RegExp(r'\s+'), ' ').trim();
     return text.isEmpty ? '空白笔记' : text;
   }
