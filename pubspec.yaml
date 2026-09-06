@@ -16,7 +16,6 @@ dependencies:
   ffi: ^2.2.0
   archive: 4.0.9
   xml: ^7.0.1
-  flutter_inappwebview: ^6.1.5
   path: any
   markdown: ^7.3.1
   flutter_markdown_plus: ^1.0.12
