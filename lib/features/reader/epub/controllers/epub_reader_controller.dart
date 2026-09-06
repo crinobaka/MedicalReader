@@ -11,10 +11,12 @@ import '../services/epub_archive_service.dart';
 class EpubReaderController {
   final LibraryDocument document;
   final EpubArchiveService archiveService;
+  final ReaderPosition? initialPosition;
   final Future<void> Function(ReaderPosition position)? onPositionSaved;
 
   EpubArchive? archive;
   int chapterIndex = 0;
+  double initialProgress = 0;
   bool loading = true;
   Object? error;
   ReaderPosition? position;
@@ -22,6 +24,7 @@ class EpubReaderController {
   EpubReaderController({
     required this.document,
     this.archiveService = const EpubArchiveService(),
+    this.initialPosition,
     this.onPositionSaved,
   });
 
@@ -34,11 +37,26 @@ class EpubReaderController {
       error = null;
       final cache = await getTemporaryDirectory();
       archive = await archiveService.open(document.file.path, cache);
-      chapterIndex = 0;
+      _restoreInitialPosition();
       loading = false;
     } catch (e) {
       error = e;
       loading = false;
+    }
+  }
+
+  void _restoreInitialPosition() {
+    final locator = initialPosition?.locator;
+    if (locator is! EpubReaderLocator || archive == null) return;
+    final target = locator.href.replaceAll('\\', '/');
+    for (var i = 0; i < chapterCount; i++) {
+      final chapter = archive!.chapterAt(i);
+      if (chapter?.href == target) {
+        chapterIndex = i;
+        initialProgress = (locator.progress ?? initialPosition!.progress).clamp(0, 1).toDouble();
+        position = initialPosition;
+        return;
+      }
     }
   }
 
@@ -57,6 +75,7 @@ class EpubReaderController {
   Future<void> goToChapter(int index) async {
     if (index < 0 || index >= chapterCount) return;
     chapterIndex = index;
+    initialProgress = 0;
     await _save(0);
   }
 
