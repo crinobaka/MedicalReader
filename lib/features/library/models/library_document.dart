@@ -1,16 +1,13 @@
 import '../../../../core/file_manager/models/document_file.dart';
 
+enum LibraryDocumentFormat { pdf, epub, other }
+
 class LibraryDocument {
   final String id;
-
   final DocumentFile file;
-
   final String title;
-
   final int? pages;
-
   final Map<String, dynamic> metadata;
-
   final DateTime addedAt;
 
   const LibraryDocument({
@@ -22,21 +19,23 @@ class LibraryDocument {
     required this.addedAt,
   });
 
-  factory LibraryDocument.fromFile(
-    DocumentFile file,
-  ) {
+  LibraryDocumentFormat get format {
+    final name = file.name.toLowerCase();
+    if (name.endsWith('.pdf')) return LibraryDocumentFormat.pdf;
+    if (name.endsWith('.epub')) return LibraryDocumentFormat.epub;
+    return LibraryDocumentFormat.other;
+  }
+
+  bool get isPdf => format == LibraryDocumentFormat.pdf;
+  bool get isEpub => format == LibraryDocumentFormat.epub;
+
+  factory LibraryDocument.fromFile(DocumentFile file) {
     return LibraryDocument(
-      // 使用 DocumentFile 的稳定 ID。
       id: file.id,
-
       file: file,
-
-      title: _removePdfExtension(file.name),
-
+      title: _removeSupportedExtension(file.name),
       pages: null,
-
       metadata: const {},
-
       addedAt: file.createdAt,
     );
   }
@@ -70,43 +69,19 @@ class LibraryDocument {
     };
   }
 
-  factory LibraryDocument.fromJson(
-    Map<String, dynamic> json,
-    DocumentFile file,
-  ) {
+  factory LibraryDocument.fromJson(Map<String, dynamic> json, DocumentFile file) {
     final rawMetadata = json['metadata'];
-
     return LibraryDocument(
       id: json['id']?.toString() ?? file.id,
-
       file: file,
-
-      title: json['title']?.toString() ??
-          _removePdfExtension(file.name),
-
+      title: json['title']?.toString() ?? _removeSupportedExtension(file.name),
       pages: (json['pages'] as num?)?.toInt(),
-
-      metadata: rawMetadata is Map
-          ? Map<String, dynamic>.from(rawMetadata)
-          : const {},
-
-      addedAt:
-          DateTime.tryParse(
-                json['addedAt']?.toString() ?? '',
-              ) ??
-              file.createdAt,
+      metadata: rawMetadata is Map ? Map<String, dynamic>.from(rawMetadata) : const {},
+      addedAt: DateTime.tryParse(json['addedAt']?.toString() ?? '') ?? file.createdAt,
     );
   }
 
-  static String _removePdfExtension(
-    String name,
-  ) {
-    return name.replaceFirst(
-      RegExp(
-        r'\.pdf$',
-        caseSensitive: false,
-      ),
-      '',
-    );
+  static String _removeSupportedExtension(String name) {
+    return name.replaceFirst(RegExp(r'\.(pdf|epub)$', caseSensitive: false), '');
   }
 }
