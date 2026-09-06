@@ -86,10 +86,11 @@ class ReaderPageController extends ChangeNotifier {
       ];
 
   ReaderOutlineItem _toReaderOutline(BookTreeNode node) {
+    final pageIndex = node.resolvePdfPageIndex();
     return ReaderOutlineItem(
       id: node.id,
       title: node.name,
-      target: PdfOutlineTarget(pageIndex: node.startPage),
+      target: PdfOutlineTarget(pageIndex: pageIndex ?? 0),
       children: [
         for (final child in node.children) _toReaderOutline(child),
       ],
@@ -138,7 +139,9 @@ class ReaderPageController extends ChangeNotifier {
       if (_disposed) { opened.close(); return; }
       final mappingConfig = {...?template?.bookPageMapping, ...?manifest?.bookPageMapping};
       final mapping = BookPageMapping.fromTemplate(index: tree, config: mappingConfig);
-      final restored = progress.lastPage.clamp(0, count - 1);
+      final restored = (progress.position?.locator is PdfReaderLocator)
+          ? (progress.position!.locator as PdfReaderLocator).pageIndex.clamp(0, count - 1)
+          : progress.lastPage.clamp(0, count - 1);
       document = opened;
       pageCount = count;
       currentPage = restored;
@@ -262,7 +265,7 @@ class ReaderPageController extends ChangeNotifier {
     _readerEngine.clearPageCache();
     document?.close();
     document = null;
-    await _documentAdapter.close(readerDocument ?? const PdfReaderDocumentPlaceholder());
+    if (readerDocument != null) await _documentAdapter.close(readerDocument!);
     readerDocument = null;
     image?.dispose();
     previousPageImage?.dispose();
@@ -288,20 +291,4 @@ class ReaderPageController extends ChangeNotifier {
     nextPageImage?.dispose();
     super.dispose();
   }
-}
-
-final class PdfReaderDocumentPlaceholder implements ReaderDocument {
-  const PdfReaderDocumentPlaceholder();
-
-  @override
-  String get id => '';
-
-  @override
-  String get title => '';
-
-  @override
-  ReaderDocumentFormat get format => ReaderDocumentFormat.pdf;
-
-  @override
-  ReaderPositionData get initialPositionData => const ReaderPositionData(pageIndex: 0);
 }
