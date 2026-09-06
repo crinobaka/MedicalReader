@@ -1,4 +1,6 @@
 import '../../library/repositories/library_repository.dart';
+import '../domain/models/reader_locator.dart';
+import '../domain/models/reader_position.dart';
 
 class ReaderProgress {
   final int lastPage;
@@ -6,6 +8,7 @@ class ReaderProgress {
   final String mode;
   final bool cropMargins;
   final DateTime? lastReadAt;
+  final ReaderPosition? position;
 
   const ReaderProgress({
     required this.lastPage,
@@ -13,6 +16,7 @@ class ReaderProgress {
     required this.mode,
     required this.cropMargins,
     this.lastReadAt,
+    this.position,
   });
 
   static const ReaderProgress initial = ReaderProgress(
@@ -37,6 +41,7 @@ class ReaderProgressService {
     final mode = metadata['mode'] is String ? metadata['mode'] as String : 'medical';
     final cropMargins = metadata['crop_margins'] is bool ? metadata['crop_margins'] as bool : false;
     final lastReadAt = _readDateTime(metadata['last_read_at']);
+    final position = _readPosition(metadata['reader_position']);
 
     return ReaderProgress(
       lastPage: lastPage < 0 ? 0 : lastPage,
@@ -44,10 +49,10 @@ class ReaderProgressService {
       mode: mode,
       cropMargins: cropMargins,
       lastReadAt: lastReadAt,
+      position: position,
     );
   }
 
-  /// Updates the complete reader state without deleting unrelated metadata.
   Future<void> save({
     required String documentId,
     required int lastPage,
@@ -67,8 +72,6 @@ class ReaderProgressService {
     );
   }
 
-  /// Saves only the current page. This is intentionally separate from [save]
-  /// so changing pages cannot silently reset zoom, mode, or other reader state.
   Future<void> savePage({
     required String documentId,
     required int lastPage,
@@ -77,6 +80,22 @@ class ReaderProgressService {
       documentId: documentId,
       metadata: {
         'last_page': lastPage,
+        'last_read_at': DateTime.now().toIso8601String(),
+      },
+    );
+  }
+
+  Future<void> savePosition({
+    required String documentId,
+    required ReaderPosition position,
+  }) async {
+    await libraryRepository.updateDocumentMetadata(
+      documentId: documentId,
+      metadata: {
+        'last_page': position.locator is PdfReaderLocator
+            ? (position.locator as PdfReaderLocator).pageIndex
+            : 0,
+        'reader_position': position.toJson(),
         'last_read_at': DateTime.now().toIso8601String(),
       },
     );
@@ -97,5 +116,14 @@ class ReaderProgressService {
   DateTime? _readDateTime(dynamic value) {
     if (value is! String || value.isEmpty) return null;
     return DateTime.tryParse(value);
+  }
+
+  ReaderPosition? _readPosition(dynamic value) {
+    if (value is! Map) return null;
+    try {
+      return ReaderPosition.fromJson(Map<String, dynamic>.from(value));
+    } catch (_) {
+      return null;
+    }
   }
 }
