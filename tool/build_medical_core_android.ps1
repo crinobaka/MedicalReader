@@ -286,11 +286,11 @@ try {
     Write-Host ""
     Write-Host "Cleaning Rust build..." -ForegroundColor Yellow
 
-    cargo clean
+    # cargo clean
 
-    if ($LASTEXITCODE -ne 0) {
-        throw "cargo clean failed."
-    }
+    # if ($LASTEXITCODE -ne 0) {
+    #     throw "cargo clean failed."
+    # }
 
 
     Write-Host ""

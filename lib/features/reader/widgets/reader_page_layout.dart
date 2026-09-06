@@ -115,7 +115,7 @@ class ReaderPageLayout extends ConsumerStatefulWidget {
 
 class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
   static const _interaction = ReaderInteractionController();
-  static const double _tocStartThreshold = 8.0;
+  static const double _tocStartThreshold = 4.0;
   bool _controlsVisible = true;
   bool _tocVisible = false;
   bool _tocFromLeft = true;

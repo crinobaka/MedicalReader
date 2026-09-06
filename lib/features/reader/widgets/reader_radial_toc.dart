@@ -310,7 +310,7 @@ class _RevolverPainter extends CustomPainter {
 
     final slots = math.min(visibleSlots, count);
     final halfSlots = (slots - 1) / 2.0;
-    final firstIndex = (selectedIndex - halfSlots).round().clamp(0, math.max(0, count - slots));
+    final int firstIndex = (selectedIndex - halfSlots).round().clamp(0, math.max(0, count - slots));
     final lastIndex = firstIndex + slots - 1;
     final angleSpan = slots <= 5 ? math.pi * 0.62 : math.pi * 0.72;
     final angleStep = slots > 1 ? angleSpan / (slots - 1) : 0.0;

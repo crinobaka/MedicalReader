@@ -301,7 +301,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with WidgetsBindingOb
                       final yes = await _confirmDeleteCollection(collection.name);
                       if (yes == true) { await ref.read(libraryRepositoryProvider).deleteCollection(collection.id); if (_selectedCollectionId == collection.id) _selectedCollectionId = null; await refreshDialog(); }
                     }),
-                  ]),]),
+                  ]),)]),
         ),
         actions: [
           TextButton(onPressed: () async {
