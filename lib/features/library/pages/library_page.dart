@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../reader/pages/reader_page.dart';
+import '../../reader/pages/reader_entry_page.dart';
 import '../models/library_collection.dart';
 import '../models/library_document.dart';
 import '../providers/library_provider.dart';
@@ -76,11 +76,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with WidgetsBindingOb
   Future<void> _saveSettings() async {
     if (!_settingsLoaded) return;
     final storage = await _settingsStorage();
-    await storage.save({
-      'viewMode': _viewMode.index,
-      'sortMode': _sortMode.index,
-      'selectedCollectionId': _selectedCollectionId,
-    });
+    await storage.save({'viewMode': _viewMode.index, 'sortMode': _sortMode.index, 'selectedCollectionId': _selectedCollectionId});
   }
 
   Future<void> _loadCollections() async {
@@ -205,14 +201,14 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with WidgetsBindingOb
               ),
             ),
             if (documents.isEmpty)
-              SliverFillRemaining(hasScrollBody: false, child: Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(_selectedCollectionId == null ? '还没有导入医学 PDF' : '这个书架还没有书籍'))))
+              SliverFillRemaining(hasScrollBody: false, child: Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(_selectedCollectionId == null ? '还没有导入 PDF 或 EPUB' : '这个书架还没有书籍'))))
             else
               _buildDocuments(documents),
             const SliverToBoxAdapter(child: SizedBox(height: 96)),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(onPressed: _import, icon: const Icon(Icons.add), label: const Text('导入 PDF')),
+      floatingActionButton: FloatingActionButton.extended(onPressed: _import, icon: const Icon(Icons.add), label: const Text('导入书籍')),
     );
   }
 
@@ -279,7 +275,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with WidgetsBindingOb
   Widget _buildDocumentCard(LibraryDocument document, DocumentCardLayout layout) => DocumentCard(
         document: document,
         layout: layout,
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ReaderPage(document: document))),
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ReaderEntryPage(document: document))),
         onManageCollections: () => _editDocumentCollections(document),
         onDelete: () async {
           final confirmed = await showDialog<bool>(
