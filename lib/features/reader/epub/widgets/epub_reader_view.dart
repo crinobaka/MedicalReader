@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
 
@@ -72,8 +70,8 @@ class _EpubReaderViewState extends State<EpubReaderView> {
   void _restoreProgress() {
     if (!_scrollController.hasClients) return;
     final progress = widget.initialProgress.clamp(0.0, 1.0).toDouble();
-    final offset = _scrollController.position.maxScrollExtent * progress;
-    _scrollController.jumpTo(offset.clamp(0.0, _scrollController.position.maxScrollExtent));
+    final max = _scrollController.position.maxScrollExtent;
+    _scrollController.jumpTo((max * progress).clamp(0.0, max));
   }
 
   @override
