@@ -8,6 +8,7 @@ import '../models/library_collection.dart';
 import '../models/library_document.dart';
 import '../providers/library_provider.dart';
 import '../providers/library_repository_provider.dart';
+import '../storage/library_settings_storage.dart';
 import '../widgets/document_card.dart';
 
 enum _LibraryViewMode { list, compact, grid }
@@ -21,6 +22,7 @@ class LibraryPage extends ConsumerStatefulWidget {
 
 class _LibraryPageState extends ConsumerState<LibraryPage> with WidgetsBindingObserver {
   bool _refreshing = false;
+  bool _settingsLoaded = false;
   _LibraryViewMode _viewMode = _LibraryViewMode.list;
   _LibrarySortMode _sortMode = _LibrarySortMode.recentRead;
   List<LibraryCollection> _collections = const [];
@@ -31,6 +33,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with WidgetsBindingOb
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _loadSettings();
       await _loadCollections();
       await _refresh();
     });
@@ -47,15 +50,50 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with WidgetsBindingOb
     if (state == AppLifecycleState.resumed) _refresh();
   }
 
+  Future<LibrarySettingsStorage> _settingsStorage() async {
+    final directory = await ref.read(libraryStorageServiceProvider).getLibraryDirectory();
+    return LibrarySettingsStorage(directory: directory);
+  }
+
+  Future<void> _loadSettings() async {
+    final settings = await (await _settingsStorage()).load();
+    if (!mounted) return;
+    final viewIndex = (settings['viewMode'] as num?)?.toInt();
+    final sortIndex = (settings['sortMode'] as num?)?.toInt();
+    final collectionId = settings['selectedCollectionId']?.toString();
+    setState(() {
+      if (viewIndex != null && viewIndex >= 0 && viewIndex < _LibraryViewMode.values.length) {
+        _viewMode = _LibraryViewMode.values[viewIndex];
+      }
+      if (sortIndex != null && sortIndex >= 0 && sortIndex < _LibrarySortMode.values.length) {
+        _sortMode = _LibrarySortMode.values[sortIndex];
+      }
+      _selectedCollectionId = collectionId?.isEmpty == true ? null : collectionId;
+      _settingsLoaded = true;
+    });
+  }
+
+  Future<void> _saveSettings() async {
+    if (!_settingsLoaded) return;
+    final storage = await _settingsStorage();
+    await storage.save({
+      'viewMode': _viewMode.index,
+      'sortMode': _sortMode.index,
+      'selectedCollectionId': _selectedCollectionId,
+    });
+  }
+
   Future<void> _loadCollections() async {
     final items = await ref.read(libraryRepositoryProvider).getCollections();
     if (!mounted) return;
+    final previousSelection = _selectedCollectionId;
+    var selected = previousSelection;
+    if (selected != null && !items.any((x) => x.id == selected)) selected = null;
     setState(() {
       _collections = items;
-      if (_selectedCollectionId != null && !items.any((x) => x.id == _selectedCollectionId)) {
-        _selectedCollectionId = null;
-      }
+      _selectedCollectionId = selected;
     });
+    if (selected != previousSelection) await _saveSettings();
   }
 
   Future<void> _refresh() async {
@@ -71,6 +109,21 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with WidgetsBindingOb
   Future<void> _import() async {
     await ref.read(libraryProvider.notifier).addFile();
     if (mounted) await _refresh();
+  }
+
+  Future<void> _selectCollection(String? id) async {
+    setState(() => _selectedCollectionId = id);
+    await _saveSettings();
+  }
+
+  Future<void> _selectViewMode(_LibraryViewMode mode) async {
+    setState(() => _viewMode = mode);
+    await _saveSettings();
+  }
+
+  Future<void> _selectSortMode(_LibrarySortMode mode) async {
+    setState(() => _sortMode = mode);
+    await _saveSettings();
   }
 
   @override
@@ -93,7 +146,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with WidgetsBindingOb
               if (value == '__manage__') {
                 await _manageCollections();
               } else {
-                setState(() => _selectedCollectionId = value == '__all__' ? null : value);
+                await _selectCollection(value == '__all__' ? null : value);
               }
             },
             itemBuilder: (context) => [
@@ -106,7 +159,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with WidgetsBindingOb
           PopupMenuButton<_LibrarySortMode>(
             tooltip: '排序',
             initialValue: _sortMode,
-            onSelected: (value) => setState(() => _sortMode = value),
+            onSelected: _selectSortMode,
             icon: const Icon(Icons.sort),
             itemBuilder: (context) => const [
               PopupMenuItem(value: _LibrarySortMode.recentRead, child: Text('最近阅读')),
@@ -120,7 +173,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with WidgetsBindingOb
           PopupMenuButton<_LibraryViewMode>(
             tooltip: '显示方式',
             initialValue: _viewMode,
-            onSelected: (value) => setState(() => _viewMode = value),
+            onSelected: _selectViewMode,
             icon: Icon(_viewIcon),
             itemBuilder: (context) => const [
               PopupMenuItem(value: _LibraryViewMode.list, child: Text('详细列表')),
@@ -299,7 +352,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with WidgetsBindingOb
                     }),
                     IconButton(icon: const Icon(Icons.delete_outline), tooltip: '删除', onPressed: () async {
                       final yes = await _confirmDeleteCollection(collection.name);
-                      if (yes == true) { await ref.read(libraryRepositoryProvider).deleteCollection(collection.id); if (_selectedCollectionId == collection.id) _selectedCollectionId = null; await refreshDialog(); }
+                      if (yes == true) { await ref.read(libraryRepositoryProvider).deleteCollection(collection.id); if (_selectedCollectionId == collection.id) { _selectedCollectionId = null; await _saveSettings(); } await refreshDialog(); }
                     }),
                   ]),]),
         ),
