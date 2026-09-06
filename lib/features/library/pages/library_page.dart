@@ -62,12 +62,8 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with WidgetsBindingOb
     final sortIndex = (settings['sortMode'] as num?)?.toInt();
     final collectionId = settings['selectedCollectionId']?.toString();
     setState(() {
-      if (viewIndex != null && viewIndex >= 0 && viewIndex < _LibraryViewMode.values.length) {
-        _viewMode = _LibraryViewMode.values[viewIndex];
-      }
-      if (sortIndex != null && sortIndex >= 0 && sortIndex < _LibrarySortMode.values.length) {
-        _sortMode = _LibrarySortMode.values[sortIndex];
-      }
+      if (viewIndex != null && viewIndex >= 0 && viewIndex < _LibraryViewMode.values.length) _viewMode = _LibraryViewMode.values[viewIndex];
+      if (sortIndex != null && sortIndex >= 0 && sortIndex < _LibrarySortMode.values.length) _sortMode = _LibrarySortMode.values[sortIndex];
       _selectedCollectionId = collectionId?.isEmpty == true ? null : collectionId;
       _settingsLoaded = true;
     });
@@ -127,9 +123,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with WidgetsBindingOb
     final allDocuments = ref.watch(libraryProvider);
     final documents = _sortedDocuments(_filterDocuments(allDocuments));
     final notifier = ref.read(libraryProvider.notifier);
-    final selectedName = _selectedCollectionId == null
-        ? '全部书籍'
-        : (_collections.where((x) => x.id == _selectedCollectionId).firstOrNull?.name ?? '全部书籍');
+    final selectedName = _selectedCollectionId == null ? '全部书籍' : (_collections.where((x) => x.id == _selectedCollectionId).firstOrNull?.name ?? '全部书籍');
 
     return Scaffold(
       appBar: AppBar(
@@ -139,11 +133,8 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with WidgetsBindingOb
             tooltip: '书架分类',
             icon: const Icon(Icons.folder_copy_outlined),
             onSelected: (value) async {
-              if (value == '__manage__') {
-                await _manageCollections();
-              } else {
-                await _selectCollection(value == '__all__' ? null : value);
-              }
+              if (value == '__manage__') await _manageCollections();
+              else await _selectCollection(value == '__all__' ? null : value);
             },
             itemBuilder: (context) => [
               const PopupMenuItem(value: '__all__', child: Text('全部书籍')),
@@ -247,6 +238,11 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with WidgetsBindingOb
   }
 
   double _progress(LibraryDocument document) {
+    final rawPosition = document.metadata['reader_position'];
+    if (rawPosition is Map) {
+      final raw = rawPosition['progress'];
+      if (raw is num) return raw.clamp(0.0, 1.0).toDouble();
+    }
     final pages = document.pages;
     if (pages == null || pages <= 0) return 0;
     final raw = document.metadata['last_page'];
