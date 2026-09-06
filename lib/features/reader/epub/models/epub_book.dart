@@ -43,16 +43,9 @@ class EpubManifestItem {
   final String mediaType;
   final String? properties;
 
-  const EpubManifestItem({
-    required this.id,
-    required this.href,
-    required this.mediaType,
-    this.properties,
-  });
+  const EpubManifestItem({required this.id, required this.href, required this.mediaType, this.properties});
 
-  bool get isDocument => mediaType == 'application/xhtml+xml' ||
-      mediaType == 'text/html' ||
-      mediaType == 'application/x-dtbook+xml';
+  bool get isDocument => mediaType == 'application/xhtml+xml' || mediaType == 'text/html' || mediaType == 'application/x-dtbook+xml';
 }
 
 class EpubSpineItem {
@@ -65,11 +58,8 @@ class EpubSpineItem {
 class EpubNavItem {
   final String title;
   final String href;
+  final String? fragment;
   final List<EpubNavItem> children;
 
-  const EpubNavItem({
-    required this.title,
-    required this.href,
-    this.children = const [],
-  });
+  const EpubNavItem({required this.title, required this.href, this.fragment, this.children = const []});
 }
