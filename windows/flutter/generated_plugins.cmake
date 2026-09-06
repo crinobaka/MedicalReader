@@ -4,7 +4,6 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   camera_desktop
-  flutter_inappwebview_windows
   pdfx
   record_windows
 )
