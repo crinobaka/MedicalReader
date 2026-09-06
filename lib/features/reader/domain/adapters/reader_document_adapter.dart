@@ -1,6 +1,7 @@
 import '../models/reader_document.dart';
 import '../models/reader_locator.dart';
 import '../models/reader_outline.dart';
+import '../models/reader_position.dart';
 
 abstract interface class ReaderDocumentAdapter {
   ReaderDocumentFormat get format;
