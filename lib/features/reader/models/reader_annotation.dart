@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../reader/domain/models/reader_locator.dart';
 import 'reader_ink_stroke.dart';
 
 enum ReaderAnnotationType { highlight, note, bookmark, tag, ink }
@@ -10,6 +11,7 @@ class ReaderAnnotation {
   final String id;
   final String bookId;
   final int pageIndex;
+  final ReaderLocator? locator;
   final ReaderAnnotationType type;
   final String content;
   final String title;
@@ -24,6 +26,7 @@ class ReaderAnnotation {
     required this.id,
     required this.bookId,
     required this.pageIndex,
+    this.locator,
     required this.type,
     this.content = '',
     this.title = '',
@@ -39,6 +42,7 @@ class ReaderAnnotation {
     String? id,
     String? bookId,
     int? pageIndex,
+    ReaderLocator? locator,
     ReaderAnnotationType? type,
     String? content,
     String? title,
@@ -52,6 +56,7 @@ class ReaderAnnotation {
     id: id ?? this.id,
     bookId: bookId ?? this.bookId,
     pageIndex: pageIndex ?? this.pageIndex,
+    locator: locator ?? this.locator,
     type: type ?? this.type,
     content: content ?? this.content,
     title: title ?? this.title,
@@ -67,6 +72,7 @@ class ReaderAnnotation {
     'id': id,
     'bookId': bookId,
     'pageIndex': pageIndex,
+    if (locator != null) 'locator': locator!.toJson(),
     'type': type.name,
     'content': content,
     'title': title,
@@ -82,10 +88,14 @@ class ReaderAnnotation {
     final typeName = json['type']?.toString() ?? 'bookmark';
     final noteFormatName = json['noteFormat']?.toString() ?? 'markdown';
     final rawInk = json['inkStroke'];
+    final rawLocator = json['locator'];
     return ReaderAnnotation(
       id: json['id']?.toString() ?? '',
       bookId: json['bookId']?.toString() ?? '',
       pageIndex: (json['pageIndex'] as num?)?.toInt() ?? 0,
+      locator: rawLocator is Map
+          ? ReaderLocator.fromJson(Map<String, dynamic>.from(rawLocator))
+          : null,
       type: ReaderAnnotationType.values.firstWhere(
         (value) => value.name == typeName,
         orElse: () => ReaderAnnotationType.bookmark,
