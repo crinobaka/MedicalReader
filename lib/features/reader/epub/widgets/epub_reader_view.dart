@@ -41,10 +41,7 @@ class _EpubReaderViewState extends State<EpubReaderView> {
     _webViewController = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(_backgroundColor())
-      ..addJavaScriptChannel(
-        'MedicalReader',
-        onMessageReceived: _onMessage,
-      )
+      ..addJavaScriptChannel('MedicalReader', onMessageReceived: _onMessage)
       ..setNavigationDelegate(
         NavigationDelegate(onPageFinished: (_) => _applyReader()),
       );
@@ -56,12 +53,8 @@ class _EpubReaderViewState extends State<EpubReaderView> {
     super.didUpdateWidget(oldWidget);
     final chapter = widget.archive.chapterAt(widget.chapterIndex);
     final oldChapter = oldWidget.archive.chapterAt(oldWidget.chapterIndex);
-    if (chapter?.href != oldChapter?.href || widget.fragment != oldWidget.fragment) {
+    if (chapter?.href != oldChapter?.href || widget.fragment != oldWidget.fragment || widget.settings != oldWidget.settings) {
       _loadChapter();
-      return;
-    }
-    if (widget.settings != oldWidget.settings) {
-      _applyReader();
     }
   }
 
@@ -70,7 +63,7 @@ class _EpubReaderViewState extends State<EpubReaderView> {
     if (chapter == null) return;
     final file = widget.archive.fileFor(chapter.href);
     _loadedHref = chapter.href;
-    _ready = false;
+    if (mounted) setState(() => _ready = false);
     try {
       await _webViewController.loadFile(file.path);
     } catch (_) {
@@ -80,9 +73,12 @@ class _EpubReaderViewState extends State<EpubReaderView> {
 
   Future<void> _applyReader() async {
     if (_loadedHref == null) return;
-    await _webViewController.runJavaScript(_readerScript());
-    if (!mounted) return;
-    setState(() => _ready = true);
+    try {
+      await _webViewController.runJavaScript(_readerScript());
+      if (mounted) setState(() => _ready = true);
+    } catch (_) {
+      if (mounted) setState(() => _ready = false);
+    }
   }
 
   void _onMessage(JavaScriptMessage message) {
@@ -118,7 +114,6 @@ class _EpubReaderViewState extends State<EpubReaderView> {
   const paginated = $paginated;
   const rtl = $rtl;
   const pageGap = ${settings.horizontalPadding.clamp(0, 20)};
-  const paragraphSpacing = ${settings.paragraphSpacing.clamp(0, 64)};
   const initialProgress = $initialProgress;
   const initialFragment = $fragment;
 
@@ -143,8 +138,8 @@ class _EpubReaderViewState extends State<EpubReaderView> {
   body.style.writingMode = vertical ? 'vertical-rl' : 'horizontal-tb';
   body.style.direction = rtl ? 'rtl' : 'ltr';
   body.querySelectorAll('p, div, section').forEach(function(el) {
-    el.style.marginBottom = vertical ? '0' : '${settings.paragraphSpacing}px';
     if (vertical) el.style.marginLeft = '${settings.paragraphSpacing}px';
+    else el.style.marginBottom = '${settings.paragraphSpacing}px';
   });
   body.querySelectorAll('img, svg, video, canvas').forEach(function(el) {
     el.style.maxWidth = '95vw';
@@ -153,28 +148,23 @@ class _EpubReaderViewState extends State<EpubReaderView> {
   });
 
   if (paginated) {
+    root.style.height = '100vh';
+    root.style.width = '100vw';
     if (vertical) {
-      root.style.height = '100vh';
-      root.style.width = '100vw';
       root.style.overflowY = 'auto';
       root.style.overflowX = 'hidden';
-      body.style.minHeight = '100vh';
       body.style.height = '100vh';
+      body.style.minHeight = '100vh';
       body.style.columnWidth = '100vh';
-      body.style.columnGap = '${pageGap}px';
-      body.style.columnFill = 'auto';
-      body.style.padding = '${settings.verticalPadding}px ${settings.horizontalPadding}px';
     } else {
-      root.style.height = '100vh';
-      root.style.width = '100vw';
       root.style.overflowX = 'auto';
       root.style.overflowY = 'hidden';
-      body.style.minWidth = '100vw';
       body.style.height = '100vh';
+      body.style.minWidth = '100vw';
       body.style.columnWidth = '100vw';
-      body.style.columnGap = '${pageGap}px';
-      body.style.columnFill = 'auto';
     }
+    body.style.columnGap = '${settings.horizontalPadding.clamp(0, 48)}px';
+    body.style.columnFill = 'auto';
   } else {
     root.style.height = 'auto';
     root.style.width = '100%';
@@ -185,107 +175,86 @@ class _EpubReaderViewState extends State<EpubReaderView> {
     body.style.columnGap = 'normal';
   }
 
-  if (!window.medicalReaderPagination) {
-    window.medicalReaderPagination = {
-      timer: null,
-      touchX: 0,
-      touchY: 0,
-      getPosition: function() {
-        return vertical ? root.scrollTop : root.scrollLeft;
-      },
-      getPageSize: function() {
-        return vertical ? window.innerHeight : window.innerWidth;
-      },
-      getMax: function() {
-        return Math.max(0, vertical ? root.scrollHeight - window.innerHeight : root.scrollWidth - window.innerWidth);
-      },
-      progress: function() {
-        const max = this.getMax();
-        return max <= 0 ? 0 : Math.min(1, Math.max(0, this.getPosition() / max));
-      },
-      notify: function() {
-        MedicalReader.postMessage('progress|' + this.progress());
-      },
-      setPosition: function(position) {
-        const max = this.getMax();
-        const value = Math.min(max, Math.max(0, position));
-        if (vertical) root.scrollTop = value; else root.scrollLeft = value;
-        this.notify();
-        return value;
-      },
-      paginate: function(direction) {
-        const size = this.getPageSize();
-        const current = this.getPosition();
-        const max = this.getMax();
-        const delta = direction === 'forward' ? size : -size;
-        const target = Math.min(max, Math.max(0, Math.round((current + delta) / size) * size));
-        if (Math.abs(target - current) < 2) {
-          MedicalReader.postMessage('boundary|' + direction);
+  const pagination = {
+    timer: null,
+    touchX: 0,
+    touchY: 0,
+    position: function() { return vertical ? root.scrollTop : root.scrollLeft; },
+    size: function() { return vertical ? window.innerHeight : window.innerWidth; },
+    max: function() { return Math.max(0, vertical ? root.scrollHeight - window.innerHeight : root.scrollWidth - window.innerWidth); },
+    progress: function() {
+      const max = this.max();
+      return max <= 0 ? 0 : Math.min(1, Math.max(0, this.position() / max));
+    },
+    notify: function() { MedicalReader.postMessage('progress|' + this.progress()); },
+    setPosition: function(value) {
+      const max = this.max();
+      const position = Math.min(max, Math.max(0, value));
+      if (vertical) root.scrollTop = position; else root.scrollLeft = position;
+      this.notify();
+    },
+    paginate: function(direction) {
+      const size = this.size();
+      const current = this.position();
+      const max = this.max();
+      const delta = direction === 'forward' ? size : -size;
+      const target = Math.min(max, Math.max(0, Math.round((current + delta) / size) * size));
+      if (Math.abs(target - current) < 2) {
+        MedicalReader.postMessage('boundary|' + direction);
+        return;
+      }
+      this.setPosition(target);
+    },
+    snap: function() {
+      if (!paginated) return;
+      const size = this.size();
+      if (size > 0) this.setPosition(Math.round(this.position() / size) * size);
+    },
+    restore: function() {
+      if (initialFragment) {
+        const target = document.getElementById(initialFragment);
+        if (target) {
+          target.scrollIntoView({block: 'start', inline: 'start'});
+          this.notify();
           return;
         }
-        this.setPosition(target);
-      },
-      snap: function() {
-        if (!paginated) return;
-        const size = this.getPageSize();
-        if (size <= 0) return;
-        this.setPosition(Math.round(this.getPosition() / size) * size);
-      },
-      restore: function() {
-        if (initialFragment) {
-          const target = document.getElementById(initialFragment);
-          if (target) {
-            target.scrollIntoView({block: 'start', inline: 'start'});
-            this.notify();
-            return;
-          }
-        }
-        const max = this.getMax();
-        this.setPosition(max * initialProgress);
       }
-    };
-  }
+      this.setPosition(this.max() * initialProgress);
+    },
+  };
+  window.medicalReaderPagination = pagination;
 
   root.addEventListener('scroll', function() {
-    const p = window.medicalReaderPagination;
-    if (p.timer) clearTimeout(p.timer);
-    p.notify();
-    if (paginated) p.timer = setTimeout(function() { p.snap(); }, 80);
+    pagination.notify();
+    if (pagination.timer) clearTimeout(pagination.timer);
+    if (paginated) pagination.timer = setTimeout(function() { pagination.snap(); }, 80);
   }, {passive: true});
-
   root.addEventListener('touchstart', function(event) {
     const touch = event.changedTouches[0];
-    window.medicalReaderPagination.touchX = touch.clientX;
-    window.medicalReaderPagination.touchY = touch.clientY;
+    pagination.touchX = touch.clientX;
+    pagination.touchY = touch.clientY;
   }, {passive: true});
-
   root.addEventListener('touchend', function(event) {
     if (!paginated) return;
     const touch = event.changedTouches[0];
-    const dx = touch.clientX - window.medicalReaderPagination.touchX;
-    const dy = touch.clientY - window.medicalReaderPagination.touchY;
-    const horizontal = Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 36;
-    const verticalSwipe = Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 36;
-    if (!horizontal && !verticalSwipe) return;
+    const dx = touch.clientX - pagination.touchX;
+    const dy = touch.clientY - pagination.touchY;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 36) return;
     let forward;
-    if (vertical) {
-      forward = dx < 0;
-    } else {
-      forward = rtl ? dx > 0 : dx < 0;
-    }
-    window.medicalReaderPagination.paginate(forward ? 'forward' : 'backward');
+    if (vertical) forward = dx < 0;
+    else forward = rtl ? dx > 0 : dx < 0;
+    pagination.paginate(forward ? 'forward' : 'backward');
   }, {passive: true});
-
   document.addEventListener('keydown', function(event) {
     if (!paginated) return;
-    if (event.key === 'ArrowLeft') window.medicalReaderPagination.paginate(rtl ? 'forward' : 'backward');
-    if (event.key === 'ArrowRight') window.medicalReaderPagination.paginate(rtl ? 'backward' : 'forward');
+    if (event.key === 'ArrowLeft') pagination.paginate(rtl ? 'forward' : 'backward');
+    if (event.key === 'ArrowRight') pagination.paginate(rtl ? 'backward' : 'forward');
   });
 
   setTimeout(function() {
-    window.medicalReaderPagination.restore();
-    window.medicalReaderPagination.notify();
-  }, 40);
+    pagination.restore();
+    pagination.notify();
+  }, 60);
 })();
 ''';
   }
