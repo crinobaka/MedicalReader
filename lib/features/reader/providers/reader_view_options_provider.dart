@@ -5,10 +5,6 @@ import '../models/reader_view_options.dart';
 import '../services/reader_settings_bridge.dart';
 import '../services/reader_settings_store.dart';
 
-final readerSettingsStoreProvider = Provider<ReaderSettingsStore>((ref) {
-  return ReaderSettingsStore(ref.read(libraryRepositoryProvider));
-});
-
 final readerViewOptionsProvider = NotifierProvider<ReaderViewOptionsNotifier, ReaderViewOptions>(ReaderViewOptionsNotifier.new);
 
 class ReaderViewOptionsNotifier extends Notifier<ReaderViewOptions> {
