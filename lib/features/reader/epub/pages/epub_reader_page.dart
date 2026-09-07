@@ -65,6 +65,11 @@ class _EpubReaderPageState extends ConsumerState<EpubReaderPage> {
     );
   }
 
+  Future<void> _handleBoundary(String direction) async {
+    await _controller.navigatePageBoundary(direction);
+    if (mounted) setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_controller.loading || _settingsLoading) {
@@ -98,12 +103,14 @@ class _EpubReaderPageState extends ConsumerState<EpubReaderPage> {
         ],
       ),
       body: EpubReaderView(
-        key: ValueKey('${_controller.chapterIndex}:${_controller.initialProgress}:${_settings.toJson()}'),
+        key: ValueKey('${_controller.chapterIndex}:${_controller.initialProgress}:${_controller.initialFragment}:${_settings.toJson()}'),
         archive: _controller.archive!,
         chapterIndex: _controller.chapterIndex,
+        fragment: _controller.initialFragment,
         initialProgress: _controller.initialProgress,
         settings: _settings,
         onPositionChanged: (href, progress) => _controller.updateProgress(href, progress),
+        onPageBoundary: _handleBoundary,
       ),
       floatingActionButton: Row(
         mainAxisSize: MainAxisSize.min,
