@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../library/models/library_document.dart';
-import '../../../library/providers/library_repository_provider.dart';
 import '../../domain/models/reader_locator.dart';
 import '../../domain/models/reader_position.dart';
+import '../../domain/models/reader_settings.dart';
+import '../../services/reader_settings_store.dart';
 import '../controllers/epub_reader_controller.dart';
+import '../widgets/epub_reader_settings_sheet.dart';
 import '../widgets/epub_reader_view.dart';
 
 class EpubReaderPage extends ConsumerStatefulWidget {
@@ -18,10 +20,13 @@ class EpubReaderPage extends ConsumerStatefulWidget {
 
 class _EpubReaderPageState extends ConsumerState<EpubReaderPage> {
   late final EpubReaderController _controller;
+  ReaderSettings _settings = const ReaderSettings();
+  bool _settingsLoading = true;
 
   @override
   void initState() {
     super.initState();
+    _loadSettings();
     _controller = EpubReaderController(
       document: widget.document,
       initialPosition: _initialPosition,
@@ -29,6 +34,20 @@ class _EpubReaderPageState extends ConsumerState<EpubReaderPage> {
     )..open().then((_) {
         if (mounted) setState(() {});
       });
+  }
+
+  Future<void> _loadSettings() async {
+    final settings = await ref.read(readerSettingsStoreProvider).load(widget.document);
+    if (!mounted) return;
+    setState(() {
+      _settings = settings;
+      _settingsLoading = false;
+    });
+  }
+
+  Future<void> _saveSettings(ReaderSettings settings) async {
+    setState(() => _settings = settings);
+    await ref.read(readerSettingsStoreProvider).save(widget.document, settings);
   }
 
   ReaderPosition? get _initialPosition {
@@ -45,7 +64,7 @@ class _EpubReaderPageState extends ConsumerState<EpubReaderPage> {
   }
 
   Future<void> _savePosition(ReaderPosition position) async {
-    await ref.read(libraryRepositoryProvider).updateDocumentMetadata(
+    await ref.read(readerSettingsStoreProvider)._repository.updateDocumentMetadata(
       documentId: widget.document.id,
       metadata: {
         'reader_position': position.toJson(),
@@ -54,9 +73,22 @@ class _EpubReaderPageState extends ConsumerState<EpubReaderPage> {
     );
   }
 
+  void _openSettings() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => EpubReaderSettingsSheet(
+        settings: _settings,
+        onChanged: _saveSettings,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (_controller.loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (_controller.loading || _settingsLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
     if (_controller.error != null || _controller.archive == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('EPUB')),
@@ -69,6 +101,7 @@ class _EpubReaderPageState extends ConsumerState<EpubReaderPage> {
       appBar: AppBar(
         title: Text(book.title, overflow: TextOverflow.ellipsis),
         actions: [
+          IconButton(tooltip: '阅读设置', onPressed: _openSettings, icon: const Icon(Icons.text_fields)),
           if (book.spine.isNotEmpty)
             PopupMenuButton<int>(
               tooltip: '章节',
@@ -84,10 +117,11 @@ class _EpubReaderPageState extends ConsumerState<EpubReaderPage> {
         ],
       ),
       body: EpubReaderView(
-        key: ValueKey('${_controller.chapterIndex}:${_controller.initialProgress}'),
+        key: ValueKey('${_controller.chapterIndex}:${_controller.initialProgress}:${_settings.toJson()}'),
         archive: _controller.archive!,
         chapterIndex: _controller.chapterIndex,
         initialProgress: _controller.initialProgress,
+        settings: _settings,
         onPositionChanged: (href, progress) => _controller.updateProgress(href, progress),
       ),
       floatingActionButton: Row(
