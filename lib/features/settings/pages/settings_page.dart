@@ -12,25 +12,19 @@ import '../../reader/providers/reader_view_options_provider.dart';
 import '../../reader/services/book_template_service.dart';
 import '../../reader/widgets/reader_settings_panel.dart';
 import '../services/user_template_service.dart';
+import '../widgets/settings_category_page.dart';
 
-/// MedicalReader 的顶层设置页。
-///
-/// 这里是与首页、书库、搜索、知识同级的“设置”页面；它不是 Reader
-/// 内部的设置弹窗。ReaderSettingsPanel 在这里作为设置内容嵌入，外层
-/// 页面负责页面级滚动，面板自身只在有限高度内滚动。
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
-
   @override
   ConsumerState<SettingsPage> createState() => _SettingsPageState();
 }
 
 class _SettingsPageState extends ConsumerState<SettingsPage> {
-  final BookTemplateService _templateService = BookTemplateService();
-  final UserTemplateService _userTemplateService = UserTemplateService();
-
+  final _templateService = BookTemplateService();
+  final _userTemplateService = UserTemplateService();
   List<BookTemplate> _templates = const [];
-  bool _templatesLoading = true;
+  bool _loading = true;
 
   @override
   void initState() {
@@ -44,230 +38,199 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       if (!mounted) return;
       setState(() {
         _templates = _templateService.templates;
-        _templatesLoading = false;
+        _loading = false;
       });
     } catch (_) {
-      if (!mounted) return;
-      setState(() => _templatesLoading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
   @override
-  Widget build(BuildContext context) {
-    final storage = ref.read(libraryStorageServiceProvider);
-    final readerOptions = ref.watch(readerViewOptionsProvider);
-    final height = MediaQuery.sizeOf(context).height;
-    final panelHeight = (height * 0.62).clamp(360.0, 720.0).toDouble();
-
-    return Scaffold(
-      appBar: AppBar(title: const Text('设置')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-        children: [
-          _buildSectionTitle('文件与存储'),
-          const SizedBox(height: 8),
-          Card(
-            child: FutureBuilder<Directory>(
-              future: storage.getLibraryDirectory(),
-              builder: (context, snapshot) => ListTile(
-                leading: const Icon(Icons.folder),
-                title: const Text('文件库路径'),
-                subtitle: Text(snapshot.data?.path ?? '正在读取……'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => _changeLibraryDirectory(storage),
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text('设置')),
+        body: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 8, 4, 24),
+              child: Text('设置', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700)),
+            ),
+            SettingsSection(title: '阅读', children: [
+              SettingsNavigationTile(icon: Icons.palette_outlined, title: '外观', subtitle: '主题、字体、字号与阅读页面样式', onTap: _openAppearance),
+              SettingsNavigationTile(icon: Icons.menu_book_outlined, title: '阅读器', subtitle: '翻页、控件、目录与阅读行为', onTap: _openControls),
+            ]),
+            SettingsSection(title: '书库', children: [
+              SettingsNavigationTile(icon: Icons.folder_outlined, title: '文件与存储', subtitle: '文件库位置与应用数据', onTap: _openStorage),
+              SettingsNavigationTile(icon: Icons.style_outlined, title: '书籍模板', subtitle: '管理 BookTemplate 与默认配置', onTap: _openTemplates),
+            ]),
+            const SettingsSection(title: '关于', children: [
+              ListTile(
+                leading: Icon(Icons.info_outline),
+                title: Text('MedicalReader'),
+                subtitle: Text('PDF 阅读、知识整理与医学文献管理 · 版本 1.5.0'),
+                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               ),
-            ),
-          ),
-          Card(
-            child: FutureBuilder<Directory>(
-              future: getApplicationSupportDirectory(),
-              builder: (context, snapshot) => ListTile(
-                leading: const Icon(Icons.storage),
-                title: const Text('应用数据目录'),
-                subtitle: Text(snapshot.data?.path ?? '正在读取……'),
-              ),
-            ),
-          ),
-          Card(
-            child: FutureBuilder<Directory>(
-              future: getTemporaryDirectory(),
-              builder: (context, snapshot) => ListTile(
-                leading: const Icon(Icons.cleaning_services),
-                title: const Text('临时目录'),
-                subtitle: Text(snapshot.data?.path ?? '正在读取……'),
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          _buildSectionTitle('阅读器显示'),
-          const SizedBox(height: 8),
-          Card(
-            clipBehavior: Clip.antiAlias,
-            child: SizedBox(
-              height: panelHeight,
-              child: ReaderSettingsPanel(
-                options: readerOptions,
-                onChanged: (options) => ref.read(readerViewOptionsProvider.notifier).update(options),
-                onReset: () async {
-                  await ref.read(readerViewOptionsProvider.notifier).reset();
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('阅读器显示设置已恢复默认值')));
-                },
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          _buildSectionTitle('书籍模板'),
-          const SizedBox(height: 8),
-          Card(
-            child: Column(
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.add_box),
-                  title: const Text('创建自定义模板'),
-                  subtitle: const Text('直接编辑 BookTemplate JSON，保存后 Reader 下次打开书籍即可使用'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _editTemplate(),
-                ),
-                const Divider(height: 1),
-                if (_templatesLoading)
-                  const Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator())
-                else if (_templates.isEmpty)
-                  const ListTile(leading: Icon(Icons.info_outline), title: Text('暂无模板'))
-                else
-                  ..._templates.map(_buildTemplateTile),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-          _buildSectionTitle('应用'),
-          const SizedBox(height: 8),
-          const Card(
-            child: ListTile(
-              leading: Icon(Icons.info_outline),
-              title: Text('MedicalReader'),
-              subtitle: Text('PDF 阅读、知识整理与医学文献管理\n版本 1.5.0'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSectionTitle(String title) => Padding(
-        padding: const EdgeInsets.only(left: 4),
-        child: Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            ]),
+          ],
+        ),
       );
 
-  Widget _buildTemplateTile(BookTemplate template) => FutureBuilder<bool>(
-        future: _userTemplateService.getDirectory().then((directory) => File('${directory.path}${Platform.pathSeparator}${template.id}.json').exists()),
-        builder: (context, snapshot) {
-          final isUserTemplate = snapshot.data == true;
-          return ListTile(
-            leading: Icon(isUserTemplate ? Icons.edit_note : Icons.menu_book),
-            title: Text(template.name),
-            subtitle: Text([
-              if (template.description != null) template.description!,
-              'ID: ${template.id}',
-              if (isUserTemplate) '用户模板' else '内置/官方模板',
-            ].join('\n')),
-            isThreeLine: true,
-            trailing: isUserTemplate
-                ? PopupMenuButton<String>(
-                    onSelected: (value) async {
-                      if (value == 'edit') await _editTemplate(template);
-                      if (value == 'delete') await _deleteTemplate(template);
-                    },
-                    itemBuilder: (context) => const [
-                      PopupMenuItem(value: 'edit', child: Text('编辑')),
-                      PopupMenuItem(value: 'delete', child: Text('删除')),
-                    ],
-                  )
-                : IconButton(tooltip: '复制为自定义模板', icon: const Icon(Icons.copy), onPressed: () => _editTemplate(template)),
-          );
-        },
-      );
-
-  Future<void> _changeLibraryDirectory(dynamic storage) async {
-    final selected = await storage.pickLibraryDirectory();
-    if (selected == null || !mounted) return;
-    await ref.read(libraryProvider.notifier).reload();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('文件库已切换到：${selected.path}')));
-    setState(() {});
+  Future<void> _openAppearance() => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const _AppearancePage()));
+  Future<void> _openControls() => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const _ControlsPage()));
+  Future<void> _openStorage() => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const _StoragePage()));
+  Future<void> _openTemplates() async {
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => _TemplatesPage(
+          templates: _templates,
+          loading: _loading,
+          onEdit: _editTemplate,
+          onDelete: _deleteTemplate,
+          onCreate: () => _editTemplate(),
+        )));
+    await _loadTemplates();
   }
 
   Future<void> _editTemplate([BookTemplate? source]) async {
     final controller = TextEditingController(
       text: const JsonEncoder.withIndent('  ').convert(source?.toJson() ?? {
-        'id': 'my-medical-template',
-        'name': '我的医学书模板',
-        'version': '1.0.0',
-        'description': '用户自定义模板',
-        'author': 'Me',
-        'data': {
-          'metadata': {'category': 'medical', 'language': 'zh-CN'},
-          'aliases': <String>[],
-          'defaults': {
-            'bookPageMapping': {'enabled': true, 'strategy': 'manual'},
-            'searchContext': {'showContext': true, 'showChapter': true, 'showBookPage': true, 'contextBefore': 80, 'contextAfter': 120},
-          },
-        },
+        'id': 'my-medical-template', 'name': '我的医学书模板', 'version': '1.0.0',
+        'description': '用户自定义模板', 'author': 'Me',
+        'data': {'metadata': {'category': 'medical', 'language': 'zh-CN'}, 'aliases': <String>[], 'defaults': {
+          'bookPageMapping': {'enabled': true, 'strategy': 'manual'},
+          'searchContext': {'showContext': true, 'showChapter': true, 'showBookPage': true, 'contextBefore': 80, 'contextAfter': 120},
+        }},
       }),
     );
     final saved = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (c) => AlertDialog(
         title: Text(source == null ? '创建自定义模板' : '编辑自定义模板'),
-        content: SizedBox(
-          width: 720,
-          child: TextField(controller: controller, minLines: 18, maxLines: 28, keyboardType: TextInputType.multiline, textAlignVertical: TextAlignVertical.top, decoration: const InputDecoration(border: OutlineInputBorder(), hintText: '在这里编辑完整 BookTemplate JSON')),
-        ),
+        content: SizedBox(width: 720, child: TextField(controller: controller, minLines: 18, maxLines: 28, keyboardType: TextInputType.multiline, textAlignVertical: TextAlignVertical.top, decoration: const InputDecoration(border: OutlineInputBorder(), hintText: '在这里编辑完整 BookTemplate JSON'))),
         actions: [
-          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('取消')),
-          FilledButton(
-            onPressed: () async {
-              try {
-                final decoded = jsonDecode(controller.text);
-                if (decoded is! Map<String, dynamic>) throw const FormatException('模板根节点必须是 JSON 对象');
-                final template = BookTemplate.fromJson(decoded);
-                if (template.id.trim().isEmpty || template.name.trim().isEmpty) throw const FormatException('模板 id 和 name 不能为空');
-                await _userTemplateService.save(template);
-                if (dialogContext.mounted) Navigator.of(dialogContext).pop(true);
-              } catch (error) {
-                if (!dialogContext.mounted) return;
-                ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(content: Text('模板 JSON 无效：$error')));
-              }
-            },
-            child: const Text('保存'),
-          ),
+          TextButton(onPressed: () => Navigator.of(c).pop(false), child: const Text('取消')),
+          FilledButton(onPressed: () async {
+            try {
+              final decoded = jsonDecode(controller.text);
+              if (decoded is! Map<String, dynamic>) throw const FormatException('模板根节点必须是 JSON 对象');
+              final template = BookTemplate.fromJson(decoded);
+              if (template.id.trim().isEmpty || template.name.trim().isEmpty) throw const FormatException('模板 id 和 name 不能为空');
+              await _userTemplateService.save(template);
+              if (c.mounted) Navigator.of(c).pop(true);
+            } catch (e) {
+              if (c.mounted) ScaffoldMessenger.of(c).showSnackBar(SnackBar(content: Text('模板 JSON 无效：$e')));
+            }
+          }, child: const Text('保存')),
         ],
       ),
     );
     controller.dispose();
-    if (saved == true) {
-      await _loadTemplates();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('模板已保存到应用数据目录')));
-    }
+    if (saved == true && mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('模板已保存')));
   }
 
   Future<void> _deleteTemplate(BookTemplate template) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (c) => AlertDialog(
         title: const Text('删除模板'),
         content: Text('确定删除“${template.name}”吗？'),
         actions: [
-          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('取消')),
-          FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const Text('删除')),
+          TextButton(onPressed: () => Navigator.of(c).pop(false), child: const Text('取消')),
+          FilledButton(onPressed: () => Navigator.of(c).pop(true), child: const Text('删除')),
         ],
       ),
     );
     if (confirmed != true) return;
     await _userTemplateService.delete(template.id);
     await _loadTemplates();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('已删除用户模板：${template.name}')));
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('已删除：${template.name}')));
   }
+}
+
+class _AppearancePage extends ConsumerWidget {
+  const _AppearancePage();
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final options = ref.watch(readerViewOptionsProvider);
+    return SettingsCategoryPage(
+      title: '外观', subtitle: '阅读页面的视觉样式。',
+      children: [
+        Card(margin: EdgeInsets.zero, clipBehavior: Clip.antiAlias, child: ReaderSettingsPanel(
+          options: options,
+          onChanged: (v) => ref.read(readerViewOptionsProvider.notifier).update(v),
+          onReset: () => ref.read(readerViewOptionsProvider.notifier).reset(),
+        )),
+      ],
+    );
+  }
+}
+
+class _ControlsPage extends ConsumerWidget {
+  const _ControlsPage();
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final o = ref.watch(readerViewOptionsProvider);
+    return SettingsCategoryPage(title: '阅读器', subtitle: '控制阅读时显示哪些操作，以及页面导航行为。', children: [
+      SettingsSection(title: '阅读界面', children: [
+        SwitchListTile.adaptive(title: const Text('显示页码控件'), subtitle: const Text('显示翻页与页码信息'), value: o.showPageControls, onChanged: (v) => ref.read(readerViewOptionsProvider.notifier).updatePartial(showPageControls: v)),
+        SwitchListTile.adaptive(title: const Text('显示位置栏'), subtitle: const Text('显示当前阅读位置'), value: o.showLocationBar, onChanged: (v) => ref.read(readerViewOptionsProvider.notifier).updatePartial(showLocationBar: v)),
+        SwitchListTile.adaptive(title: const Text('浮动控制栏'), subtitle: const Text('以浮动卡片形式显示工具栏'), value: o.floatingControls, onChanged: (v) => ref.read(readerViewOptionsProvider.notifier).updatePartial(floatingControls: v)),
+      ]),
+      SettingsSection(title: '工具', children: [
+        SwitchListTile.adaptive(title: const Text('显示目录按钮'), value: o.showBookTreeButton, onChanged: (v) => ref.read(readerViewOptionsProvider.notifier).updatePartial(showBookTreeButton: v)),
+        SwitchListTile.adaptive(title: const Text('显示搜索按钮'), value: o.showSearchButton, onChanged: (v) => ref.read(readerViewOptionsProvider.notifier).updatePartial(showSearchButton: v)),
+        SwitchListTile.adaptive(title: const Text('显示跳页按钮'), value: o.showPageJumpButton, onChanged: (v) => ref.read(readerViewOptionsProvider.notifier).updatePartial(showPageJumpButton: v)),
+      ]),
+      SettingsSection(title: '恢复', children: [
+        ListTile(leading: const Icon(Icons.restore), title: const Text('恢复阅读器默认设置'), subtitle: const Text('只恢复阅读器显示与控件配置'), onTap: () async {
+          await ref.read(readerViewOptionsProvider.notifier).reset();
+          if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已恢复默认设置')));
+        }),
+      ]),
+    ]);
+  }
+}
+
+class _StoragePage extends ConsumerWidget {
+  const _StoragePage();
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final storage = ref.read(libraryStorageServiceProvider);
+    return SettingsCategoryPage(title: '文件与存储', children: [
+      SettingsSection(title: '文件库', children: [
+        FutureBuilder<Directory>(future: storage.getLibraryDirectory(), builder: (context, snapshot) => ListTile(
+          leading: const Icon(Icons.folder_outlined), title: const Text('文件库路径'), subtitle: Text(snapshot.data?.path ?? '正在读取……'), trailing: const Icon(Icons.chevron_right),
+          onTap: () async {
+            final selected = await storage.pickLibraryDirectory();
+            if (selected == null || !context.mounted) return;
+            await ref.read(libraryProvider.notifier).reload();
+            if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('文件库已切换到：${selected.path}')));
+          },
+        )),
+      ]),
+      SettingsSection(title: '应用数据', children: [
+        FutureBuilder<Directory>(future: getApplicationSupportDirectory(), builder: (context, snapshot) => ListTile(leading: const Icon(Icons.storage_outlined), title: const Text('应用数据目录'), subtitle: Text(snapshot.data?.path ?? '正在读取……'))),
+        FutureBuilder<Directory>(future: getTemporaryDirectory(), builder: (context, snapshot) => ListTile(leading: const Icon(Icons.cleaning_services_outlined), title: const Text('临时目录'), subtitle: Text(snapshot.data?.path ?? '正在读取……'))),
+      ]),
+    ]);
+  }
+}
+
+class _TemplatesPage extends StatelessWidget {
+  final List<BookTemplate> templates;
+  final bool loading;
+  final Future<void> Function([BookTemplate?]) onEdit;
+  final Future<void> Function(BookTemplate) onDelete;
+  final VoidCallback onCreate;
+  const _TemplatesPage({required this.templates, required this.loading, required this.onEdit, required this.onDelete, required this.onCreate});
+  @override
+  Widget build(BuildContext context) => SettingsCategoryPage(title: '书籍模板', subtitle: '管理 BookTemplate。', children: [
+        SettingsSection(title: '模板', children: [
+          SettingsNavigationTile(icon: Icons.add_box_outlined, title: '创建自定义模板', subtitle: '直接编辑完整 BookTemplate JSON', onTap: onCreate),
+          if (loading) const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()))
+          else if (templates.isEmpty) const ListTile(leading: Icon(Icons.info_outline), title: Text('暂无模板'))
+          else ...templates.map((template) => ListTile(
+                leading: const Icon(Icons.menu_book_outlined), title: Text(template.name), subtitle: Text(template.description ?? 'ID: ${template.id}'),
+                trailing: PopupMenuButton<String>(onSelected: (v) async { if (v == 'edit') await onEdit(template); if (v == 'delete') await onDelete(template); }, itemBuilder: (_) => const [PopupMenuItem(value: 'edit', child: Text('编辑')), PopupMenuItem(value: 'delete', child: Text('删除'))]),
+              )),
+        ]),
+      ]);
 }
