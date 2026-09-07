@@ -28,6 +28,7 @@ dependencies:
   pdfx: ^2.11.0
   pdf: ^3.11.3
   cupertino_icons: ^1.0.8
+  flutter_html: ^3.0.0
 
 dev_dependencies:
   flutter_test:

@@ -12,7 +12,7 @@ class _ReaderNoteTextEditingController extends TextEditingController {
   _ReaderNoteTextEditingController({super.text});
 
   static final _inlineSyntax = RegExp(
-    r'(\`[^\`]*\`|\*\*[^\*]+\*\*|__[^_]+__|\*[^\*]+\*|_[^_]+_|~~[^~]+~~|\[[^\]]+\]\([^\)]+\)|<[^>]+>)',
+    r'''(\`[^\`]*\`|\*\*[^\*]+\*\*|__[^_]+__|\*[^\*]+\*|_[^_]+_|~~[^~]+~~|\[[^\]]+\]\([^\)]+\)|<[^>]+>)''',
   );
   static final _heading = RegExp(r'^(#{1,6})(\s+)(.*)');
   static final _quoteOrList = RegExp(r'^(\s*(?:>|[-*+] |\d+\. ))');
