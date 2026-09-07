@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../library/models/library_document.dart';
 import '../../library/providers/library_repository_provider.dart';
+import '../../library/repositories/library_repository.dart';
 import '../domain/models/reader_locator.dart';
 import '../domain/models/reader_position.dart';
 
@@ -10,7 +11,7 @@ final readerPositionStoreProvider = Provider<ReaderPositionStore>((ref) {
 });
 
 class ReaderPositionStore {
-  final dynamic _repository;
+  final LibraryRepository _repository;
 
   const ReaderPositionStore(this._repository);
 
