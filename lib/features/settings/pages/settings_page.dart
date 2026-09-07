@@ -10,8 +10,8 @@ import '../../library/providers/library_provider.dart';
 import '../../reader/models/book_template.dart';
 import '../../reader/providers/reader_view_options_provider.dart';
 import '../../reader/services/book_template_service.dart';
-import '../../reader/widgets/reader_settings_panel.dart';
 import '../services/user_template_service.dart';
+import '../widgets/reader_appearance_settings.dart';
 import '../widgets/settings_category_page.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
@@ -56,7 +56,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               child: Text('设置', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700)),
             ),
             SettingsSection(title: '阅读', children: [
-              SettingsNavigationTile(icon: Icons.palette_outlined, title: '外观', subtitle: '主题、字体、字号与阅读页面样式', onTap: _openAppearance),
+              SettingsNavigationTile(icon: Icons.palette_outlined, title: '外观', subtitle: '主题、布局、画布与阅读界面', onTap: _openAppearance),
               SettingsNavigationTile(icon: Icons.menu_book_outlined, title: '阅读器', subtitle: '翻页、控件、目录与阅读行为', onTap: _openControls),
             ]),
             SettingsSection(title: '书库', children: [
@@ -147,17 +147,19 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
 class _AppearancePage extends ConsumerWidget {
   const _AppearancePage();
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final options = ref.watch(readerViewOptionsProvider);
     return SettingsCategoryPage(
-      title: '外观', subtitle: '阅读页面的视觉样式。',
+      title: '外观',
+      subtitle: '把主题、页面布局和控件显示拆成清晰的小组，避免一个“大设置面板”塞满整页。',
       children: [
-        Card(margin: EdgeInsets.zero, clipBehavior: Clip.antiAlias, child: ReaderSettingsPanel(
+        ReaderAppearanceSettings(
           options: options,
-          onChanged: (v) => ref.read(readerViewOptionsProvider.notifier).update(v),
+          onChanged: (value) => ref.read(readerViewOptionsProvider.notifier).update(value),
           onReset: () => ref.read(readerViewOptionsProvider.notifier).reset(),
-        )),
+        ),
       ],
     );
   }
@@ -165,6 +167,7 @@ class _AppearancePage extends ConsumerWidget {
 
 class _ControlsPage extends ConsumerWidget {
   const _ControlsPage();
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final o = ref.watch(readerViewOptionsProvider);
@@ -191,6 +194,7 @@ class _ControlsPage extends ConsumerWidget {
 
 class _StoragePage extends ConsumerWidget {
   const _StoragePage();
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final storage = ref.read(libraryStorageServiceProvider);
@@ -220,7 +224,9 @@ class _TemplatesPage extends StatelessWidget {
   final Future<void> Function([BookTemplate?]) onEdit;
   final Future<void> Function(BookTemplate) onDelete;
   final VoidCallback onCreate;
+
   const _TemplatesPage({required this.templates, required this.loading, required this.onEdit, required this.onDelete, required this.onCreate});
+
   @override
   Widget build(BuildContext context) => SettingsCategoryPage(title: '书籍模板', subtitle: '管理 BookTemplate。', children: [
         SettingsSection(title: '模板', children: [
@@ -228,8 +234,19 @@ class _TemplatesPage extends StatelessWidget {
           if (loading) const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()))
           else if (templates.isEmpty) const ListTile(leading: Icon(Icons.info_outline), title: Text('暂无模板'))
           else ...templates.map((template) => ListTile(
-                leading: const Icon(Icons.menu_book_outlined), title: Text(template.name), subtitle: Text(template.description ?? 'ID: ${template.id}'),
-                trailing: PopupMenuButton<String>(onSelected: (v) async { if (v == 'edit') await onEdit(template); if (v == 'delete') await onDelete(template); }, itemBuilder: (_) => const [PopupMenuItem(value: 'edit', child: Text('编辑')), PopupMenuItem(value: 'delete', child: Text('删除'))]),
+                leading: const Icon(Icons.menu_book_outlined),
+                title: Text(template.name),
+                subtitle: Text(template.description ?? 'ID: ${template.id}'),
+                trailing: PopupMenuButton<String>(
+                  onSelected: (v) async {
+                    if (v == 'edit') await onEdit(template);
+                    if (v == 'delete') await onDelete(template);
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'edit', child: Text('编辑')),
+                    PopupMenuItem(value: 'delete', child: Text('删除')),
+                  ],
+                ),
               )),
         ]),
       ]);
