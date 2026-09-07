@@ -16,6 +16,11 @@ enum ReaderReadingDirection {
   vertical,
 }
 
+/// Canonical reader configuration shared by PDF and EPUB.
+///
+/// PDF-specific legacy UI options are included here as well so persistence
+/// does not need a second settings schema. PDF rendering can continue to use
+/// ReaderViewOptions through ReaderSettingsBridge during the migration.
 class ReaderSettings {
   final ReaderTheme theme;
   final String fontFamily;
@@ -27,6 +32,19 @@ class ReaderSettings {
   final ReaderReadingMode readingMode;
   final ReaderReadingDirection readingDirection;
   final String customCss;
+  final bool showLocationBar;
+  final bool showSearchLocation;
+  final bool showPageControls;
+  final bool showBookTreeButton;
+  final bool showSearchButton;
+  final bool showPageJumpButton;
+  final bool showCropMargins;
+  final String themePreset;
+  final bool floatingControls;
+  final String toolbarPosition;
+  final String canvasBackground;
+  final int? customCanvasColor;
+  final String pageLayout;
 
   const ReaderSettings({
     this.theme = ReaderTheme.system,
@@ -39,6 +57,19 @@ class ReaderSettings {
     this.readingMode = ReaderReadingMode.paginated,
     this.readingDirection = ReaderReadingDirection.ltr,
     this.customCss = '',
+    this.showLocationBar = true,
+    this.showSearchLocation = true,
+    this.showPageControls = true,
+    this.showBookTreeButton = true,
+    this.showSearchButton = true,
+    this.showPageJumpButton = true,
+    this.showCropMargins = true,
+    this.themePreset = 'google',
+    this.floatingControls = true,
+    this.toolbarPosition = 'auto',
+    this.canvasBackground = 'inherit',
+    this.customCanvasColor,
+    this.pageLayout = 'one',
   });
 
   ReaderSettings copyWith({
@@ -52,6 +83,19 @@ class ReaderSettings {
     ReaderReadingMode? readingMode,
     ReaderReadingDirection? readingDirection,
     String? customCss,
+    bool? showLocationBar,
+    bool? showSearchLocation,
+    bool? showPageControls,
+    bool? showBookTreeButton,
+    bool? showSearchButton,
+    bool? showPageJumpButton,
+    bool? showCropMargins,
+    String? themePreset,
+    bool? floatingControls,
+    String? toolbarPosition,
+    String? canvasBackground,
+    int? customCanvasColor,
+    String? pageLayout,
   }) {
     return ReaderSettings(
       theme: theme ?? this.theme,
@@ -64,6 +108,19 @@ class ReaderSettings {
       readingMode: readingMode ?? this.readingMode,
       readingDirection: readingDirection ?? this.readingDirection,
       customCss: customCss ?? this.customCss,
+      showLocationBar: showLocationBar ?? this.showLocationBar,
+      showSearchLocation: showSearchLocation ?? this.showSearchLocation,
+      showPageControls: showPageControls ?? this.showPageControls,
+      showBookTreeButton: showBookTreeButton ?? this.showBookTreeButton,
+      showSearchButton: showSearchButton ?? this.showSearchButton,
+      showPageJumpButton: showPageJumpButton ?? this.showPageJumpButton,
+      showCropMargins: showCropMargins ?? this.showCropMargins,
+      themePreset: themePreset ?? this.themePreset,
+      floatingControls: floatingControls ?? this.floatingControls,
+      toolbarPosition: toolbarPosition ?? this.toolbarPosition,
+      canvasBackground: canvasBackground ?? this.canvasBackground,
+      customCanvasColor: customCanvasColor ?? this.customCanvasColor,
+      pageLayout: pageLayout ?? this.pageLayout,
     );
   }
 
@@ -78,6 +135,19 @@ class ReaderSettings {
         'readingMode': readingMode.name,
         'readingDirection': readingDirection.name,
         'customCss': customCss,
+        'showLocationBar': showLocationBar,
+        'showSearchLocation': showSearchLocation,
+        'showPageControls': showPageControls,
+        'showBookTreeButton': showBookTreeButton,
+        'showSearchButton': showSearchButton,
+        'showPageJumpButton': showPageJumpButton,
+        'showCropMargins': showCropMargins,
+        'themePreset': themePreset,
+        'floatingControls': floatingControls,
+        'toolbarPosition': toolbarPosition,
+        'canvasBackground': canvasBackground,
+        if (customCanvasColor != null) 'customCanvasColor': customCanvasColor,
+        'pageLayout': pageLayout,
       };
 
   factory ReaderSettings.fromJson(Map<String, dynamic> json) {
@@ -93,6 +163,8 @@ class ReaderSettings {
       return value is num ? value.toDouble() : fallback;
     }
 
+    bool flag(String key, bool fallback) => json[key] is bool ? json[key] as bool : fallback;
+
     return ReaderSettings(
       theme: enumValue(ReaderTheme.values, json['theme'] as String?, ReaderTheme.system),
       fontFamily: json['fontFamily'] as String? ?? '',
@@ -104,6 +176,19 @@ class ReaderSettings {
       readingMode: enumValue(ReaderReadingMode.values, json['readingMode'] as String?, ReaderReadingMode.paginated),
       readingDirection: enumValue(ReaderReadingDirection.values, json['readingDirection'] as String?, ReaderReadingDirection.ltr),
       customCss: json['customCss'] as String? ?? '',
+      showLocationBar: flag('showLocationBar', true),
+      showSearchLocation: flag('showSearchLocation', true),
+      showPageControls: flag('showPageControls', true),
+      showBookTreeButton: flag('showBookTreeButton', true),
+      showSearchButton: flag('showSearchButton', true),
+      showPageJumpButton: flag('showPageJumpButton', true),
+      showCropMargins: flag('showCropMargins', true),
+      themePreset: json['themePreset'] as String? ?? 'google',
+      floatingControls: flag('floatingControls', true),
+      toolbarPosition: json['toolbarPosition'] as String? ?? 'auto',
+      canvasBackground: json['canvasBackground'] as String? ?? 'inherit',
+      customCanvasColor: json['customCanvasColor'] as int?,
+      pageLayout: json['pageLayout'] as String? ?? 'one',
     );
   }
 }
