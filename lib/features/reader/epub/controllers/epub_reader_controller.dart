@@ -17,6 +17,7 @@ class EpubReaderController {
   EpubArchive? archive;
   int chapterIndex = 0;
   double initialProgress = 0;
+  String? initialFragment;
   bool loading = true;
   Object? error;
   ReaderPosition? position;
@@ -54,6 +55,7 @@ class EpubReaderController {
       if (chapter?.href == target) {
         chapterIndex = i;
         initialProgress = (locator.progress ?? initialPosition!.progress).clamp(0, 1).toDouble();
+        initialFragment = locator.fragment;
         position = initialPosition;
         return;
       }
@@ -63,20 +65,33 @@ class EpubReaderController {
   Future<void> nextChapter() async {
     if (chapterIndex + 1 >= chapterCount) return;
     chapterIndex++;
+    initialProgress = 0;
+    initialFragment = null;
     await _save(0);
   }
 
   Future<void> previousChapter() async {
     if (chapterIndex <= 0) return;
     chapterIndex--;
-    await _save(0);
+    initialProgress = 1;
+    initialFragment = null;
+    await _save(1);
   }
 
   Future<void> goToChapter(int index) async {
     if (index < 0 || index >= chapterCount) return;
     chapterIndex = index;
     initialProgress = 0;
+    initialFragment = null;
     await _save(0);
+  }
+
+  Future<void> navigatePageBoundary(String direction) async {
+    if (direction == 'forward') {
+      await nextChapter();
+    } else if (direction == 'backward') {
+      await previousChapter();
+    }
   }
 
   Future<void> updateProgress(String href, double progress) => _save(progress, href: href);
@@ -84,6 +99,7 @@ class EpubReaderController {
   Future<void> _save(double progress, {String? href}) async {
     final locator = EpubReaderLocator(
       href: href ?? archive?.chapterAt(chapterIndex)?.href ?? '',
+      fragment: href == null ? initialFragment : null,
       progress: progress.clamp(0, 1).toDouble(),
     );
     position = ReaderPosition(locator: locator, progress: locator.progress ?? 0);
