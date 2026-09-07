@@ -48,4 +48,7 @@ flutter_launcher_icons:
   image_path: "assets/branding/favicon.ico"
   adaptive_icon_background: "#FFFFFF"
   adaptive_icon_foreground: "assets/branding/favicon.ico"
-  windows: true
+  windows:
+    generate: true
+    image_path: "assets/branding/favicon.ico"
+    icon_size: 256
