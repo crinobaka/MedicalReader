@@ -21,8 +21,9 @@ class ReaderSettingsService {
   }
 
   Future<void> save(ReaderViewOptions options) async {
+    final current = await _loadCanonical();
     await _saveCanonical(
-      ReaderSettingsBridge.fromViewOptions(options),
+      ReaderSettingsBridge.fromViewOptions(options, base: current),
     );
   }
 
