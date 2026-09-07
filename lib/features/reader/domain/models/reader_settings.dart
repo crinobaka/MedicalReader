@@ -66,4 +66,44 @@ class ReaderSettings {
       customCss: customCss ?? this.customCss,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'theme': theme.name,
+        'fontFamily': fontFamily,
+        'fontSize': fontSize,
+        'lineHeight': lineHeight,
+        'paragraphSpacing': paragraphSpacing,
+        'horizontalPadding': horizontalPadding,
+        'verticalPadding': verticalPadding,
+        'readingMode': readingMode.name,
+        'readingDirection': readingDirection.name,
+        'customCss': customCss,
+      };
+
+  factory ReaderSettings.fromJson(Map<String, dynamic> json) {
+    T enumValue<T extends Enum>(List<T> values, String? value, T fallback) {
+      for (final item in values) {
+        if (item.name == value) return item;
+      }
+      return fallback;
+    }
+
+    double number(String key, double fallback) {
+      final value = json[key];
+      return value is num ? value.toDouble() : fallback;
+    }
+
+    return ReaderSettings(
+      theme: enumValue(ReaderTheme.values, json['theme'] as String?, ReaderTheme.system),
+      fontFamily: json['fontFamily'] as String? ?? '',
+      fontSize: number('fontSize', 18),
+      lineHeight: number('lineHeight', 1.5),
+      paragraphSpacing: number('paragraphSpacing', 0),
+      horizontalPadding: number('horizontalPadding', 24),
+      verticalPadding: number('verticalPadding', 16),
+      readingMode: enumValue(ReaderReadingMode.values, json['readingMode'] as String?, ReaderReadingMode.paginated),
+      readingDirection: enumValue(ReaderReadingDirection.values, json['readingDirection'] as String?, ReaderReadingDirection.ltr),
+      customCss: json['customCss'] as String? ?? '',
+    );
+  }
 }
