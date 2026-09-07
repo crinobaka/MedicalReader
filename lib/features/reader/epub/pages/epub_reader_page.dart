@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../library/models/library_document.dart';
-import '../../domain/models/reader_locator.dart';
 import '../../domain/models/reader_position.dart';
 import '../../domain/models/reader_settings.dart';
+import '../../services/reader_position_store.dart';
 import '../../services/reader_settings_store.dart';
 import '../controllers/epub_reader_controller.dart';
 import '../widgets/epub_reader_settings_sheet.dart';
@@ -29,7 +29,7 @@ class _EpubReaderPageState extends ConsumerState<EpubReaderPage> {
     _loadSettings();
     _controller = EpubReaderController(
       document: widget.document,
-      initialPosition: _initialPosition,
+      initialPosition: ref.read(readerPositionStoreProvider).read(widget.document),
       onPositionSaved: _savePosition,
     )..open().then((_) {
         if (mounted) setState(() {});
@@ -50,27 +50,8 @@ class _EpubReaderPageState extends ConsumerState<EpubReaderPage> {
     await ref.read(readerSettingsStoreProvider).save(widget.document, settings);
   }
 
-  ReaderPosition? get _initialPosition {
-    final raw = widget.document.metadata['reader_position'];
-    if (raw is! Map) return null;
-    try {
-      final json = Map<String, dynamic>.from(raw);
-      final locator = ReaderLocator.fromJson(json['locator'] is Map ? Map<String, dynamic>.from(json['locator']) : json);
-      final progress = (json['progress'] as num?)?.toDouble() ?? 0;
-      return ReaderPosition(locator: locator, progress: progress.clamp(0, 1).toDouble());
-    } catch (_) {
-      return null;
-    }
-  }
-
-  Future<void> _savePosition(ReaderPosition position) async {
-    await ref.read(readerSettingsStoreProvider)._repository.updateDocumentMetadata(
-      documentId: widget.document.id,
-      metadata: {
-        'reader_position': position.toJson(),
-        'last_read_at': DateTime.now().toIso8601String(),
-      },
-    );
+  Future<void> _savePosition(ReaderPosition position) {
+    return ref.read(readerPositionStoreProvider).save(widget.document, position);
   }
 
   void _openSettings() {
