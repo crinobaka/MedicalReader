@@ -1,26 +1,36 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../domain/models/reader_settings.dart';
 import '../models/reader_view_options.dart';
-import '../services/reader_settings_service.dart';
+import '../services/reader_settings_bridge.dart';
+import '../services/reader_settings_store.dart';
 
-final readerSettingsServiceProvider = Provider<ReaderSettingsService>((ref) => ReaderSettingsService());
+final readerSettingsStoreProvider = Provider<ReaderSettingsStore>((ref) {
+  return ReaderSettingsStore(ref.read(libraryRepositoryProvider));
+});
+
 final readerViewOptionsProvider = NotifierProvider<ReaderViewOptionsNotifier, ReaderViewOptions>(ReaderViewOptionsNotifier.new);
 
 class ReaderViewOptionsNotifier extends Notifier<ReaderViewOptions> {
-  late final ReaderSettingsService _settingsService;
+  late final ReaderSettingsStore _settingsStore;
+  ReaderSettings _settings = const ReaderSettings();
 
   @override
   ReaderViewOptions build() {
-    _settingsService = ref.read(readerSettingsServiceProvider);
+    _settingsStore = ref.read(readerSettingsStoreProvider);
     _loadSavedOptions();
     return const ReaderViewOptions();
   }
 
-  Future<void> _loadSavedOptions() async => state = await _settingsService.load();
+  Future<void> _loadSavedOptions() async {
+    _settings = await _settingsStore.loadGlobal();
+    state = ReaderSettingsBridge.toViewOptions(_settings);
+  }
 
   void update(ReaderViewOptions options) {
     state = options;
-    _settingsService.save(options);
+    _settings = ReaderSettingsBridge.fromViewOptions(options, base: _settings);
+    _settingsStore.saveGlobal(_settings);
   }
 
   void updatePartial({
@@ -56,7 +66,8 @@ class ReaderViewOptionsNotifier extends Notifier<ReaderViewOptions> {
   }
 
   Future<void> reset() async {
-    state = const ReaderViewOptions();
-    await _settingsService.clear();
+    _settings = const ReaderSettings();
+    state = ReaderSettingsBridge.toViewOptions(_settings);
+    await _settingsStore.saveGlobal(_settings);
   }
 }
