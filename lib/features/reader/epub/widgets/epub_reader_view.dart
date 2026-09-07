@@ -91,7 +91,7 @@ class _EpubReaderViewState extends State<EpubReaderView> {
     if (parts.first != 'progress' || parts.length < 2) return;
     final progress = double.tryParse(parts[1]);
     if (progress == null || _loadedHref == null) return;
-    widget.onPositionChanged?.call(_loadedHref!, progress.clamp(0, 1));
+    widget.onPositionChanged?.call(_loadedHref!, progress.clamp(0, 1).toDouble());
   }
 
   String _readerScript() {
@@ -113,7 +113,6 @@ class _EpubReaderViewState extends State<EpubReaderView> {
   const vertical = $vertical;
   const paginated = $paginated;
   const rtl = $rtl;
-  const pageGap = ${settings.horizontalPadding.clamp(0, 20)};
   const initialProgress = $initialProgress;
   const initialFragment = $fragment;
 
