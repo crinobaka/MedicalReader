@@ -3,54 +3,26 @@ import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
+import '../domain/models/reader_settings.dart';
 import '../models/reader_view_options.dart';
+import 'reader_settings_bridge.dart';
 
-/// 阅读器设置的本地持久化服务。
+/// Backward-compatible adapter for callers that still use ReaderViewOptions.
 ///
-/// 这里只负责：
-/// 1. 从磁盘读取设置。
-/// 2. 把设置写回磁盘。
-///
-/// 不负责 Riverpod，也不负责 UI。
+/// ReaderSettings is the canonical persisted schema. The old JSON file is read
+/// once as a migration source and is never written again.
 class ReaderSettingsService {
-  static const _fileName = 'reader_view_options.json';
+  static const _fileName = 'reader_settings.json';
+  static const _legacyFileName = 'reader_view_options.json';
 
   Future<ReaderViewOptions> load() async {
-    try {
-      final directory = await getApplicationSupportDirectory();
-      final file = File('${directory.path}/$_fileName');
-
-      if (!await file.exists()) {
-        return const ReaderViewOptions();
-      }
-
-      final raw = await file.readAsString();
-
-      if (raw.trim().isEmpty) {
-        return const ReaderViewOptions();
-      }
-
-      final data = jsonDecode(raw);
-
-      if (data is! Map<String, dynamic>) {
-        return const ReaderViewOptions();
-      }
-
-      return ReaderViewOptions.fromJson(data);
-    } catch (_) {
-      return const ReaderViewOptions();
-    }
+    final settings = await _loadCanonical();
+    return ReaderSettingsBridge.toViewOptions(settings);
   }
 
   Future<void> save(ReaderViewOptions options) async {
-    final directory = await getApplicationSupportDirectory();
-
-    await directory.create(recursive: true);
-
-    final file = File('${directory.path}/$_fileName');
-
-    await file.writeAsString(
-      jsonEncode(options.toJson()),
+    await _saveCanonical(
+      ReaderSettingsBridge.fromViewOptions(options),
     );
   }
 
@@ -58,12 +30,49 @@ class ReaderSettingsService {
     try {
       final directory = await getApplicationSupportDirectory();
       final file = File('${directory.path}/$_fileName');
+      if (await file.exists()) await file.delete();
+    } catch (_) {
+      // Clearing settings should not affect reader operation.
+    }
+  }
 
+  Future<ReaderSettings> _loadCanonical() async {
+    try {
+      final directory = await getApplicationSupportDirectory();
+      final file = File('${directory.path}/$_fileName');
       if (await file.exists()) {
-        await file.delete();
+        final raw = await file.readAsString();
+        if (raw.trim().isNotEmpty) {
+          final decoded = jsonDecode(raw);
+          if (decoded is Map) {
+            return ReaderSettings.fromJson(Map<String, dynamic>.from(decoded));
+          }
+        }
+      }
+
+      // Migrate the pre-2.5-D PDF-only settings file without losing user data.
+      final legacy = File('${directory.path}/$_legacyFileName');
+      if (await legacy.exists()) {
+        final raw = await legacy.readAsString();
+        final decoded = jsonDecode(raw);
+        if (decoded is Map) {
+          final settings = ReaderSettingsBridge.fromViewOptions(
+            ReaderViewOptions.fromJson(Map<String, dynamic>.from(decoded)),
+          );
+          await _saveCanonical(settings);
+          return settings;
+        }
       }
     } catch (_) {
-      // 删除失败不应该影响阅读器运行。
+      // Invalid settings fall back to defaults.
     }
+    return const ReaderSettings();
+  }
+
+  Future<void> _saveCanonical(ReaderSettings settings) async {
+    final directory = await getApplicationSupportDirectory();
+    await directory.create(recursive: true);
+    final file = File('${directory.path}/$_fileName');
+    await file.writeAsString(jsonEncode(settings.toJson()));
   }
 }
