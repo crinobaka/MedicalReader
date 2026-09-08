@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -31,50 +32,59 @@ class EpubReaderView extends StatefulWidget {
 }
 
 class _EpubReaderViewState extends State<EpubReaderView> {
-  late final WebViewController _webViewController;
+  WebViewController? _webViewController;
   String? _loadedHref;
   bool _ready = false;
+  late final bool _webViewUnsupported;
 
   @override
   void initState() {
     super.initState();
-    _webViewController = WebViewController()
+    _webViewUnsupported = Platform.isWindows || Platform.isLinux;
+    if (_webViewUnsupported) return;
+    final controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(_backgroundColor())
       ..addJavaScriptChannel('MedicalReader', onMessageReceived: _onMessage)
       ..setNavigationDelegate(
         NavigationDelegate(onPageFinished: (_) => _applyReader()),
       );
+    _webViewController = controller;
     _loadChapter();
   }
 
   @override
   void didUpdateWidget(covariant EpubReaderView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (_webViewUnsupported) return;
     final chapter = widget.archive.chapterAt(widget.chapterIndex);
     final oldChapter = oldWidget.archive.chapterAt(oldWidget.chapterIndex);
-    if (chapter?.href != oldChapter?.href || widget.fragment != oldWidget.fragment || widget.settings != oldWidget.settings) {
+    if (chapter?.href != oldChapter?.href ||
+        widget.fragment != oldWidget.fragment ||
+        widget.settings != oldWidget.settings) {
       _loadChapter();
     }
   }
 
   Future<void> _loadChapter() async {
+    final controller = _webViewController;
     final chapter = widget.archive.chapterAt(widget.chapterIndex);
-    if (chapter == null) return;
+    if (controller == null || chapter == null) return;
     final file = widget.archive.fileFor(chapter.href);
     _loadedHref = chapter.href;
     if (mounted) setState(() => _ready = false);
     try {
-      await _webViewController.loadFile(file.path);
+      await controller.loadFile(file.path);
     } catch (_) {
       if (mounted) setState(() => _ready = false);
     }
   }
 
   Future<void> _applyReader() async {
-    if (_loadedHref == null) return;
+    final controller = _webViewController;
+    if (controller == null || _loadedHref == null) return;
     try {
-      await _webViewController.runJavaScript(_readerScript());
+      await controller.runJavaScript(_readerScript());
       if (mounted) setState(() => _ready = true);
     } catch (_) {
       if (mounted) setState(() => _ready = false);
@@ -91,7 +101,10 @@ class _EpubReaderViewState extends State<EpubReaderView> {
     if (parts.first != 'progress' || parts.length < 2) return;
     final progress = double.tryParse(parts[1]);
     if (progress == null || _loadedHref == null) return;
-    widget.onPositionChanged?.call(_loadedHref!, progress.clamp(0, 1).toDouble());
+    widget.onPositionChanged?.call(
+      _loadedHref!,
+      progress.clamp(0, 1).toDouble(),
+    );
   }
 
   String _readerScript() {
@@ -280,10 +293,23 @@ class _EpubReaderViewState extends State<EpubReaderView> {
   Widget build(BuildContext context) {
     final chapter = widget.archive.chapterAt(widget.chapterIndex);
     if (chapter == null) return const Center(child: Text('EPUB chapter unavailable'));
+    if (_webViewUnsupported) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            '当前桌面平台暂不支持内置 EPUB WebView 阅读器。\n\n应用本身可以正常运行；Windows/Linux EPUB 阅读引擎将在后续接入。',
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
     if (_loadedHref != chapter.href) return const Center(child: CircularProgressIndicator());
+    final controller = _webViewController;
+    if (controller == null) return const Center(child: CircularProgressIndicator());
     return Stack(
       children: [
-        WebViewWidget(controller: _webViewController),
+        WebViewWidget(controller: controller),
         if (!_ready) const Center(child: CircularProgressIndicator()),
       ],
     );
