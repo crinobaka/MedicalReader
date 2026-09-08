@@ -9,6 +9,7 @@ import 'package:webview_flutter_windows/webview_flutter_windows.dart' as windows
 import '../../domain/models/reader_settings.dart';
 import '../services/epub_archive_service.dart';
 import '../services/epub_pagination_engine.dart';
+import '../services/epub_pagination_refinements.dart';
 
 class EpubReaderView extends StatefulWidget {
   final EpubArchive archive;
@@ -168,15 +169,16 @@ class _EpubReaderViewState extends State<EpubReaderView> {
 
   Future<void> _applyReader() async {
     if (_loadedHref == null) return;
+    final script = '${_readerScript()}\n${EpubPaginationRefinements.build()}';
     try {
       if (_isWindows) {
         final controller = _windowsController;
         if (controller == null || !controller.value.isInitialized) return;
-        await controller.executeScript(_readerScript());
+        await controller.executeScript(script);
       } else {
         final controller = _androidController;
         if (controller == null) return;
-        await controller.runJavaScript(_readerScript());
+        await controller.runJavaScript(script);
       }
       if (mounted) setState(() => _ready = true);
     } catch (_) {
