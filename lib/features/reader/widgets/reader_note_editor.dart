@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_html/flutter_html.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
 import '../models/reader_annotation.dart';
@@ -228,7 +227,10 @@ class ReaderNoteEditorState extends State<ReaderNoteEditor> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      if (_format == ReaderNoteFormat.markdown) _buildMarkdownPreview() else Html(data: _resolveHtml(_contentController.text)),
+                      if (_format == ReaderNoteFormat.markdown)
+                        _buildMarkdownPreview()
+                      else
+                        SelectableText(_resolveHtml(_contentController.text)),
                       ReaderNoteAttachments(content: _contentController.text),
                     ],
                   ),
