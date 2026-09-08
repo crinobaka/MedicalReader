@@ -74,10 +74,11 @@ class EpubPaginationEngine {
   if (paginated) {
     body.style.height = '100vh';
     body.style.minHeight = '100vh';
-    body.style.columnWidth = vertical ? '100vh' : '100vw';
+    body.style.columnWidth = '100vw';
+    body.style.columnHeight = '100vh';
     body.style.columnGap = '${horizontalPadding.clamp(0, 48)}px';
     body.style.columnFill = 'auto';
-    body.style.overflow = vertical ? 'auto hidden' : 'hidden auto';
+    body.style.overflow = vertical ? 'hidden auto' : 'auto hidden';
   } else {
     root.style.overflow = 'auto';
     body.style.height = 'auto';
@@ -93,14 +94,24 @@ class EpubPaginationEngine {
     metrics: null,
     lastPageScroll: 0,
     snapTimer: null,
+    axis: function() {
+      return vertical ? 'x' : 'y';
+    },
     position: function() {
-      return vertical ? body.scrollTop : body.scrollLeft;
+      if (this.axis() === 'x') {
+        var raw = body.scrollLeft;
+        var max = Math.max(0, body.scrollWidth - this.pageWidth);
+        return rtl ? max - raw : raw;
+      }
+      return body.scrollTop;
     },
     pageSize: function() {
-      return Math.max(1, vertical ? this.pageHeight : this.pageWidth);
+      return Math.max(1, this.axis() === 'x' ? this.pageWidth : this.pageHeight);
     },
     maxScroll: function() {
-      return Math.max(0, vertical ? body.scrollHeight - this.pageHeight : body.scrollWidth - this.pageWidth);
+      return Math.max(0, this.axis() === 'x'
+        ? body.scrollWidth - this.pageWidth
+        : body.scrollHeight - this.pageHeight);
     },
     lockRootViewport: function() {
       var changed = false;
@@ -114,16 +125,33 @@ class EpubPaginationEngine {
     },
     assignPagePosition: function(value) {
       var max = this.maxScroll();
-      var target = Math.min(Math.max(0, value), max);
-      if (vertical) body.scrollTop = target;
-      else body.scrollLeft = target;
+      var logical = Math.min(Math.max(0, value), max);
+      if (this.axis() === 'x') {
+        body.scrollLeft = rtl ? max - logical : logical;
+      } else {
+        body.scrollTop = logical;
+      }
       this.lockRootViewport();
-      this.lastPageScroll = target;
-      return target;
+      this.lastPageScroll = logical;
+      return logical;
     },
     getRect: function(range) {
       var rect = range.getClientRects()[0];
       return rect || range.getBoundingClientRect();
+    },
+    contentStart: function(rect) {
+      var position = this.position();
+      if (this.axis() === 'x') {
+        return rtl ? (body.scrollWidth - rect.right) + position : rect.left + position;
+      }
+      return rect.top + position;
+    },
+    contentEnd: function(rect) {
+      var position = this.position();
+      if (this.axis() === 'x') {
+        return rtl ? (body.scrollWidth - rect.left) + position : rect.right + position;
+      }
+      return rect.bottom + position;
     },
     isFurigana: function(node) {
       var parent = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
@@ -169,15 +197,14 @@ class EpubPaginationEngine {
         for (var i = 0; i < rects.length; i++) {
           var rect = rects[i];
           if (rect.width <= 0 || rect.height <= 0) continue;
-          var start = (vertical ? rect.top : rect.left) + current;
-          var end = (vertical ? rect.bottom : rect.right) + current;
+          var start = this.contentStart(rect);
+          var end = this.contentEnd(rect);
           firstContentEdge = firstContentEdge === null ? start : Math.min(firstContentEdge, start);
           lastContentEdge = Math.max(lastContentEdge, end);
         }
         var firstRect = this.getRect(range);
         if (firstRect && firstRect.width > 0 && firstRect.height > 0) {
-          var edge = (vertical ? firstRect.top : firstRect.left) + current;
-          progressStops.push({scroll: Math.max(0, edge), chars: totalChars});
+          progressStops.push({scroll: Math.max(0, this.contentStart(firstRect)), chars: totalChars});
         }
         totalChars += chars;
       }
@@ -186,10 +213,9 @@ class EpubPaginationEngine {
       for (var j = 0; j < media.length; j++) {
         var mediaRect = media[j].getBoundingClientRect();
         if (mediaRect.width <= 0 || mediaRect.height <= 0) continue;
-        var mediaStart = (vertical ? mediaRect.top : mediaRect.left) + current;
-        var mediaEnd = (vertical ? mediaRect.bottom : mediaRect.right) + current;
-        firstContentEdge = firstContentEdge === null ? mediaStart : Math.min(firstContentEdge, mediaStart);
-        lastContentEdge = Math.max(lastContentEdge, mediaEnd);
+        firstContentEdge = firstContentEdge === null
+          ? this.contentStart(mediaRect) : Math.min(firstContentEdge, this.contentStart(mediaRect));
+        lastContentEdge = Math.max(lastContentEdge, this.contentEnd(mediaRect));
       }
 
       var minScroll = firstContentEdge === null
@@ -198,7 +224,7 @@ class EpubPaginationEngine {
         ? 0 : Math.floor(Math.max(0, lastContentEdge - 1) / pageSize) * pageSize;
       this.metrics = {
         minScroll: minScroll,
-        maxScroll: Math.min(maxScroll, lastContentScroll),
+        maxScroll: Math.min(maxScroll, Math.max(minScroll, lastContentScroll)),
         totalChars: Math.max(1, totalChars),
         progressStops: progressStops.sort(function(a, b) { return a.scroll - b.scroll; })
       };
@@ -216,8 +242,8 @@ class EpubPaginationEngine {
         range.setEnd(node, offset + ch.length);
         var rect = this.getRect(range);
         if (rect && rect.width > 0 && rect.height > 0) {
-          var end = vertical ? rect.bottom : rect.right;
-          if (end > 0) break;
+          var end = this.contentEnd(rect);
+          if (end > this.position()) break;
         }
         if (this.countChars(ch) > 0) count += 1;
         offset += ch.length;
@@ -255,8 +281,7 @@ class EpubPaginationEngine {
         var target = document.getElementById(initialFragment) || document.getElementsByName(initialFragment)[0];
         if (target) {
           var rect = target.getBoundingClientRect();
-          var edge = (vertical ? rect.top : rect.left) + this.position();
-          this.setPagePosition(this.alignToPage(edge));
+          this.setPagePosition(this.alignToPage(this.contentStart(rect)));
           return;
         }
       }
