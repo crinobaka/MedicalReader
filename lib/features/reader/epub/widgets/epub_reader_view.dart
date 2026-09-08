@@ -8,6 +8,7 @@ import 'package:webview_flutter_windows/webview_flutter_windows.dart' as windows
 
 import '../../domain/models/reader_settings.dart';
 import '../services/epub_archive_service.dart';
+import '../services/epub_pagination_engine.dart';
 
 class EpubReaderView extends StatefulWidget {
   final EpubArchive archive;
@@ -81,7 +82,6 @@ class _EpubReaderViewState extends State<EpubReaderView> {
       );
       await controller.setDefaultContextMenusEnabled(true);
       await controller.setBackgroundColor(_backgroundColor());
-
       _windowsMessages = controller.webMessage.listen(
         _onWindowsMessage,
         onError: (Object error, StackTrace stack) {
@@ -93,7 +93,6 @@ class _EpubReaderViewState extends State<EpubReaderView> {
           unawaited(_applyReader());
         }
       });
-
       await controller.addVirtualHostNameMapping(
         'medicalreader.epub',
         widget.archive.root.path,
@@ -229,208 +228,21 @@ class _EpubReaderViewState extends State<EpubReaderView> {
         .substring(2);
     final foreground = settings.theme == ReaderTheme.dark ? 'white' : 'inherit';
     final font = _cssFont(settings.fontFamily);
-    final initialProgress = widget.initialProgress.clamp(0, 1).toString();
-    final fragment = widget.fragment == null ? 'null' : jsonEncode(widget.fragment);
-
-    return '''
-(function() {
-  const root = document.documentElement;
-  const body = document.body;
-  if (!body) return;
-  const vertical = $vertical;
-  const paginated = $paginated;
-  const rtl = $rtl;
-  const initialProgress = $initialProgress;
-  const initialFragment = $fragment;
-  const bridge = function(payload) {
-    if (window.chrome && window.chrome.webview) {
-      window.chrome.webview.postMessage(payload);
-    } else if (window.MedicalReader) {
-      if (payload.type === 'progress') {
-        window.MedicalReader.postMessage('progress|' + payload.value);
-      } else if (payload.type === 'boundary') {
-        window.MedicalReader.postMessage('boundary|' + payload.direction);
-      }
-    }
-  };
-
-  root.style.background = '#$background';
-  root.style.color = '$foreground';
-  root.style.margin = '0';
-  root.style.padding = '0';
-  root.style.overflow = 'hidden';
-
-  body.style.margin = '0';
-  body.style.boxSizing = 'border-box';
-  body.style.background = '#$background';
-  body.style.color = '$foreground';
-  body.style.fontFamily = '$font';
-  body.style.fontSize = '${settings.fontSize}px';
-  body.style.lineHeight = '${settings.lineHeight}';
-  body.style.textOrientation = 'mixed';
-  body.style.lineBreak = 'strict';
-  body.style.overflowWrap = 'break-word';
-  body.style.webkitTextSizeAdjust = 'none';
-  body.style.padding = '${settings.verticalPadding}px ${settings.horizontalPadding}px';
-  body.style.writingMode = vertical ? 'vertical-rl' : 'horizontal-tb';
-  body.style.direction = rtl ? 'rtl' : 'ltr';
-
-  body.querySelectorAll('p, div, section').forEach(function(el) {
-    if (vertical) el.style.marginLeft = '${settings.paragraphSpacing}px';
-    else el.style.marginBottom = '${settings.paragraphSpacing}px';
-  });
-  body.querySelectorAll('img, svg, video, canvas').forEach(function(el) {
-    el.style.maxWidth = '95vw';
-    el.style.maxHeight = '95vh';
-    el.style.objectFit = 'contain';
-  });
-
-  if (paginated) {
-    root.style.height = '100vh';
-    root.style.width = '100vw';
-    root.style.overflow = vertical ? 'auto hidden' : 'hidden auto';
-    body.style.height = '100vh';
-    body.style.minHeight = '100vh';
-    body.style.columnWidth = vertical ? '100vh' : '100vw';
-    body.style.columnGap = '${settings.horizontalPadding.clamp(0, 48)}px';
-    body.style.columnFill = 'auto';
-  } else {
-    root.style.height = 'auto';
-    root.style.width = '100%';
-    root.style.overflow = 'auto';
-    body.style.height = 'auto';
-    body.style.minHeight = '100vh';
-    body.style.columnWidth = 'auto';
-    body.style.columnGap = 'normal';
-  }
-
-  const pagination = {
-    timer: null,
-    touchX: 0,
-    touchY: 0,
-    totalChars: 0,
-    progressStops: [],
-    position: function() { return vertical ? root.scrollTop : root.scrollLeft; },
-    size: function() { return vertical ? window.innerHeight : window.innerWidth; },
-    max: function() {
-      return Math.max(0, vertical ? root.scrollHeight - window.innerHeight : root.scrollWidth - window.innerWidth);
-    },
-    buildMetrics: function() {
-      this.progressStops = [];
-      this.totalChars = 0;
-      const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
-      let node;
-      while ((node = walker.nextNode())) {
-        const text = node.nodeValue || '';
-        if (!text.trim()) continue;
-        const length = text.length;
-        const range = document.createRange();
-        range.selectNodeContents(node);
-        const rect = range.getBoundingClientRect();
-        const edge = vertical ? rect.top + window.scrollY : rect.left + window.scrollX;
-        this.progressStops.push({char: this.totalChars, position: Math.max(0, edge)});
-        this.totalChars += length;
-      }
-      if (this.totalChars === 0) this.totalChars = 1;
-    },
-    progress: function() {
-      const max = this.max();
-      if (max <= 0) return 0;
-      if (!this.progressStops.length) return Math.min(1, Math.max(0, this.position() / max));
-      const current = this.position();
-      let previous = this.progressStops[0];
-      for (const stop of this.progressStops) {
-        if (stop.position > current) break;
-        previous = stop;
-      }
-      return Math.min(1, Math.max(0, previous.char / this.totalChars));
-    },
-    notify: function() {
-      bridge({type: 'progress', value: this.progress()});
-    },
-    setPosition: function(value) {
-      const max = this.max();
-      const position = Math.min(max, Math.max(0, value));
-      if (vertical) root.scrollTop = position; else root.scrollLeft = position;
-      this.notify();
-    },
-    restore: function() {
-      if (initialFragment) {
-        const target = document.getElementById(initialFragment);
-        if (target) {
-          target.scrollIntoView({block: 'start', inline: 'start'});
-          this.notify();
-          return;
-        }
-      }
-      const targetChar = Math.round(this.totalChars * initialProgress);
-      let targetStop = this.progressStops[0];
-      for (const stop of this.progressStops) {
-        if (stop.char > targetChar) break;
-        targetStop = stop;
-      }
-      this.setPosition(targetStop ? targetStop.position : this.max() * initialProgress);
-    },
-    paginate: function(direction) {
-      const size = this.size();
-      const current = this.position();
-      const max = this.max();
-      const delta = direction === 'forward' ? size : -size;
-      const target = Math.min(max, Math.max(0, Math.round((current + delta) / size) * size));
-      if (Math.abs(target - current) < 2) {
-        bridge({type: 'boundary', direction: direction});
-        return;
-      }
-      this.setPosition(target);
-    },
-    snap: function() {
-      if (!paginated) return;
-      const size = this.size();
-      if (size > 0) this.setPosition(Math.round(this.position() / size) * size);
-    }
-  };
-  window.medicalReaderPagination = pagination;
-
-  const prepare = function() {
-    pagination.buildMetrics();
-    pagination.restore();
-    pagination.notify();
-  };
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(prepare);
-  else setTimeout(prepare, 80);
-
-  root.addEventListener('scroll', function() {
-    pagination.notify();
-    if (pagination.timer) clearTimeout(pagination.timer);
-    if (paginated) pagination.timer = setTimeout(function() { pagination.snap(); }, 80);
-  }, {passive: true});
-  window.addEventListener('resize', function() { setTimeout(prepare, 40); });
-
-  root.addEventListener('touchstart', function(event) {
-    const touch = event.changedTouches[0];
-    pagination.touchX = touch.clientX;
-    pagination.touchY = touch.clientY;
-  }, {passive: true});
-  root.addEventListener('touchend', function(event) {
-    if (!paginated) return;
-    const touch = event.changedTouches[0];
-    const dx = touch.clientX - pagination.touchX;
-    const dy = touch.clientY - pagination.touchY;
-    if (Math.max(Math.abs(dx), Math.abs(dy)) < 36) return;
-    let forward;
-    if (vertical) forward = dx < 0;
-    else forward = rtl ? dx > 0 : dx < 0;
-    pagination.paginate(forward ? 'forward' : 'backward');
-  }, {passive: true});
-  document.addEventListener('keydown', function(event) {
-    if (!paginated) return;
-    if (event.key === 'ArrowLeft') pagination.paginate(rtl ? 'forward' : 'backward');
-    if (event.key === 'ArrowRight') pagination.paginate(rtl ? 'backward' : 'forward');
-    if (event.key === 'PageDown') pagination.paginate('forward');
-    if (event.key === 'PageUp') pagination.paginate('backward');
-  });
-})();
-''';
+    return EpubPaginationEngine.build(
+      vertical: vertical,
+      rtl: rtl,
+      paginated: paginated,
+      background: background,
+      foreground: foreground,
+      font: font,
+      fontSize: settings.fontSize,
+      lineHeight: settings.lineHeight,
+      verticalPadding: settings.verticalPadding,
+      horizontalPadding: settings.horizontalPadding,
+      paragraphSpacing: settings.paragraphSpacing,
+      initialProgress: widget.initialProgress,
+      fragment: widget.fragment,
+    );
   }
 
   String _cssFont(String value) {
