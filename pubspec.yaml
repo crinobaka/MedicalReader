@@ -24,6 +24,7 @@ dependencies:
   camera_android: ^0.10.11
   camera_desktop: ^1.2.1
   webview_flutter: ^4.14.1
+  webview_flutter_windows: 1.2.0
   just_audio: ^0.10.4
   pdfx: ^2.11.0
   pdf: ^3.11.3
