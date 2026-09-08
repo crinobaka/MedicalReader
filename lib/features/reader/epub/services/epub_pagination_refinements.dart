@@ -10,8 +10,8 @@ class EpubPaginationRefinements {
 
   const sanitizeLayout = function() {
     const blocked = [
-      'writingMode', 'webkitWritingMode', 'textIndent', 'columnCount',
-      'columnWidth', 'columnGap', 'columnFill', 'columns'
+      'writingMode', 'webkitWritingMode', 'textIndent', 'lineHeight',
+      'columnCount', 'columnWidth', 'columnGap', 'columnFill', 'columns'
     ];
     const nodes = body.querySelectorAll('*');
     for (let i = 0; i < nodes.length; i++) {
@@ -143,10 +143,7 @@ class EpubPaginationRefinements {
     reader._pendingRestoreProgress = reader.calculateProgress();
     sanitizeLayout();
     prepareMedia();
-    waitForImages().then(function() {
-      reader.metrics = null;
-      reader.prepare();
-    });
+    reader.metrics = null;
   });
 })();
 ''';
