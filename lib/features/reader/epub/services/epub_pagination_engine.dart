@@ -44,7 +44,6 @@ class EpubPaginationEngine {
   root.style.overflow = 'hidden';
   root.style.width = '100vw';
   root.style.height = '100vh';
-  if (vertical) root.style.direction = 'ltr';
 
   body.style.boxSizing = 'border-box';
   body.style.margin = '0';
@@ -78,13 +77,14 @@ class EpubPaginationEngine {
     body.style.columnWidth = vertical ? '100vh' : '100vw';
     body.style.columnGap = '${horizontalPadding.clamp(0, 48)}px';
     body.style.columnFill = 'auto';
-    body.style.overflow = 'visible';
+    body.style.overflow = vertical ? 'auto hidden' : 'hidden auto';
   } else {
     root.style.overflow = 'auto';
     body.style.height = 'auto';
     body.style.minHeight = '100vh';
     body.style.columnWidth = 'auto';
     body.style.columnGap = 'normal';
+    body.style.overflow = 'auto';
   }
 
   const reader = {
@@ -150,10 +150,8 @@ class EpubPaginationEngine {
       });
     },
     buildPaginationMetrics: function() {
-      var context = {
-        pageSize: this.pageSize(),
-        maxScroll: this.maxScroll()
-      };
+      var pageSize = this.pageSize();
+      var maxScroll = this.maxScroll();
       var current = this.position();
       var totalChars = 0;
       var firstContentEdge = null;
@@ -173,8 +171,7 @@ class EpubPaginationEngine {
           if (rect.width <= 0 || rect.height <= 0) continue;
           var start = (vertical ? rect.top : rect.left) + current;
           var end = (vertical ? rect.bottom : rect.right) + current;
-          firstContentEdge = firstContentEdge === null
-            ? start : Math.min(firstContentEdge, start);
+          firstContentEdge = firstContentEdge === null ? start : Math.min(firstContentEdge, start);
           lastContentEdge = Math.max(lastContentEdge, end);
         }
         var firstRect = this.getRect(range);
@@ -191,18 +188,17 @@ class EpubPaginationEngine {
         if (mediaRect.width <= 0 || mediaRect.height <= 0) continue;
         var mediaStart = (vertical ? mediaRect.top : mediaRect.left) + current;
         var mediaEnd = (vertical ? mediaRect.bottom : mediaRect.right) + current;
-        firstContentEdge = firstContentEdge === null
-          ? mediaStart : Math.min(firstContentEdge, mediaStart);
+        firstContentEdge = firstContentEdge === null ? mediaStart : Math.min(firstContentEdge, mediaStart);
         lastContentEdge = Math.max(lastContentEdge, mediaEnd);
       }
 
-      var alignedMin = firstContentEdge === null
-        ? 0 : Math.floor(Math.max(0, firstContentEdge) / context.pageSize) * context.pageSize;
-      var contentEnd = lastContentEdge <= 0
-        ? 0 : Math.floor(Math.max(0, lastContentEdge - 1) / context.pageSize) * context.pageSize;
+      var minScroll = firstContentEdge === null
+        ? 0 : Math.min(maxScroll, Math.floor(Math.max(0, firstContentEdge) / pageSize) * pageSize);
+      var lastContentScroll = lastContentEdge <= 0
+        ? 0 : Math.floor(Math.max(0, lastContentEdge - 1) / pageSize) * pageSize;
       this.metrics = {
-        minScroll: Math.min(context.maxScroll, alignedMin),
-        maxScroll: Math.min(context.maxScroll, contentEnd),
+        minScroll: minScroll,
+        maxScroll: Math.min(maxScroll, lastContentScroll),
         totalChars: Math.max(1, totalChars),
         progressStops: progressStops.sort(function(a, b) { return a.scroll - b.scroll; })
       };
@@ -256,8 +252,7 @@ class EpubPaginationEngine {
     restoreProgress: function(progress) {
       var metrics = this.metrics || this.buildPaginationMetrics();
       if (initialFragment) {
-        var target = document.getElementById(initialFragment) ||
-          document.getElementsByName(initialFragment)[0];
+        var target = document.getElementById(initialFragment) || document.getElementsByName(initialFragment)[0];
         if (target) {
           var rect = target.getBoundingClientRect();
           var edge = (vertical ? rect.top : rect.left) + this.position();
@@ -346,12 +341,9 @@ class EpubPaginationEngine {
     if (reader.snapTimer) clearTimeout(reader.snapTimer);
     if (paginated) reader.snapTimer = setTimeout(function() { reader.handlePagedScroll(); }, 80);
   }, {passive: true});
-
-  window.addEventListener('resize', function() {
-    setTimeout(function() { reader.prepare(); }, 40);
-  });
-
+  window.addEventListener('resize', function() { setTimeout(function() { reader.prepare(); }, 40); });
   window.addEventListener('scroll', function() { reader.lockRootViewport(); }, {passive: true});
+
   document.addEventListener('keydown', function(event) {
     if (!paginated) return;
     if (event.key === 'PageDown') reader.paginate('forward');
