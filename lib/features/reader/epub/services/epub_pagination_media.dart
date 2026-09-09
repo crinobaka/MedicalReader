@@ -11,13 +11,9 @@ class EpubPaginationMedia {
 
   const bridge = function(action, source) {
     const payload = {type: 'media', action: action, source: source || ''};
-    if (window.chrome && window.chrome.webview) {
-      window.chrome.webview.postMessage(payload);
-    } else if (window.MedicalReader) {
-      window.MedicalReader.postMessage('media|' + action + '|' + (source || ''));
-    }
+    if (window.chrome && window.chrome.webview) window.chrome.webview.postMessage(payload);
+    else if (window.MedicalReader) window.MedicalReader.postMessage('media|' + action + '|' + (source || ''));
   };
-
   const sourceOf = function(media) {
     if (!media) return '';
     if (media.currentSrc) return media.currentSrc;
@@ -25,10 +21,15 @@ class EpubPaginationMedia {
     const image = media.querySelector && media.querySelector('image');
     return image ? (image.href?.baseVal || image.getAttribute('href') || '') : '';
   };
-
-  const isImage = function(el) {
-    return el && /^(IMG|SVG|IMAGE)$/.test(el.tagName);
+  const isGaiji = function(img) {
+    return !!(img && img.classList && (
+      img.classList.contains('gaiji') || img.classList.contains('gaiji-line') || img.classList.contains('gaiji-wide')
+    ));
   };
+  const isLargeImage = function(img) {
+    return !!img && (Number(img.naturalWidth || 0) > 256 || Number(img.naturalHeight || 0) > 256);
+  };
+  const isImage = function(el) { return el && /^(IMG|SVG|IMAGE)$/.test(el.tagName); };
 
   const closeOverlay = function(overlay) {
     if (!overlay) return;
@@ -41,37 +42,22 @@ class EpubPaginationMedia {
     if (!source || document.querySelector('.medicalreader-media-overlay')) return;
     const overlay = document.createElement('div');
     overlay.className = 'medicalreader-media-overlay';
-    Object.assign(overlay.style, {
-      position: 'fixed', inset: '0', zIndex: '2147483647',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'rgba(0,0,0,.94)', touchAction: 'none'
-    });
-
+    Object.assign(overlay.style, {position:'fixed', inset:'0', zIndex:'2147483647', display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,.94)', touchAction:'none'});
     const frame = document.createElement('div');
-    Object.assign(frame.style, {
-      position: 'relative', width: '100%', height: '100%',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden'
-    });
+    Object.assign(frame.style, {position:'relative', width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden'});
     const preview = isImage(media) ? media.cloneNode(true) : document.createElement('video');
     if (!isImage(media)) preview.src = source;
     preview.removeAttribute('id');
-    Object.assign(preview.style, {
-      maxWidth: '92vw', maxHeight: '88vh', width: 'auto', height: 'auto',
-      objectFit: 'contain', transformOrigin: 'center center', userSelect: 'none'
-    });
+    Object.assign(preview.style, {maxWidth:'92vw', maxHeight:'88vh', width:'auto', height:'auto', objectFit:'contain', transformOrigin:'center center', userSelect:'none'});
     preview.draggable = false;
     frame.appendChild(preview);
 
     const controls = document.createElement('div');
-    Object.assign(controls.style, {
-      position: 'absolute', left: '50%', bottom: '20px', transform: 'translateX(-50%)',
-      display: 'flex', gap: '8px', padding: '8px', borderRadius: '12px',
-      background: 'rgba(30,30,30,.82)'
-    });
+    Object.assign(controls.style, {position:'absolute', left:'50%', bottom:'20px', transform:'translateX(-50%)', display:'flex', gap:'8px', padding:'8px', borderRadius:'12px', background:'rgba(30,30,30,.82)'});
     const button = function(label, title) {
       const b = document.createElement('button');
       b.type = 'button'; b.textContent = label; b.title = title;
-      Object.assign(b.style, {fontSize: '18px', minWidth: '42px', minHeight: '36px', cursor: 'pointer'});
+      Object.assign(b.style, {fontSize:'18px', minWidth:'42px', minHeight:'36px', cursor:'pointer'});
       return b;
     };
     const minus = button('−', '缩小');
@@ -88,9 +74,7 @@ class EpubPaginationMedia {
     body.style.overflow = 'hidden';
 
     let scale = 1;
-    const applyScale = function() {
-      preview.style.transform = 'scale(' + scale.toFixed(2) + ')';
-    };
+    const applyScale = function() { preview.style.transform = 'scale(' + scale.toFixed(2) + ')'; };
     minus.onclick = function() { scale = Math.max(.5, scale - .25); applyScale(); };
     plus.onclick = function() { scale = Math.min(5, scale + .25); applyScale(); };
     reset.onclick = function() { scale = 1; applyScale(); };
@@ -102,8 +86,10 @@ class EpubPaginationMedia {
     };
     save.onclick = function() {
       const link = document.createElement('a');
-      link.href = source; link.download = source.split('/').pop().split('?')[0] || 'image';
-      link.rel = 'noopener'; link.click();
+      link.href = source;
+      link.download = source.split('/').pop().split('?')[0] || 'image';
+      link.rel = 'noopener';
+      link.click();
       bridge('save', source);
     };
     share.onclick = function() {
@@ -119,12 +105,34 @@ class EpubPaginationMedia {
     });
   };
 
-  body.addEventListener('click', function(event) {
-    const target = event.target.closest && event.target.closest('img, svg, image, video, canvas');
+  const openEligibleMedia = function(target) {
     if (!target || target.closest('.medicalreader-media-overlay')) return;
-    if (target.tagName === 'CANVAS') return;
+    if (target.tagName === 'IMG') {
+      if (isGaiji(target) || !isLargeImage(target)) return;
+    }
+    if (!isImage(target) && target.tagName !== 'VIDEO') return;
     openOverlay(target);
+  };
+
+  body.addEventListener('click', function(event) {
+    const target = event.target.closest && event.target.closest('img, svg, image, video');
+    openEligibleMedia(target);
   }, true);
+
+  // Keep the Hoshi-style fallback visible for failed gaiji resources.
+  body.querySelectorAll('img').forEach(function(img) {
+    if (!isGaiji(img)) return;
+    const fallback = function() {
+      const alt = (img.getAttribute('alt') || '').trim();
+      if (!alt || !img.parentNode) return;
+      const span = document.createElement('span');
+      span.className = 'medicalreader-gaiji-fallback';
+      span.textContent = alt;
+      img.parentNode.replaceChild(span, img);
+    };
+    if (img.complete && !img.naturalWidth) fallback();
+    else img.addEventListener('error', fallback, {once:true});
+  });
 
   window.medicalReaderOpenMedia = openOverlay;
 })();
