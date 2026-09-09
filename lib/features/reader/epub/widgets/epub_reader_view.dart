@@ -10,6 +10,7 @@ import '../../domain/models/reader_settings.dart';
 import '../services/epub_archive_service.dart';
 import '../services/epub_pagination_dom.dart';
 import '../services/epub_pagination_engine.dart';
+import '../services/epub_pagination_hoshi_compat.dart';
 import '../services/epub_pagination_interaction.dart';
 import '../services/epub_pagination_layout.dart';
 import '../services/epub_pagination_media.dart';
@@ -156,7 +157,7 @@ class _EpubReaderViewState extends State<EpubReaderView> {
 
   Future<void> _applyReader() async {
     if (_loadedHref == null) return;
-    final script = '${_readerScript()}\n${EpubPaginationRefinements.build()}\n${EpubPaginationLayout.build()}\n${EpubPaginationDom.build()}\n${EpubPaginationPrecision.build()}\n${EpubPaginationMetrics.build()}\n${EpubPaginationMedia.build()}\n${EpubPaginationInteraction.build()}';
+    final script = '${_readerScript()}\n${EpubPaginationRefinements.build()}\n${EpubPaginationLayout.build()}\n${EpubPaginationDom.build()}\n${EpubPaginationPrecision.build()}\n${EpubPaginationMetrics.build()}\n${EpubPaginationHoshiCompat.build()}\n${EpubPaginationMedia.build()}\n${EpubPaginationInteraction.build()}';
     try {
       if (_isWindows) {
         final controller = _windowsController;
