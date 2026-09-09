@@ -8,17 +8,76 @@ class EpubPaginationRefinements {
   if (!reader || !body || window.medicalReaderPaginationRefined) return;
   window.medicalReaderPaginationRefined = true;
 
-  // Hoshi-style matchable-character semantics: whitespace and punctuation do
-  // not inflate reading progress, while Japanese/CJK/ASCII letters and digits do.
   const matchable = /[0-9A-Za-z○◯々-〇〻ぁ-ゖゝ-ゞァ-ヺー０-９Ａ-Ｚａ-ｚｦ-ﾝ\p{Radical}\p{Unified_Ideograph}]/iu;
   const normalizeText = function(text) {
     return String(text || '').replace(/[^0-9A-Za-z○◯々-〇〻ぁ-ゖゝ-ゞァ-ヺー０-９Ａ-Ｚａ-ｚｦ-ﾝ\p{Radical}\p{Unified_Ideograph}]+/gimu, '');
   };
-  const countSemanticChars = function(text) {
-    return Array.from(normalizeText(text)).length;
+  const countSemanticChars = function(text) { return Array.from(normalizeText(text)).length; };
+
+  // Hoshi's paginated reader treats vertical writing as the browser's vertical
+  // scroll context. With vertical-rl CSS, WebView maps that context to the
+  // physical column progression; it is not equivalent to manually scrolling
+  // scrollLeft. Keep the geometry model consistent with that implementation.
+  const verticalContext = function() {
+    return getComputedStyle(body).writingMode === 'vertical-rl';
   };
-  const isMatchableChar = function(char) {
-    return matchable.test(char || '');
+  const pageSize = function() {
+    return Math.max(1, verticalContext() ? window.innerHeight : window.innerWidth);
+  };
+  const position = function() {
+    return verticalContext() ? body.scrollTop : body.scrollLeft;
+  };
+  const maxScroll = function() {
+    return Math.max(0, verticalContext()
+      ? body.scrollHeight - window.innerHeight
+      : body.scrollWidth - window.innerWidth);
+  };
+  reader.axis = function() { return verticalContext() ? 'y' : 'x'; };
+  reader.position = position;
+  reader.pageSize = pageSize;
+  reader.maxScroll = maxScroll;
+  reader.assignPagePosition = function(value) {
+    const target = Math.min(Math.max(0, value), maxScroll());
+    if (verticalContext()) body.scrollTop = target;
+    else body.scrollLeft = target;
+    this.lockRootViewport();
+    this.lastPageScroll = target;
+    return target;
+  };
+  reader.contentStart = function(rect) {
+    const current = position();
+    return verticalContext() ? rect.top + current : rect.left + current;
+  };
+  reader.contentEnd = function(rect) {
+    const current = position();
+    return verticalContext() ? rect.bottom + current : rect.right + current;
+  };
+  reader.alignToPage = function(offset) {
+    return Math.floor(Math.max(0, offset) / pageSize()) * pageSize();
+  };
+  reader.paginate = function(direction) {
+    const metrics = this.metrics || this.buildPaginationMetrics();
+    const current = position();
+    const size = pageSize();
+    if (direction === 'forward') {
+      if (current >= metrics.maxScroll - 1) {
+        reader.notifyBoundary && reader.notifyBoundary('forward');
+        return 'limit';
+      }
+      const next = Math.min(metrics.maxScroll, this.alignToPage(current + size));
+      if (next <= current + 1) return 'limit';
+      this.setPagePosition(next);
+      return 'scrolled';
+    }
+    if (current <= metrics.minScroll + 1) {
+      reader.notifyBoundary && reader.notifyBoundary('backward');
+      return 'limit';
+    }
+    const previous = Math.max(metrics.minScroll, this.alignToPage(Math.max(0, current - 1)));
+    const target = previous >= current - 1 ? Math.max(metrics.minScroll, current - size) : previous;
+    if (target >= current - 1) return 'limit';
+    this.setPagePosition(target);
+    return 'scrolled';
   };
 
   const sanitizeLayout = function() {
@@ -29,36 +88,26 @@ class EpubPaginationRefinements {
     const nodes = body.querySelectorAll('*');
     for (let i = 0; i < nodes.length; i++) {
       const el = nodes[i];
-      if (el === body || el.tagName === 'IMG' || el.tagName === 'SVG' ||
-          el.tagName === 'VIDEO' || el.tagName === 'CANVAS') continue;
+      if (el === body || el.tagName === 'IMG' || el.tagName === 'SVG' || el.tagName === 'VIDEO' || el.tagName === 'CANVAS') continue;
       for (let j = 0; j < blocked.length; j++) el.style[blocked[j]] = '';
       if (el.style.height && /^(100%|100vh|100vw)$/i.test(el.style.height)) el.style.height = '';
     }
-
-    const vertical = reader.axis() === 'x';
-    const bodyStyle = getComputedStyle(body);
-    const blockExtent = vertical
-      ? body.clientWidth - parseFloat(bodyStyle.paddingLeft || 0) - parseFloat(bodyStyle.paddingRight || 0)
-      : body.clientHeight - parseFloat(bodyStyle.paddingTop || 0) - parseFloat(bodyStyle.paddingBottom || 0);
-    const inlineExtent = vertical
-      ? body.clientHeight - parseFloat(bodyStyle.paddingTop || 0) - parseFloat(bodyStyle.paddingBottom || 0)
-      : body.clientWidth - parseFloat(bodyStyle.paddingLeft || 0) - parseFloat(bodyStyle.paddingRight || 0);
+    const vertical = verticalContext();
+    const style = getComputedStyle(body);
+    const blockExtent = vertical ? body.clientWidth - parseFloat(style.paddingLeft || 0) - parseFloat(style.paddingRight || 0) : body.clientHeight - parseFloat(style.paddingTop || 0) - parseFloat(style.paddingBottom || 0);
+    const inlineExtent = vertical ? body.clientHeight - parseFloat(style.paddingTop || 0) - parseFloat(style.paddingBottom || 0) : body.clientWidth - parseFloat(style.paddingLeft || 0) - parseFloat(style.paddingRight || 0);
     body.querySelectorAll('div, span').forEach(function(el) {
-      const style = getComputedStyle(el);
-      if (style.display !== 'inline-block' || !el.querySelector('p')) return;
+      const computed = getComputedStyle(el);
+      if (computed.display !== 'inline-block' || !el.querySelector('p')) return;
       const rect = el.getBoundingClientRect();
-      const blockSize = vertical ? rect.width : rect.height;
-      const inlineSize = vertical ? rect.height : rect.width;
-      if (inlineSize <= inlineExtent + 1 && blockSize <= blockExtent + 1) return;
+      const block = vertical ? rect.width : rect.height;
+      const inline = vertical ? rect.height : rect.width;
+      if (inline <= inlineExtent + 1 && block <= blockExtent + 1) return;
       el.style.setProperty('display', 'block', 'important');
       if (!el.parentNode) return;
       el.parentNode.querySelectorAll('span:empty').forEach(function(strut) {
-        const strutStyle = getComputedStyle(strut);
-        if (strut.parentNode === el.parentNode &&
-            !strut.id && !strut.getAttribute('name') &&
-            strutStyle.display === 'inline-block' &&
-            !strutStyle.backgroundImage &&
-            strutStyle.content === 'normal') {
+        const s = getComputedStyle(strut);
+        if (strut.parentNode === el.parentNode && !strut.id && !strut.getAttribute('name') && s.display === 'inline-block' && s.backgroundImage === 'none' && s.content === 'normal') {
           strut.style.setProperty('display', 'none', 'important');
         }
       });
@@ -72,17 +121,16 @@ class EpubPaginationRefinements {
       el.style.breakInside = 'avoid';
       el.style.pageBreakInside = 'avoid';
       el.style.objectFit = 'contain';
-      if (reader.axis() === 'x') {
+      if (verticalContext()) {
         el.style.maxInlineSize = '95vh';
         el.style.maxBlockSize = '95vw';
       } else {
         el.style.maxWidth = '95vw';
         el.style.maxHeight = '95vh';
       }
-      if (el.tagName === 'IMG' && !el.complete) continue;
-      if (el.tagName === 'IMG' && (!el.naturalWidth || !el.naturalHeight)) {
+      if (el.tagName === 'IMG' && el.complete && (!el.naturalWidth || !el.naturalHeight)) {
         const alt = (el.getAttribute('alt') || '').trim();
-        if (alt && el.parentNode && !el.nextElementSibling?.classList?.contains('medicalreader-gaiji-fallback')) {
+        if (alt && el.parentNode) {
           const fallback = document.createElement('span');
           fallback.className = 'medicalreader-gaiji-fallback';
           fallback.textContent = alt;
@@ -93,27 +141,18 @@ class EpubPaginationRefinements {
   };
 
   const waitForImages = function() {
-    const images = Array.from(body.querySelectorAll('img'));
-    const pending = images.filter(function(image) { return !image.complete; });
+    const pending = Array.from(body.querySelectorAll('img')).filter(function(image) { return !image.complete; });
     if (!pending.length) return Promise.resolve();
     return new Promise(function(resolve) {
       let remaining = pending.length;
       let finished = false;
-      const done = function() {
-        if (finished || remaining > 0) return;
-        finished = true;
-        setTimeout(resolve, 40);
-      };
+      const done = function() { if (!finished && remaining <= 0) { finished = true; setTimeout(resolve, 40); } };
       pending.forEach(function(image) {
         const settle = function() { remaining -= 1; done(); };
         image.addEventListener('load', settle, {once: true});
         image.addEventListener('error', settle, {once: true});
       });
-      setTimeout(function() {
-        if (finished) return;
-        finished = true;
-        resolve();
-      }, 1200);
+      setTimeout(function() { if (!finished) { finished = true; resolve(); } }, 1200);
     });
   };
 
@@ -128,17 +167,14 @@ class EpubPaginationRefinements {
     const metrics = this.metrics || this.buildPaginationMetrics();
     const stops = metrics.progressStops || [];
     if (!metrics.totalChars || !stops.length) return originalCalculateProgress();
-    const current = this.position();
-    let low = 0;
-    let high = stops.length - 1;
-    let best = 0;
+    const current = position();
+    let low = 0, high = stops.length - 1, best = 0;
     while (low <= high) {
       const mid = Math.floor((low + high) / 2);
       if (stops[mid].scroll <= current + 1) { best = mid; low = mid + 1; }
       else high = mid - 1;
     }
-    const explored = Math.max(0, Math.min(metrics.totalChars, stops[best].chars || 0));
-    return Math.min(1, explored / metrics.totalChars);
+    return Math.min(1, Math.max(0, (stops[best].chars || 0) / metrics.totalChars));
   };
 
   const originalRestoreProgress = reader.restoreProgress.bind(reader);
@@ -178,8 +214,6 @@ class EpubPaginationRefinements {
     return metrics;
   };
 
-  // Keep the final partial page and media-only pages addressable. Hoshi derives
-  // the last content page from actual content geometry instead of raw scrollWidth.
   const originalMaxScroll = reader.maxScroll.bind(reader);
   reader.contentLastPageScroll = function() {
     const metrics = this.metrics || this.buildPaginationMetrics();
@@ -188,11 +222,7 @@ class EpubPaginationRefinements {
 
   sanitizeLayout();
   prepareMedia();
-  waitForImages().then(function() {
-    reader.metrics = null;
-    reader.prepare();
-  });
-
+  waitForImages().then(function() { reader.metrics = null; reader.prepare(); });
   window.addEventListener('resize', function() {
     if (!reader.metrics) return;
     reader._pendingRestoreProgress = reader.calculateProgress();
