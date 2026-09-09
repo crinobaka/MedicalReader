@@ -10,6 +10,7 @@ import '../../domain/models/reader_settings.dart';
 import '../services/epub_archive_service.dart';
 import '../services/epub_pagination_dom.dart';
 import '../services/epub_pagination_engine.dart';
+import '../services/epub_pagination_media.dart';
 import '../services/epub_pagination_precision.dart';
 import '../services/epub_pagination_refinements.dart';
 
@@ -21,6 +22,7 @@ class EpubReaderView extends StatefulWidget {
   final ReaderSettings settings;
   final void Function(String href, double progress)? onPositionChanged;
   final void Function(String direction)? onPageBoundary;
+  final void Function(String action, String source)? onMediaAction;
 
   const EpubReaderView({
     super.key,
@@ -31,6 +33,7 @@ class EpubReaderView extends StatefulWidget {
     this.initialProgress = 0,
     this.onPositionChanged,
     this.onPageBoundary,
+    this.onMediaAction,
   });
 
   @override
@@ -171,7 +174,7 @@ class _EpubReaderViewState extends State<EpubReaderView> {
 
   Future<void> _applyReader() async {
     if (_loadedHref == null) return;
-    final script = '${_readerScript()}\n${EpubPaginationRefinements.build()}\n${EpubPaginationDom.build()}\n${EpubPaginationPrecision.build()}';
+    final script = '${_readerScript()}\n${EpubPaginationRefinements.build()}\n${EpubPaginationDom.build()}\n${EpubPaginationPrecision.build()}\n${EpubPaginationMedia.build()}';
     try {
       if (_isWindows) {
         final controller = _windowsController;
@@ -188,9 +191,19 @@ class _EpubReaderViewState extends State<EpubReaderView> {
     }
   }
 
+  void _handleMedia(String action, String source) {
+    widget.onMediaAction?.call(action, source);
+  }
+
   void _onWindowsMessage(dynamic message) {
     if (message is! Map) return;
     final type = message['type'];
+    if (type == 'media' &&
+        message['action'] is String &&
+        message['source'] is String) {
+      _handleMedia(message['action'] as String, message['source'] as String);
+      return;
+    }
     if (type == 'boundary' && message['direction'] is String) {
       widget.onPageBoundary?.call(message['direction'] as String);
       return;
@@ -207,6 +220,10 @@ class _EpubReaderViewState extends State<EpubReaderView> {
   void _onMessage(JavaScriptMessage message) {
     final parts = message.message.split('|');
     if (parts.isEmpty) return;
+    if (parts.first == 'media' && parts.length >= 3) {
+      _handleMedia(parts[1], parts.sublist(2).join('|'));
+      return;
+    }
     if (parts.first == 'boundary' && parts.length > 1) {
       widget.onPageBoundary?.call(parts[1]);
       return;
