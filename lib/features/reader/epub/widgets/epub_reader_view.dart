@@ -264,7 +264,7 @@ class _EpubReaderViewState extends State<EpubReaderView> {
       if (_windowsError != null) return Center(child: Padding(padding: const EdgeInsets.all(24), child: Text('Windows EPUB 阅读器初始化失败。\n请确认 Windows 10 1809+ 且已安装 WebView2 Runtime。\n\n$_windowsError', textAlign: TextAlign.center)));
       final controller = _windowsController;
       if (controller == null || !controller.value.isInitialized) return const Center(child: CircularProgressIndicator());
-      return Stack(children: [windows_webview.Webview(controller: controller), if (!_ready) const Center(child: CircularProgressIndicator())]);
+      return Stack(children: [windows_webview.Webview(controller), if (!_ready) const Center(child: CircularProgressIndicator())]);
     }
     final controller = _androidController;
     if (controller == null || _loadedHref != chapter.href) return const Center(child: CircularProgressIndicator());
