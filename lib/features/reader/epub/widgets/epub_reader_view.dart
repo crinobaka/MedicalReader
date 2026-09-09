@@ -13,6 +13,7 @@ import '../services/epub_pagination_engine.dart';
 import '../services/epub_pagination_interaction.dart';
 import '../services/epub_pagination_layout.dart';
 import '../services/epub_pagination_media.dart';
+import '../services/epub_pagination_metrics.dart';
 import '../services/epub_pagination_precision.dart';
 import '../services/epub_pagination_refinements.dart';
 
@@ -71,9 +72,7 @@ class _EpubReaderViewState extends State<EpubReaderView> {
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(_backgroundColor())
       ..addJavaScriptChannel('MedicalReader', onMessageReceived: _onMessage)
-      ..setNavigationDelegate(
-        NavigationDelegate(onPageFinished: (_) => _applyReader()),
-      );
+      ..setNavigationDelegate(NavigationDelegate(onPageFinished: (_) => _applyReader()));
     _androidController = controller;
     unawaited(_loadChapter());
   }
@@ -155,7 +154,7 @@ class _EpubReaderViewState extends State<EpubReaderView> {
 
   Future<void> _applyReader() async {
     if (_loadedHref == null) return;
-    final script = '${_readerScript()}\n${EpubPaginationRefinements.build()}\n${EpubPaginationLayout.build()}\n${EpubPaginationDom.build()}\n${EpubPaginationPrecision.build()}\n${EpubPaginationMedia.build()}\n${EpubPaginationInteraction.build()}';
+    final script = '${_readerScript()}\n${EpubPaginationRefinements.build()}\n${EpubPaginationLayout.build()}\n${EpubPaginationDom.build()}\n${EpubPaginationPrecision.build()}\n${EpubPaginationMetrics.build()}\n${EpubPaginationMedia.build()}\n${EpubPaginationInteraction.build()}';
     try {
       if (_isWindows) {
         final controller = _windowsController;
@@ -185,9 +184,10 @@ class _EpubReaderViewState extends State<EpubReaderView> {
       widget.onPageBoundary?.call(message['direction'] as String);
       return;
     }
-    if (type != 'progress') return;
-    final progress = message['value'];
-    if (progress is num && _loadedHref != null) widget.onPositionChanged?.call(_loadedHref!, progress.clamp(0, 1).toDouble());
+    if (type == 'progress' && message['value'] is num) {
+      final progress = (message['value'] as num).toDouble().clamp(0, 1).toDouble();
+      widget.onPositionChanged?.call(_loadedHref ?? '', progress);
+    }
   }
 
   void _onMessage(JavaScriptMessage message) {
@@ -197,76 +197,59 @@ class _EpubReaderViewState extends State<EpubReaderView> {
       _handleMedia(parts[1], parts.sublist(2).join('|'));
       return;
     }
-    if (parts.first == 'boundary' && parts.length > 1) {
+    if (parts.first == 'boundary' && parts.length >= 2) {
       widget.onPageBoundary?.call(parts[1]);
       return;
     }
-    if (parts.first != 'progress' || parts.length < 2) return;
-    final progress = double.tryParse(parts[1]);
-    if (progress != null && _loadedHref != null) widget.onPositionChanged?.call(_loadedHref!, progress.clamp(0, 1));
+    if (parts.first == 'progress' && parts.length >= 2) {
+      final progress = double.tryParse(parts[1])?.clamp(0, 1).toDouble();
+      if (progress != null) widget.onPositionChanged?.call(_loadedHref ?? '', progress);
+    }
   }
 
   String _readerScript() {
-    final settings = widget.settings;
-    final vertical = settings.readingDirection == ReaderReadingDirection.vertical;
-    final rtl = settings.readingDirection == ReaderReadingDirection.rtl;
-    final paginated = settings.readingMode == ReaderReadingMode.paginated;
-    final background = _backgroundColor().value.toRadixString(16).padLeft(8, '0').substring(2);
-    final foreground = settings.theme == ReaderTheme.dark ? 'white' : 'inherit';
-    final font = _cssFont(settings.fontFamily);
+    final s = widget.settings;
+    final bg = s.backgroundColor.value.toRadixString(16).padLeft(8, '0').substring(2);
+    final fg = s.textColor.value.toRadixString(16).padLeft(8, '0').substring(2);
     return EpubPaginationEngine.build(
-      vertical: vertical,
-      rtl: rtl,
-      paginated: paginated,
-      background: background,
-      foreground: foreground,
-      font: font,
-      fontSize: settings.fontSize,
-      lineHeight: settings.lineHeight,
-      verticalPadding: settings.verticalPadding,
-      horizontalPadding: settings.horizontalPadding,
-      paragraphSpacing: settings.paragraphSpacing,
+      vertical: s.verticalWriting,
+      rtl: s.rightToLeft,
+      paginated: s.paginationMode,
+      background: bg,
+      foreground: fg,
+      font: s.fontFamily,
+      fontSize: s.fontSize,
+      lineHeight: s.lineHeight,
+      verticalPadding: s.verticalPadding,
+      horizontalPadding: s.horizontalPadding,
+      paragraphSpacing: s.paragraphSpacing,
       initialProgress: widget.initialProgress,
       fragment: widget.fragment,
     );
   }
 
-  String _cssFont(String value) {
-    final font = value.trim().isEmpty ? 'sans-serif' : value.trim();
-    return font.replaceAll('\\', '\\\\').replaceAll("'", "\\'");
-  }
-
-  Color _backgroundColor() {
-    switch (widget.settings.theme) {
-      case ReaderTheme.light: return Colors.white;
-      case ReaderTheme.dark: return const Color(0xFF121212);
-      case ReaderTheme.sepia: return const Color(0xFFF5EBD7);
-      case ReaderTheme.system: return Colors.white;
-    }
-  }
+  Color _backgroundColor() => widget.settings.backgroundColor;
 
   @override
   void dispose() {
-    unawaited(_windowsLoading?.cancel());
-    unawaited(_windowsMessages?.cancel());
-    final controller = _windowsController;
-    if (controller != null) unawaited(controller.dispose());
+    _windowsLoading?.cancel();
+    _windowsMessages?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final chapter = widget.archive.chapterAt(widget.chapterIndex);
-    if (chapter == null) return const Center(child: Text('EPUB chapter unavailable'));
-    if (_isUnsupported) return const Center(child: Padding(padding: EdgeInsets.all(24), child: Text('当前 Linux 平台暂不支持内置 EPUB WebView 阅读器。', textAlign: TextAlign.center)));
+    if (_isUnsupported) {
+      return const Center(child: Text('当前平台暂不支持 EPUB WebView'));
+    }
     if (_isWindows) {
-      if (_windowsError != null) return Center(child: Padding(padding: const EdgeInsets.all(24), child: Text('Windows EPUB 阅读器初始化失败。\n请确认 Windows 10 1809+ 且已安装 WebView2 Runtime。\n\n$_windowsError', textAlign: TextAlign.center)));
       final controller = _windowsController;
-      if (controller == null || !controller.value.isInitialized) return const Center(child: CircularProgressIndicator());
-      return Stack(children: [windows_webview.Webview(controller: controller), if (!_ready) const Center(child: CircularProgressIndicator())]);
+      if (controller == null || !controller.value.isInitialized) return const SizedBox.shrink();
+      if (_windowsError != null) return Center(child: Text(_windowsError!));
+      return windows_webview.Webview(controller: controller);
     }
     final controller = _androidController;
-    if (controller == null || _loadedHref != chapter.href) return const Center(child: CircularProgressIndicator());
-    return Stack(children: [WebViewWidget(controller: controller), if (!_ready) const Center(child: CircularProgressIndicator())]);
+    if (controller == null) return const SizedBox.shrink();
+    return WebViewWidget(controller: controller);
   }
 }
