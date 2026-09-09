@@ -61,8 +61,12 @@ class EpubPaginationEngine {
   body.style.direction = rtl ? 'rtl' : 'ltr';
 
   body.querySelectorAll('p, div, section').forEach(function(el) {
-    if (vertical) el.style.marginLeft = '${paragraphSpacing}px';
-    else el.style.marginBottom = '${paragraphSpacing}px';
+    if (vertical) {
+      el.style.marginRight = '${paragraphSpacing}px';
+      el.style.marginLeft = '${paragraphSpacing}px';
+    } else {
+      el.style.marginBottom = '${paragraphSpacing}px';
+    }
   });
   body.querySelectorAll('img, svg, image, video, canvas').forEach(function(el) {
     el.style.maxWidth = '95vw';
@@ -72,20 +76,22 @@ class EpubPaginationEngine {
   });
 
   if (paginated) {
+    // CSS multi-column is the actual Hoshi model. In vertical-rl the column
+    // width is the physical viewport height; changing this to 100vw collapses
+    // the vertical flow into one visible strip and makes later pages vanish.
     body.style.height = '100vh';
     body.style.minHeight = '100vh';
-    body.style.columnWidth = '100vw';
-    body.style.columnHeight = '100vh';
-    body.style.columnGap = '${horizontalPadding.clamp(0, 48)}px';
+    body.style.columnWidth = vertical ? '100vh' : '100vw';
+    body.style.columnGap = vertical ? '22px' : '${horizontalPadding.clamp(0, 48)}px';
     body.style.columnFill = 'auto';
-    body.style.overflow = vertical ? 'hidden auto' : 'auto hidden';
+    body.style.overflow = 'hidden';
   } else {
-    root.style.overflow = 'auto';
+    root.style.overflow = 'hidden';
     body.style.height = 'auto';
     body.style.minHeight = '100vh';
     body.style.columnWidth = 'auto';
     body.style.columnGap = 'normal';
-    body.style.overflow = 'auto';
+    body.style.overflow = vertical ? 'hidden auto' : 'auto';
   }
 
   const reader = {
@@ -94,9 +100,7 @@ class EpubPaginationEngine {
     metrics: null,
     lastPageScroll: 0,
     snapTimer: null,
-    axis: function() {
-      return vertical ? 'x' : 'y';
-    },
+    axis: function() { return vertical ? 'y' : 'x'; },
     position: function() {
       if (this.axis() === 'x') {
         var raw = body.scrollLeft;
@@ -105,9 +109,7 @@ class EpubPaginationEngine {
       }
       return body.scrollTop;
     },
-    pageSize: function() {
-      return Math.max(1, this.axis() === 'x' ? this.pageWidth : this.pageHeight);
-    },
+    pageSize: function() { return Math.max(1, this.axis() === 'x' ? this.pageWidth : this.pageHeight); },
     maxScroll: function() {
       return Math.max(0, this.axis() === 'x'
         ? body.scrollWidth - this.pageWidth
@@ -126,11 +128,8 @@ class EpubPaginationEngine {
     assignPagePosition: function(value) {
       var max = this.maxScroll();
       var logical = Math.min(Math.max(0, value), max);
-      if (this.axis() === 'x') {
-        body.scrollLeft = rtl ? max - logical : logical;
-      } else {
-        body.scrollTop = logical;
-      }
+      if (this.axis() === 'x') body.scrollLeft = rtl ? max - logical : logical;
+      else body.scrollTop = logical;
       this.lockRootViewport();
       this.lastPageScroll = logical;
       return logical;
@@ -141,16 +140,12 @@ class EpubPaginationEngine {
     },
     contentStart: function(rect) {
       var position = this.position();
-      if (this.axis() === 'x') {
-        return rtl ? (body.scrollWidth - rect.right) + position : rect.left + position;
-      }
+      if (this.axis() === 'x') return rtl ? (body.scrollWidth - rect.right) + position : rect.left + position;
       return rect.top + position;
     },
     contentEnd: function(rect) {
       var position = this.position();
-      if (this.axis() === 'x') {
-        return rtl ? (body.scrollWidth - rect.left) + position : rect.right + position;
-      }
+      if (this.axis() === 'x') return rtl ? (body.scrollWidth - rect.left) + position : rect.right + position;
       return rect.bottom + position;
     },
     isFurigana: function(node) {
@@ -171,16 +166,13 @@ class EpubPaginationEngine {
       var self = this;
       return document.createTreeWalker(body, NodeFilter.SHOW_TEXT, {
         acceptNode: function(node) {
-          return self.isFurigana(node)
-            ? NodeFilter.FILTER_REJECT
-            : NodeFilter.FILTER_ACCEPT;
+          return self.isFurigana(node) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
         }
       });
     },
     buildPaginationMetrics: function() {
       var pageSize = this.pageSize();
       var maxScroll = this.maxScroll();
-      var current = this.position();
       var totalChars = 0;
       var firstContentEdge = null;
       var lastContentEdge = 0;
@@ -208,20 +200,15 @@ class EpubPaginationEngine {
         }
         totalChars += chars;
       }
-
       var media = body.querySelectorAll('img, svg, image, video, canvas');
       for (var j = 0; j < media.length; j++) {
         var mediaRect = media[j].getBoundingClientRect();
         if (mediaRect.width <= 0 || mediaRect.height <= 0) continue;
-        firstContentEdge = firstContentEdge === null
-          ? this.contentStart(mediaRect) : Math.min(firstContentEdge, this.contentStart(mediaRect));
+        firstContentEdge = firstContentEdge === null ? this.contentStart(mediaRect) : Math.min(firstContentEdge, this.contentStart(mediaRect));
         lastContentEdge = Math.max(lastContentEdge, this.contentEnd(mediaRect));
       }
-
-      var minScroll = firstContentEdge === null
-        ? 0 : Math.min(maxScroll, Math.floor(Math.max(0, firstContentEdge) / pageSize) * pageSize);
-      var lastContentScroll = lastContentEdge <= 0
-        ? 0 : Math.floor(Math.max(0, lastContentEdge - 1) / pageSize) * pageSize;
+      var minScroll = firstContentEdge === null ? 0 : Math.min(maxScroll, Math.floor(Math.max(0, firstContentEdge) / pageSize) * pageSize);
+      var lastContentScroll = lastContentEdge <= 0 ? 0 : Math.floor(Math.max(0, lastContentEdge - 1) / pageSize) * pageSize;
       this.metrics = {
         minScroll: minScroll,
         maxScroll: Math.min(maxScroll, Math.max(minScroll, lastContentScroll)),
@@ -241,10 +228,7 @@ class EpubPaginationEngine {
         range.setStart(node, offset);
         range.setEnd(node, offset + ch.length);
         var rect = this.getRect(range);
-        if (rect && rect.width > 0 && rect.height > 0) {
-          var end = this.contentEnd(rect);
-          if (end > this.position()) break;
-        }
+        if (rect && rect.width > 0 && rect.height > 0 && this.contentEnd(rect) > this.position()) break;
         if (this.countChars(ch) > 0) count += 1;
         offset += ch.length;
       }
@@ -262,9 +246,7 @@ class EpubPaginationEngine {
       }
       return total > 0 ? Math.min(1, Math.max(0, explored / total)) : 0;
     },
-    notifyProgress: function() {
-      bridge({type: 'progress', value: this.calculateProgress()});
-    },
+    notifyProgress: function() { bridge({type: 'progress', value: this.calculateProgress()}); },
     setPagePosition: function(value) {
       var metrics = this.metrics || this.buildPaginationMetrics();
       var target = Math.min(Math.max(metrics.minScroll, value), metrics.maxScroll);
@@ -272,9 +254,7 @@ class EpubPaginationEngine {
       this.notifyProgress();
       return target;
     },
-    alignToPage: function(offset) {
-      return Math.floor(Math.max(0, offset) / this.pageSize()) * this.pageSize();
-    },
+    alignToPage: function(offset) { return Math.floor(Math.max(0, offset) / this.pageSize()) * this.pageSize(); },
     restoreProgress: function(progress) {
       var metrics = this.metrics || this.buildPaginationMetrics();
       if (initialFragment) {
@@ -300,27 +280,15 @@ class EpubPaginationEngine {
       var current = this.position();
       var size = this.pageSize();
       if (direction === 'forward') {
-        if (current >= metrics.maxScroll - 1) {
-          bridge({type: 'boundary', direction: 'forward'});
-          return 'limit';
-        }
+        if (current >= metrics.maxScroll - 1) { bridge({type: 'boundary', direction: 'forward'}); return 'limit'; }
         var forward = Math.min(metrics.maxScroll, this.alignToPage(current + size));
-        if (forward <= current + 1) {
-          bridge({type: 'boundary', direction: 'forward'});
-          return 'limit';
-        }
+        if (forward <= current + 1) { bridge({type: 'boundary', direction: 'forward'}); return 'limit'; }
         this.setPagePosition(forward);
         return 'scrolled';
       }
-      if (current <= metrics.minScroll + 1) {
-        bridge({type: 'boundary', direction: 'backward'});
-        return 'limit';
-      }
+      if (current <= metrics.minScroll + 1) { bridge({type: 'boundary', direction: 'backward'}); return 'limit'; }
       var backward = Math.max(metrics.minScroll, this.alignToPage(current - 1));
-      if (backward >= current - 1) {
-        bridge({type: 'boundary', direction: 'backward'});
-        return 'limit';
-      }
+      if (backward >= current - 1) { bridge({type: 'boundary', direction: 'backward'}); return 'limit'; }
       this.setPagePosition(backward);
       return 'scrolled';
     },
@@ -329,14 +297,9 @@ class EpubPaginationEngine {
       if (!paginated) return;
       var metrics = this.metrics || this.buildPaginationMetrics();
       var current = this.position();
-      var snapped = Math.min(metrics.maxScroll,
-        Math.max(metrics.minScroll, Math.round(current / this.pageSize()) * this.pageSize()));
-      if (Math.abs(current - snapped) > 1) {
-        this.assignPagePosition(this.lastPageScroll);
-      } else {
-        this.lastPageScroll = snapped;
-        this.notifyProgress();
-      }
+      var snapped = Math.min(metrics.maxScroll, Math.max(metrics.minScroll, Math.round(current / this.pageSize()) * this.pageSize()));
+      if (Math.abs(current - snapped) > 1) this.assignPagePosition(this.lastPageScroll);
+      else { this.lastPageScroll = snapped; this.notifyProgress(); }
     },
     prepare: function() {
       this.pageHeight = window.innerHeight;
@@ -350,17 +313,11 @@ class EpubPaginationEngine {
 
   window.medicalReaderPagination = reader;
   reader.lockRootViewport();
-
   var prepare = function() {
-    if (document.fonts && document.fonts.ready) {
-      document.fonts.ready.then(function() { reader.prepare(); });
-    } else {
-      setTimeout(function() { reader.prepare(); }, 80);
-    }
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(function() { reader.prepare(); });
+    else setTimeout(function() { reader.prepare(); }, 80);
   };
-  if (document.readyState === 'complete') prepare();
-  else window.addEventListener('load', prepare, {once: true});
-
+  if (document.readyState === 'complete') prepare(); else window.addEventListener('load', prepare, {once: true});
   body.addEventListener('scroll', function() {
     reader.handlePagedScroll();
     if (reader.snapTimer) clearTimeout(reader.snapTimer);
@@ -368,7 +325,6 @@ class EpubPaginationEngine {
   }, {passive: true});
   window.addEventListener('resize', function() { setTimeout(function() { reader.prepare(); }, 40); });
   window.addEventListener('scroll', function() { reader.lockRootViewport(); }, {passive: true});
-
   document.addEventListener('keydown', function(event) {
     if (!paginated) return;
     if (event.key === 'PageDown') reader.paginate('forward');
@@ -376,14 +332,9 @@ class EpubPaginationEngine {
     if (event.key === 'ArrowRight') reader.paginate(rtl ? 'backward' : 'forward');
     if (event.key === 'ArrowLeft') reader.paginate(rtl ? 'forward' : 'backward');
   });
-
   var touchX = 0;
   var touchY = 0;
-  body.addEventListener('touchstart', function(event) {
-    var touch = event.changedTouches[0];
-    touchX = touch.clientX;
-    touchY = touch.clientY;
-  }, {passive: true});
+  body.addEventListener('touchstart', function(event) { var touch = event.changedTouches[0]; touchX = touch.clientX; touchY = touch.clientY; }, {passive: true});
   body.addEventListener('touchend', function(event) {
     if (!paginated) return;
     var touch = event.changedTouches[0];

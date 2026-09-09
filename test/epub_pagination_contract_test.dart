@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../lib/features/reader/epub/services/epub_pagination_dom.dart';
 import '../lib/features/reader/epub/services/epub_pagination_engine.dart';
+import '../lib/features/reader/epub/services/epub_pagination_interaction.dart';
 import '../lib/features/reader/epub/services/epub_pagination_media.dart';
 import '../lib/features/reader/epub/services/epub_pagination_precision.dart';
 import '../lib/features/reader/epub/services/epub_pagination_refinements.dart';
@@ -21,6 +22,12 @@ void main() {
       expect(script, contains('window.innerHeight'));
       expect(script, contains('body.scrollTop'));
       expect(script, contains("return verticalContext() ? 'y' : 'x'"));
+    });
+
+    test('vertical paginated columns use viewport height like Hoshi', () {
+      final script = _build(vertical: true, rtl: false);
+      expect(script, contains("body.style.columnWidth = vertical ? '100vh' : '100vw'"));
+      expect(script, contains("body.style.overflow = 'hidden'"));
     });
 
     test('RTL has logical progress independent of browser scroll direction', () {
@@ -94,6 +101,17 @@ void main() {
       expect(script, contains('metrics.maxScroll'));
       expect(script, contains('Math.min(maxScroll, Math.max(minScroll, lastContentScroll))'));
     });
+
+    test('reader interaction layer contains focus, tap zones, keys and debounced progress', () {
+      final script = EpubPaginationInteraction.build();
+      expect(script, contains('medicalReaderSetFocusMode'));
+      expect(script, contains('medicalReaderToggleFocusMode'));
+      expect(script, contains('pointerup'));
+      expect(script, contains('AudioVolumeUp'));
+      expect(script, contains('AudioVolumeDown'));
+      expect(script, contains('scheduleProgress'));
+      expect(script, contains('100'));
+    });
   });
 }
 
@@ -118,5 +136,6 @@ String _build({required bool vertical, required bool rtl}) {
     EpubPaginationDom.build(),
     EpubPaginationPrecision.build(),
     EpubPaginationMedia.build(),
+    EpubPaginationInteraction.build(),
   ].join('\n');
 }
