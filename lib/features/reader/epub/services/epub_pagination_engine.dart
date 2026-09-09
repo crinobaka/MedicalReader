@@ -162,7 +162,7 @@ class EpubPaginationEngine {
       var offset = 0;
       while (offset < text.length) {
         var ch = String.fromCodePoint(text.codePointAt(offset));
-        if (!/^\\s$/.test(ch)) count += 1;
+        if (!/^\\s\$/.test(ch)) count += 1;
         offset += ch.length;
       }
       return count;
