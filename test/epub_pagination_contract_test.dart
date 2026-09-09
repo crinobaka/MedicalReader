@@ -80,12 +80,11 @@ void main() {
       expect(script, contains('sourceOf'));
     });
 
-    test('pagination boundaries are exposed to the native reader', () {
+    test('pagination boundaries are exposed by the JS engine', () {
       final script = _build(vertical: true, rtl: false);
       expect(script, contains("type: 'boundary'"));
       expect(script, contains("direction: 'forward'"));
       expect(script, contains("direction: 'backward'"));
-      expect(script, contains("onPageBoundary"));
     });
 
     test('image loading and final partial page are represented in the contract', () {
