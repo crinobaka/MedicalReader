@@ -10,6 +10,7 @@ import '../../domain/models/reader_settings.dart';
 import '../services/epub_archive_service.dart';
 import '../services/epub_pagination_dom.dart';
 import '../services/epub_pagination_engine.dart';
+import '../services/epub_pagination_interaction.dart';
 import '../services/epub_pagination_media.dart';
 import '../services/epub_pagination_precision.dart';
 import '../services/epub_pagination_refinements.dart';
@@ -174,7 +175,7 @@ class _EpubReaderViewState extends State<EpubReaderView> {
 
   Future<void> _applyReader() async {
     if (_loadedHref == null) return;
-    final script = '${_readerScript()}\n${EpubPaginationRefinements.build()}\n${EpubPaginationDom.build()}\n${EpubPaginationPrecision.build()}\n${EpubPaginationMedia.build()}';
+    final script = '${_readerScript()}\n${EpubPaginationRefinements.build()}\n${EpubPaginationDom.build()}\n${EpubPaginationPrecision.build()}\n${EpubPaginationMedia.build()}\n${EpubPaginationInteraction.build()}';
     try {
       if (_isWindows) {
         final controller = _windowsController;
@@ -198,9 +199,7 @@ class _EpubReaderViewState extends State<EpubReaderView> {
   void _onWindowsMessage(dynamic message) {
     if (message is! Map) return;
     final type = message['type'];
-    if (type == 'media' &&
-        message['action'] is String &&
-        message['source'] is String) {
+    if (type == 'media' && message['action'] is String && message['source'] is String) {
       _handleMedia(message['action'] as String, message['source'] as String);
       return;
     }
@@ -211,10 +210,7 @@ class _EpubReaderViewState extends State<EpubReaderView> {
     if (type != 'progress') return;
     final progress = message['value'];
     if (progress is! num || _loadedHref == null) return;
-    widget.onPositionChanged?.call(
-      _loadedHref!,
-      progress.clamp(0, 1).toDouble(),
-    );
+    widget.onPositionChanged?.call(_loadedHref!, progress.clamp(0, 1).toDouble());
   }
 
   void _onMessage(JavaScriptMessage message) {
@@ -231,10 +227,7 @@ class _EpubReaderViewState extends State<EpubReaderView> {
     if (parts.first != 'progress' || parts.length < 2) return;
     final progress = double.tryParse(parts[1]);
     if (progress == null || _loadedHref == null) return;
-    widget.onPositionChanged?.call(
-      _loadedHref!,
-      progress.clamp(0, 1).toDouble(),
-    );
+    widget.onPositionChanged?.call(_loadedHref!, progress.clamp(0, 1).toDouble());
   }
 
   String _readerScript() {
@@ -242,11 +235,7 @@ class _EpubReaderViewState extends State<EpubReaderView> {
     final vertical = settings.readingDirection == ReaderReadingDirection.vertical;
     final rtl = settings.readingDirection == ReaderReadingDirection.rtl;
     final paginated = settings.readingMode == ReaderReadingMode.paginated;
-    final background = _backgroundColor()
-        .value
-        .toRadixString(16)
-        .padLeft(8, '0')
-        .substring(2);
+    final background = _backgroundColor().value.toRadixString(16).padLeft(8, '0').substring(2);
     final foreground = settings.theme == ReaderTheme.dark ? 'white' : 'inherit';
     final font = _cssFont(settings.fontFamily);
     return EpubPaginationEngine.build(
@@ -301,10 +290,7 @@ class _EpubReaderViewState extends State<EpubReaderView> {
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(24),
-          child: Text(
-            '当前 Linux 平台暂不支持内置 EPUB WebView 阅读器。',
-            textAlign: TextAlign.center,
-          ),
+          child: Text('当前 Linux 平台暂不支持内置 EPUB WebView 阅读器。', textAlign: TextAlign.center),
         ),
       );
     }
@@ -326,7 +312,7 @@ class _EpubReaderViewState extends State<EpubReaderView> {
       }
       return Stack(
         children: [
-          windows_webview.Webview(controller),
+          windows_webview.Webview(controller: controller),
           if (!_ready) const Center(child: CircularProgressIndicator()),
         ],
       );
