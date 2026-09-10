@@ -52,9 +52,7 @@ class ReaderSession {
   List<ReaderAnnotation> get bookmarks => _ofType(ReaderAnnotationType.bookmark);
   List<ReaderAnnotation> get notes => _ofType(ReaderAnnotationType.note);
 
-  List<ReaderAnnotation> _ofType(ReaderAnnotationType type) => annotations
-      .where((annotation) => annotation.type == type)
-      .toList(growable: false);
+  List<ReaderAnnotation> _ofType(ReaderAnnotationType type) => annotations.where((item) => item.type == type).toList(growable: false);
 
   Future<void> open({ReaderPosition? initialPosition}) async {
     if (_open) return;
@@ -93,14 +91,8 @@ class ReaderSession {
     if (!force && elapsed < const Duration(seconds: 15)) return;
     if (elapsed <= Duration.zero) return;
     final currentCharacters = _characterOffset(position);
-    final delta = currentCharacters > _lastCharactersAtPosition
-        ? currentCharacters - _lastCharactersAtPosition
-        : 0;
-    statistics = await _statisticsService.record(
-      documentId: document.id,
-      elapsed: elapsed,
-      charactersRead: delta,
-    );
+    final delta = currentCharacters > _lastCharactersAtPosition ? currentCharacters - _lastCharactersAtPosition : 0;
+    statistics = await _statisticsService.record(documentId: document.id, elapsed: elapsed, charactersRead: delta);
     _lastCharactersAtPosition = currentCharacters;
     _lastStatisticsFlush = now;
   }
@@ -120,9 +112,9 @@ class ReaderSession {
     return service == null ? const [] : service.lookup(request);
   }
 
-  Future<AnkiCardDraft?> mineToAnki(AnkiCardDraft draft) async {
+  Future<bool> mineToAnki(AnkiCardDraft draft) async {
     final service = ankiService;
-    return service == null ? null : service.createCard(draft);
+    return service == null ? false : service.createCard(draft);
   }
 
   ReaderSyncPayload buildSyncPayload() => ReaderSyncPayload(
