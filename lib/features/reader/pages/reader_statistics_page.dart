@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../library/models/library_document.dart';
 import '../../library/providers/library_repository_provider.dart';
+import '../domain/models/reader_statistics.dart';
 import '../providers/reader_statistics_provider.dart';
 
 class ReaderStatisticsPage extends ConsumerWidget {
@@ -45,12 +46,12 @@ class _SummaryCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return FutureBuilder<List<dynamic>>(
-      future: Future.wait(books.map((book) async => ref.read(readerStatisticsProvider(book).future))),
+    return FutureBuilder<List<ReaderStatistics>>(
+      future: Future.wait(books.map((book) => ref.read(readerStatisticsProvider(book).future))),
       builder: (context, snapshot) {
-        final stats = snapshot.data ?? const [];
-        final seconds = stats.fold<int>(0, (sum, item) => sum + item.readingTime.inSeconds as int);
-        final characters = stats.fold<int>(0, (sum, item) => sum + item.charactersRead as int);
+        final stats = snapshot.data ?? const <ReaderStatistics>[];
+        final seconds = stats.fold<int>(0, (sum, item) => sum + item.readingTime.inSeconds);
+        final characters = stats.fold<int>(0, (sum, item) => sum + item.charactersRead);
         return Card(
           child: Padding(
             padding: const EdgeInsets.all(20),
