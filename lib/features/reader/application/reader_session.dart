@@ -42,6 +42,7 @@ class ReaderSession {
   List<ReaderAnnotation> annotations = const [];
   DateTime? openedAt;
   DateTime? _lastStatisticsFlush;
+  int _lastCharactersAtPosition = 0;
   bool _open = false;
 
   bool get isOpen => _open;
@@ -58,16 +59,13 @@ class ReaderSession {
   Future<void> open({ReaderPosition? initialPosition}) async {
     if (_open) return;
     final progress = await _progressService.load(document.id);
-    position = initialPosition ?? progress.position ?? ReaderPosition(
-      progress: 0,
-      spineIndex: progress.lastPage,
-    );
-    statistics = await _statisticsService.load(document.id);
-    statistics = statistics.startSession();
+    position = initialPosition ?? progress.position ?? ReaderPosition(progress: 0, spineIndex: progress.lastPage);
+    statistics = (await _statisticsService.load(document.id)).startSession();
     annotations = await _annotationService.load(document);
     await _statisticsService.save(document.id, statistics);
     openedAt = DateTime.now();
     _lastStatisticsFlush = openedAt;
+    _lastCharactersAtPosition = _characterOffset(position);
     _open = true;
   }
 
@@ -84,9 +82,7 @@ class ReaderSession {
   }
 
   Future<void> persistPosition() async {
-    if (_open) {
-      await _progressService.savePosition(documentId: document.id, position: position);
-    }
+    if (_open) await _progressService.savePosition(documentId: document.id, position: position);
   }
 
   Future<void> flushStatistics({bool force = false}) async {
@@ -96,19 +92,21 @@ class ReaderSession {
     final elapsed = now.difference(last);
     if (!force && elapsed < const Duration(seconds: 15)) return;
     if (elapsed <= Duration.zero) return;
+    final currentCharacters = _characterOffset(position);
+    final delta = currentCharacters > _lastCharactersAtPosition
+        ? currentCharacters - _lastCharactersAtPosition
+        : 0;
     statistics = await _statisticsService.record(
       documentId: document.id,
       elapsed: elapsed,
-      charactersRead: _estimateCharacters(elapsed),
+      charactersRead: delta,
     );
+    _lastCharactersAtPosition = currentCharacters;
     _lastStatisticsFlush = now;
   }
 
   Future<void> addAnnotation(ReaderAnnotation annotation) async {
-    annotations = [
-      ...annotations.where((item) => item.id != annotation.id),
-      annotation,
-    ];
+    annotations = [...annotations.where((item) => item.id != annotation.id), annotation];
     await _annotationService.save(document, annotations);
   }
 
@@ -129,12 +127,7 @@ class ReaderSession {
 
   ReaderSyncPayload buildSyncPayload() => ReaderSyncPayload(
         bookId: book.id,
-        progress: {
-          'progress': position.progress,
-          if (position.spineIndex != null) 'spineIndex': position.spineIndex,
-          if (position.href != null) 'href': position.href,
-          if (position.characterOffset != null) 'characterOffset': position.characterOffset,
-        },
+        progress: position.toJson(),
         statistics: statistics.toJson(),
         annotations: [for (final annotation in annotations) annotation.toJson()],
         updatedAt: DateTime.now(),
@@ -152,8 +145,5 @@ class ReaderSession {
     return service == null ? null : service.pull(book.id);
   }
 
-  int _estimateCharacters(Duration elapsed) {
-    final minutes = elapsed.inSeconds / 60;
-    return minutes <= 0 ? 0 : (minutes * 180).round();
-  }
+  int _characterOffset(ReaderPosition value) => value.characterOffset ?? 0;
 }
