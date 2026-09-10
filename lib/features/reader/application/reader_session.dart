@@ -11,8 +11,6 @@ import '../services/reader_annotation_service.dart';
 import '../services/reader_progress_service.dart';
 import '../services/reader_statistics_service.dart';
 
-/// Application state for one open book. Product-level reader features share
-/// this boundary instead of coupling themselves to a particular page widget.
 class ReaderSession {
   ReaderSession({
     required this.document,
@@ -131,7 +129,12 @@ class ReaderSession {
 
   ReaderSyncPayload buildSyncPayload() => ReaderSyncPayload(
         bookId: book.id,
-        progress: position.progress,
+        progress: {
+          'progress': position.progress,
+          if (position.spineIndex != null) 'spineIndex': position.spineIndex,
+          if (position.href != null) 'href': position.href,
+          if (position.characterOffset != null) 'characterOffset': position.characterOffset,
+        },
         statistics: statistics.toJson(),
         annotations: [for (final annotation in annotations) annotation.toJson()],
         updatedAt: DateTime.now(),
