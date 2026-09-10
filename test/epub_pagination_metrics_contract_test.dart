@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   final metrics = File('lib/features/reader/epub/services/epub_pagination_metrics.dart');
+  final refinements = File('lib/features/reader/epub/services/epub_pagination_refinements.dart');
   final engine = File('lib/features/reader/epub/services/epub_pagination_engine.dart');
   final reader = File('lib/features/reader/epub/widgets/epub_reader_view.dart');
   final compat = File('lib/features/reader/epub/services/epub_pagination_hoshi_compat.dart');
@@ -31,6 +32,16 @@ void main() {
     expect(source, contains("body.style.columnWidth = vertical ? '100vh' : '100vw'"));
   });
 
+  test('publisher layout sanitation follows Hoshi empty-strut rules', () {
+    final source = refinements.readAsStringSync();
+    expect(source, contains('isMeaningfulEmptySpan'));
+    expect(source, contains('getComputedStyle(element, \'::before\')'));
+    expect(source, contains('span:empty'));
+    expect(source, contains("style.setProperty(vertical ? 'width' : 'height'"));
+    expect(source, contains('columnCount'));
+    expect(source, contains('writingMode'));
+  });
+
   test('reader injects metrics and Hoshi compatibility before interaction', () {
     final source = reader.readAsStringSync();
     final precision = source.indexOf('EpubPaginationPrecision.build()');
@@ -53,9 +64,11 @@ void main() {
     expect(source, contains('selectionchange'));
   });
 
-  test('media opens only eligible large images while preserving gaiji fallback', () {
+  test('media follows Hoshi large-image, SVG and gaiji semantics', () {
     final source = media.readAsStringSync();
     expect(source, contains('isLargeImage'));
+    expect(source, contains('medicalreader-block-img'));
+    expect(source, contains("preserveAspectRatio') === 'none'"));
     expect(source, contains('isGaiji'));
     expect(source, contains('medicalreader-gaiji-fallback'));
     expect(source, contains('openEligibleMedia'));
