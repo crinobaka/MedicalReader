@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import '../../../core/ffi/medical_core.dart';
 import '../../library/models/library_document.dart';
 import '../../library/repositories/library_repository.dart';
+import '../application/reader_session.dart';
 import '../domain/adapters/pdf_reader_document_adapter.dart';
 import '../domain/models/reader_document.dart';
 import '../domain/models/reader_locator.dart';
@@ -34,11 +35,16 @@ class ReaderPageController extends ChangeNotifier {
     BookTemplateService? bookTemplateService,
     BookManifestService? bookManifestService,
     PdfReaderDocumentAdapter? documentAdapter,
+    ReaderSession? session,
   })  : _readerEngine = readerEngine ?? ReaderEngineService(),
         _bookTemplateService = bookTemplateService ?? BookTemplateService(),
         _bookManifestService = bookManifestService ?? const BookManifestService(),
         _readerProgressService = ReaderProgressService(libraryRepository: libraryRepository),
-        _documentAdapter = documentAdapter ?? const PdfReaderDocumentAdapter() {
+        _documentAdapter = documentAdapter ?? const PdfReaderDocumentAdapter(),
+        readerSession = session ?? ReaderSession(
+          document: documentInfo,
+          libraryRepository: libraryRepository,
+        ) {
     _pagePreloader = PagePreloader(readerEngine: _readerEngine);
     currentPage = initialPage;
   }
@@ -51,6 +57,7 @@ class ReaderPageController extends ChangeNotifier {
   final BookManifestService _bookManifestService;
   final ReaderProgressService _readerProgressService;
   final PdfReaderDocumentAdapter _documentAdapter;
+  final ReaderSession readerSession;
   late BookTemplateMatcher _bookTemplateMatcher;
   late BookTreeService _bookTreeService;
   bool _disposed = false;
@@ -77,6 +84,7 @@ class ReaderPageController extends ChangeNotifier {
   ReaderPosition get currentPosition => ReaderPosition(
         locator: currentLocator,
         progress: pageCount <= 1 ? 0 : currentPage / (pageCount - 1),
+        spineIndex: currentPage,
       );
 
   ReaderDocumentFormat get documentFormat => readerDocument?.format ?? ReaderDocumentFormat.pdf;
@@ -116,6 +124,11 @@ class ReaderPageController extends ChangeNotifier {
     if (_disposed) return;
     MedicalCoreDocument? opened;
     try {
+      await readerSession.open(initialPosition: ReaderPosition(
+        locator: PdfReaderLocator(pageIndex: initialPage),
+        progress: 0,
+        spineIndex: initialPage,
+      ));
       await _bookTemplateService.loadAvailableTemplates();
       if (_disposed) return;
       _bookTemplateMatcher = BookTemplateMatcher(templates: _bookTemplateService.templates);
@@ -145,6 +158,7 @@ class ReaderPageController extends ChangeNotifier {
       document = opened;
       pageCount = count;
       currentPage = restored;
+      readerSession.updatePosition(currentPosition);
       bookManifest = manifest;
       bookTemplate = template;
       bookTreeIndex = tree;
@@ -194,6 +208,8 @@ class ReaderPageController extends ChangeNotifier {
       if (_disposed) { center.dispose(); return; }
       _replaceImage(center);
       pageLoading = false;
+      readerSession.updatePosition(currentPosition);
+      await readerSession.flushStatistics();
       await saveProgress();
       if (_disposed) return;
       _renderSpreadNeighbors();
@@ -236,7 +252,8 @@ class ReaderPageController extends ChangeNotifier {
   Future<void> goToPage(int pageIndex) async {
     if (_disposed || pageLoading || pageIndex < 0 || pageIndex >= pageCount || pageIndex == currentPage) return;
     currentPage = pageIndex;
-    await _readerProgressService.savePosition(documentId: documentInfo.id, position: currentPosition);
+    readerSession.updatePosition(currentPosition);
+    await readerSession.persistPosition();
     await renderCurrent();
   }
 
@@ -256,7 +273,11 @@ class ReaderPageController extends ChangeNotifier {
   void _replaceImage(ui.Image next) {
     final previous = image;
     image = next;
-    if (previous != null && !identical(previous, next)) WidgetsBinding.instance.addPostFrameCallback((_) { if (!identical(image, previous)) previous.dispose(); });
+    if (previous != null && !identical(image, previous)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!identical(image, previous)) previous.dispose();
+      });
+    }
   }
 
   Future<void> retry() async {
@@ -284,6 +305,7 @@ class ReaderPageController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _pagePreloader.cancel();
+    unawaited(readerSession.close());
     document?.close();
     readerDocument = null;
     image?.dispose();
