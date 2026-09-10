@@ -19,8 +19,6 @@ class EpubPaginationRefinements {
     else if (window.MedicalReader) window.MedicalReader.postMessage('boundary|' + direction);
   };
 
-  // Match Hoshi's actual paginated WebView model: vertical-rl advances through
-  // the browser's scrollTop context rather than manually driving scrollLeft.
   const verticalContext = function() { return getComputedStyle(body).writingMode === 'vertical-rl'; };
   const pageSize = function() { return Math.max(1, verticalContext() ? window.innerHeight : window.innerWidth); };
   const position = function() { return verticalContext() ? body.scrollTop : body.scrollLeft; };
@@ -67,6 +65,21 @@ class EpubPaginationRefinements {
     return 'scrolled';
   };
 
+  const hasGeneratedContent = function(style) {
+    const content = style && style.content;
+    return !!content && content !== 'none' && content !== 'normal' && content !== '""' && content !== "''";
+  };
+  const isMeaningfulEmptySpan = function(element) {
+    if (element.hasAttribute && (element.hasAttribute('id') || element.hasAttribute('name'))) return true;
+    const style = getComputedStyle(element);
+    if (style.backgroundImage && style.backgroundImage !== 'none') return true;
+    return hasGeneratedContent(getComputedStyle(element, '::before')) || hasGeneratedContent(getComputedStyle(element, '::after'));
+  };
+  const pixelValue = function(value) {
+    const parsed = parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
   const sanitizeLayout = function() {
     const blocked = ['writingMode', 'webkitWritingMode', 'textIndent', 'lineHeight', 'columnCount', 'columnWidth', 'columnGap', 'columnFill', 'columns'];
     const nodes = body.querySelectorAll('*');
@@ -78,8 +91,8 @@ class EpubPaginationRefinements {
     }
     const vertical = verticalContext();
     const style = getComputedStyle(body);
-    const blockExtent = vertical ? body.clientWidth - parseFloat(style.paddingLeft || 0) - parseFloat(style.paddingRight || 0) : body.clientHeight - parseFloat(style.paddingTop || 0) - parseFloat(style.paddingBottom || 0);
-    const inlineExtent = vertical ? body.clientHeight - parseFloat(style.paddingTop || 0) - parseFloat(style.paddingBottom || 0) : body.clientWidth - parseFloat(style.paddingLeft || 0) - parseFloat(style.paddingRight || 0);
+    const blockExtent = vertical ? body.clientWidth - pixelValue(style.paddingLeft) - pixelValue(style.paddingRight) : body.clientHeight - pixelValue(style.paddingTop) - pixelValue(style.paddingBottom);
+    const inlineExtent = vertical ? body.clientHeight - pixelValue(style.paddingTop) - pixelValue(style.paddingBottom) : body.clientWidth - pixelValue(style.paddingLeft) - pixelValue(style.paddingRight);
     body.querySelectorAll('div, span').forEach(function(el) {
       const computed = getComputedStyle(el);
       if (computed.display !== 'inline-block' || !el.querySelector('p')) return;
@@ -90,9 +103,17 @@ class EpubPaginationRefinements {
       el.style.setProperty('display', 'block', 'important');
       if (!el.parentNode) return;
       el.parentNode.querySelectorAll('span:empty').forEach(function(strut) {
-        const s = getComputedStyle(strut);
-        if (strut.parentNode === el.parentNode && !strut.id && !strut.getAttribute('name') && s.display === 'inline-block' && s.backgroundImage === 'none' && s.content === 'normal') strut.style.setProperty('display', 'none', 'important');
+        if (strut.parentNode !== el.parentNode || isMeaningfulEmptySpan(strut) || getComputedStyle(strut).display !== 'inline-block') return;
+        strut.style.setProperty('display', 'none', 'important');
       });
+    });
+    body.querySelectorAll('span:empty').forEach(function(strut) {
+      if (isMeaningfulEmptySpan(strut) || getComputedStyle(strut).display !== 'inline-block') return;
+      const rect = strut.getBoundingClientRect();
+      const block = vertical ? rect.width : rect.height;
+      if (block > blockExtent + 1) {
+        strut.style.setProperty(vertical ? 'width' : 'height', Math.max(1, blockExtent) + 'px', 'important');
+      }
     });
   };
 
