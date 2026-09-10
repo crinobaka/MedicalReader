@@ -19,7 +19,7 @@ class EpubPaginationMedia {
     if (media.currentSrc) return media.currentSrc;
     if (media.src) return media.src;
     const image = media.querySelector && media.querySelector('image');
-    return image ? (image.href?.baseVal || image.getAttribute('href') || '') : '';
+    return image ? (image.href?.baseVal || image.getAttribute('href') || image.getAttribute('xlink:href') || '') : '';
   };
   const isGaiji = function(img) {
     return !!(img && img.classList && (
@@ -105,6 +105,21 @@ class EpubPaginationMedia {
     });
   };
 
+  const prepareImages = function() {
+    body.querySelectorAll('img').forEach(function(img) {
+      if (!isGaiji(img) && isLargeImage(img)) {
+        img.classList.add('medicalreader-block-img');
+        img.style.breakInside = 'avoid';
+        img.style.pageBreakInside = 'avoid';
+      }
+      if (isGaiji(img) && img.complete && !img.naturalWidth) replaceFailedGaiji(img);
+    });
+    body.querySelectorAll('svg image').forEach(function(svgImage) {
+      const svg = svgImage.closest && svgImage.closest('svg');
+      if (svg && svg.getAttribute('preserveAspectRatio') === 'none') svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    });
+  };
+
   const openEligibleMedia = function(target) {
     if (!target || target.closest('.medicalreader-media-overlay')) return;
     if (target.tagName === 'IMG') {
@@ -114,26 +129,30 @@ class EpubPaginationMedia {
     openOverlay(target);
   };
 
+  const replaceFailedGaiji = function(img) {
+    if (!isGaiji(img) || !img.parentNode) return;
+    const alt = (img.getAttribute('alt') || '').trim();
+    if (!alt) return;
+    const span = document.createElement('span');
+    span.className = 'medicalreader-gaiji-fallback';
+    if (Array.from(alt).length === 1) span.classList.add('medicalreader-gaiji-fallback-single');
+    span.setAttribute('data-medicalreader-gaiji-alt', alt);
+    span.textContent = alt;
+    img.parentNode.replaceChild(span, img);
+  };
+
   body.addEventListener('click', function(event) {
     const target = event.target.closest && event.target.closest('img, svg, image, video');
     openEligibleMedia(target);
   }, true);
 
-  // Keep the Hoshi-style fallback visible for failed gaiji resources.
   body.querySelectorAll('img').forEach(function(img) {
     if (!isGaiji(img)) return;
-    const fallback = function() {
-      const alt = (img.getAttribute('alt') || '').trim();
-      if (!alt || !img.parentNode) return;
-      const span = document.createElement('span');
-      span.className = 'medicalreader-gaiji-fallback';
-      span.textContent = alt;
-      img.parentNode.replaceChild(span, img);
-    };
-    if (img.complete && !img.naturalWidth) fallback();
-    else img.addEventListener('error', fallback, {once:true});
+    if (img.complete && !img.naturalWidth) replaceFailedGaiji(img);
+    else img.addEventListener('error', function() { replaceFailedGaiji(img); }, {once:true});
   });
 
+  prepareImages();
   window.medicalReaderOpenMedia = openOverlay;
 })();
 ''';
