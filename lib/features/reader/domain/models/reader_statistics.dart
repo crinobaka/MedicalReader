@@ -22,6 +22,14 @@ class ReaderStatistics {
       ? null
       : (charactersRead / totalCharacters!).clamp(0.0, 1.0);
 
+  ReaderStatistics startSession({DateTime? at}) => ReaderStatistics(
+        readingTime: readingTime,
+        charactersRead: charactersRead,
+        sessions: sessions + 1,
+        lastReadAt: at ?? DateTime.now(),
+        totalCharacters: totalCharacters,
+      );
+
   ReaderStatistics record({
     required Duration elapsed,
     required int characters,
@@ -29,7 +37,7 @@ class ReaderStatistics {
   }) => ReaderStatistics(
         readingTime: readingTime + elapsed,
         charactersRead: charactersRead + characters,
-        sessions: sessions + 1,
+        sessions: sessions,
         lastReadAt: at ?? DateTime.now(),
         totalCharacters: totalCharacters,
       );
