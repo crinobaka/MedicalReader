@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import '../../library/models/library_document.dart';
 import '../../library/repositories/library_repository.dart';
 import '../domain/models/reader_book.dart';
@@ -8,17 +6,13 @@ import '../domain/models/reader_mining.dart';
 import '../domain/models/reader_position.dart';
 import '../domain/models/reader_statistics.dart';
 import '../domain/models/reader_sync.dart';
+import '../models/reader_annotation.dart';
 import '../services/reader_annotation_service.dart';
 import '../services/reader_progress_service.dart';
 import '../services/reader_statistics_service.dart';
-import '../models/reader_annotation.dart';
 
-/// The application-level state for one open book.
-///
-/// UI widgets should treat this as the boundary between the reader engine and
-/// Hoshi-style product features: progress, annotations, statistics, lookup,
-/// mining and synchronization all meet here instead of being scattered across
-/// individual pages.
+/// Application state for one open book. Product-level reader features share
+/// this boundary instead of coupling themselves to a particular page widget.
 class ReaderSession {
   ReaderSession({
     required this.document,
@@ -55,25 +49,25 @@ class ReaderSession {
   bool get isOpen => _open;
   Duration get sessionDuration => openedAt == null ? Duration.zero : DateTime.now().difference(openedAt!);
   double get progress => position.progress;
-  List<ReaderAnnotation> get highlights => annotations
-      .where((annotation) => annotation.type == ReaderAnnotationType.highlight)
-      .toList(growable: false);
-  List<ReaderAnnotation> get bookmarks => annotations
-      .where((annotation) => annotation.type == ReaderAnnotationType.bookmark)
-      .toList(growable: false);
-  List<ReaderAnnotation> get notes => annotations
-      .where((annotation) => annotation.type == ReaderAnnotationType.note)
+  List<ReaderAnnotation> get highlights => _ofType(ReaderAnnotationType.highlight);
+  List<ReaderAnnotation> get bookmarks => _ofType(ReaderAnnotationType.bookmark);
+  List<ReaderAnnotation> get notes => _ofType(ReaderAnnotationType.note);
+
+  List<ReaderAnnotation> _ofType(ReaderAnnotationType type) => annotations
+      .where((annotation) => annotation.type == type)
       .toList(growable: false);
 
   Future<void> open({ReaderPosition? initialPosition}) async {
     if (_open) return;
     final progress = await _progressService.load(document.id);
     position = initialPosition ?? progress.position ?? ReaderPosition(
-      progress: _progressFromPage(progress.lastPage),
+      progress: 0,
       spineIndex: progress.lastPage,
     );
     statistics = await _statisticsService.load(document.id);
+    statistics = statistics.startSession();
     annotations = await _annotationService.load(document);
+    await _statisticsService.save(document.id, statistics);
     openedAt = DateTime.now();
     _lastStatisticsFlush = openedAt;
     _open = true;
@@ -88,13 +82,13 @@ class ReaderSession {
   }
 
   void updatePosition(ReaderPosition next) {
-    if (!_open) return;
-    position = next;
+    if (_open) position = next;
   }
 
   Future<void> persistPosition() async {
-    if (!_open) return;
-    await _progressService.savePosition(documentId: document.id, position: position);
+    if (_open) {
+      await _progressService.savePosition(documentId: document.id, position: position);
+    }
   }
 
   Future<void> flushStatistics({bool force = false}) async {
@@ -127,14 +121,12 @@ class ReaderSession {
 
   Future<List<DictionaryEntry>> lookup(DictionaryLookupRequest request) async {
     final service = dictionaryService;
-    if (service == null) return const [];
-    return service.lookup(request);
+    return service == null ? const [] : service.lookup(request);
   }
 
   Future<AnkiCardDraft?> mineToAnki(AnkiCardDraft draft) async {
     final service = ankiService;
-    if (service == null) return null;
-    return service.createCard(draft);
+    return service == null ? null : service.createCard(draft);
   }
 
   ReaderSyncPayload buildSyncPayload() => ReaderSyncPayload(
@@ -154,15 +146,10 @@ class ReaderSession {
 
   Future<ReaderSyncPayload?> pullSync() async {
     final service = syncService;
-    if (service == null) return null;
-    return service.pull(book.id);
+    return service == null ? null : service.pull(book.id);
   }
 
-  double _progressFromPage(int page) => page < 0 ? 0 : (page == 0 ? 0 : 0);
-
   int _estimateCharacters(Duration elapsed) {
-    // A conservative estimate keeps statistics useful before EPUB semantic
-    // character counts are available from the DOM adapter.
     final minutes = elapsed.inSeconds / 60;
     return minutes <= 0 ? 0 : (minutes * 180).round();
   }
