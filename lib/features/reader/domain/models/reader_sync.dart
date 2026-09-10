@@ -3,11 +3,7 @@ class ReaderShelf {
   final String name;
   final List<String> bookIds;
 
-  const ReaderShelf({
-    required this.id,
-    required this.name,
-    this.bookIds = const [],
-  });
+  const ReaderShelf({required this.id, required this.name, this.bookIds = const []});
 
   ReaderShelf copyWith({String? name, List<String>? bookIds}) => ReaderShelf(
         id: id,
@@ -48,6 +44,16 @@ class ReaderSyncPayload {
         'annotations': annotations,
         'updatedAt': updatedAt.toIso8601String(),
       };
+
+  factory ReaderSyncPayload.fromJson(Map<String, dynamic> json) => ReaderSyncPayload(
+        bookId: json['bookId']?.toString() ?? '',
+        progress: json['progress'] is Map ? Map<String, dynamic>.from(json['progress']) : const {},
+        statistics: json['statistics'] is Map ? Map<String, dynamic>.from(json['statistics']) : const {},
+        annotations: json['annotations'] is List
+            ? [for (final value in json['annotations'] ?? const []) if (value is Map) Map<String, dynamic>.from(value)]
+            : const [],
+        updatedAt: DateTime.tryParse(json['updatedAt']?.toString() ?? '') ?? DateTime.now(),
+      );
 }
 
 abstract interface class ReaderSyncService {
