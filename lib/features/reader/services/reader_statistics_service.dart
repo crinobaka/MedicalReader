@@ -26,14 +26,22 @@ class ReaderStatisticsService {
     final current = await load(documentId);
     final next = current.record(
       elapsed: elapsed,
-      charactersRead: charactersRead,
-      totalCharacters: totalCharacters,
+      characters: charactersRead,
     );
+    final withTotal = totalCharacters == null
+        ? next
+        : ReaderStatistics(
+            readingTime: next.readingTime,
+            charactersRead: next.charactersRead,
+            sessions: next.sessions,
+            lastReadAt: next.lastReadAt,
+            totalCharacters: totalCharacters,
+          );
     await libraryRepository.updateDocumentMetadata(
       documentId: documentId,
-      metadata: {'reader_statistics': next.toJson()},
+      metadata: {'reader_statistics': withTotal.toJson()},
     );
-    return next;
+    return withTotal;
   }
 
   Future<void> save(String documentId, ReaderStatistics statistics) {
