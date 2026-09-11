@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_windows/webview_flutter_windows.dart' as windows_webview;
 
+import '../../domain/models/reader_lookup.dart';
 import '../../domain/models/reader_settings.dart';
 import '../services/epub_archive_service.dart';
 import '../services/epub_pagination_dom.dart';
@@ -27,6 +28,7 @@ class EpubReaderView extends StatefulWidget {
   final void Function(String href, double progress)? onPositionChanged;
   final void Function(String direction)? onPageBoundary;
   final void Function(String action, String source)? onMediaAction;
+  final void Function(ReaderLookupContext context)? onSelectionChanged;
 
   const EpubReaderView({
     super.key,
@@ -38,6 +40,7 @@ class EpubReaderView extends StatefulWidget {
     this.onPositionChanged,
     this.onPageBoundary,
     this.onMediaAction,
+    this.onSelectionChanged,
   });
 
   @override
@@ -73,9 +76,7 @@ class _EpubReaderViewState extends State<EpubReaderView> {
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(_backgroundColor())
       ..addJavaScriptChannel('MedicalReader', onMessageReceived: _onMessage)
-      ..setNavigationDelegate(
-        NavigationDelegate(onPageFinished: (_) => _applyReader()),
-      );
+      ..setNavigationDelegate(NavigationDelegate(onPageFinished: (_) => _applyReader()));
     _androidController = controller;
     unawaited(_loadChapter());
   }
@@ -176,9 +177,28 @@ class _EpubReaderViewState extends State<EpubReaderView> {
 
   void _handleMedia(String action, String source) => widget.onMediaAction?.call(action, source);
 
+  void _handleSelection(dynamic payload) {
+    if (payload is! Map) return;
+    final selected = payload['selectedText'];
+    if (selected is! String || selected.trim().isEmpty) return;
+    final start = payload['startOffset'];
+    final end = payload['endOffset'];
+    widget.onSelectionChanged?.call(ReaderLookupContext(
+      selectedText: selected.trim(),
+      sentence: payload['sentence'] is String ? payload['sentence'] as String : '',
+      href: payload['href'] is String && (payload['href'] as String).isNotEmpty ? payload['href'] as String : _loadedHref,
+      startOffset: start is num ? start.toInt() : null,
+      endOffset: end is num ? end.toInt() : null,
+    ));
+  }
+
   void _onWindowsMessage(dynamic message) {
     if (message is! Map) return;
     final type = message['type'];
+    if (type == 'selection') {
+      _handleSelection(message);
+      return;
+    }
     if (type == 'media' && message['action'] is String && message['source'] is String) {
       _handleMedia(message['action'] as String, message['source'] as String);
       return;
@@ -193,7 +213,33 @@ class _EpubReaderViewState extends State<EpubReaderView> {
   }
 
   void _onMessage(JavaScriptMessage message) {
-    final parts = message.message.split('|');
+    final raw = message.message;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map) {
+        final type = decoded['type'];
+        if (type == 'selection') {
+          _handleSelection(decoded);
+          return;
+        }
+        if (type == 'media' && decoded['action'] is String && decoded['source'] is String) {
+          _handleMedia(decoded['action'] as String, decoded['source'] as String);
+          return;
+        }
+        if (type == 'boundary' && decoded['direction'] is String) {
+          widget.onPageBoundary?.call(decoded['direction'] as String);
+          return;
+        }
+        if (type == 'progress') {
+          final progress = decoded['value'];
+          if (progress is num && _loadedHref != null) widget.onPositionChanged?.call(_loadedHref!, progress.clamp(0, 1).toDouble());
+          return;
+        }
+      }
+    } catch (_) {
+      // Legacy pipe-delimited messages remain supported.
+    }
+    final parts = raw.split('|');
     if (parts.isEmpty) return;
     if (parts.first == 'media' && parts.length >= 3) {
       _handleMedia(parts[1], parts.sublist(2).join('|'));
