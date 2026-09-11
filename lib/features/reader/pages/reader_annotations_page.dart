@@ -39,6 +39,7 @@ class _ReaderAnnotationsPageState extends ConsumerState<ReaderAnnotationsPage> {
       body: FutureBuilder<List<LibraryDocument>>(
         future: _documents(repository),
         builder: (context, snapshot) {
+          if (snapshot.hasError) return Center(child: Text('加载失败：${snapshot.error}'));
           if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
           return Column(
             children: [
@@ -69,20 +70,14 @@ class _ReaderAnnotationsPageState extends ConsumerState<ReaderAnnotationsPage> {
         for (final book in targets)
           Consumer(
             builder: (context, ref, _) {
-              final async = ref.watch(readerAnnotationsProvider(book));
-              return async.when(
-                loading: () => const ListTile(title: Text('加载中…')),
-                error: (_, __) => ListTile(title: Text(book.title), subtitle: const Text('批注不可用')),
-                data: (items) {
-                  final visible = items.where(_matches).toList(growable: false);
-                  if (visible.isEmpty) return const SizedBox.shrink();
-                  return ExpansionTile(
-                    initiallyExpanded: true,
-                    title: Text(book.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-                    subtitle: Text('${visible.length} 条'),
-                    children: [for (final item in visible) _annotationTile(context, item)],
-                  );
-                },
+              final items = ref.watch(readerAnnotationsProvider(book));
+              final visible = items.where(_matches).toList(growable: false);
+              if (visible.isEmpty) return const SizedBox.shrink();
+              return ExpansionTile(
+                initiallyExpanded: true,
+                title: Text(book.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text('${visible.length} 条'),
+                children: [for (final item in visible) _annotationTile(context, item)],
               );
             },
           ),
@@ -100,11 +95,7 @@ class _ReaderAnnotationsPageState extends ConsumerState<ReaderAnnotationsPage> {
   Widget _annotationTile(BuildContext context, ReaderAnnotation item) => ListTile(
         leading: Icon(_icon(item.type)),
         title: Text(item.title.isEmpty ? _label(item.type) : item.title),
-        subtitle: Text(
-          item.content.isEmpty ? '第 ${item.pageIndex + 1} 页' : item.content,
-          maxLines: 3,
-          overflow: TextOverflow.ellipsis,
-        ),
+        subtitle: Text(item.content.isEmpty ? '第 ${item.pageIndex + 1} 页' : item.content, maxLines: 3, overflow: TextOverflow.ellipsis),
         trailing: Text('P${item.pageIndex + 1}'),
         onTap: () => Navigator.pop(context, item),
       );
