@@ -15,14 +15,14 @@ class EpubPaginationInteraction {
   let tapX = 0;
   let tapY = 0;
   let tapMoved = false;
+  let selectionTimer = null;
+  let lastSelectionKey = '';
 
   const bridge = function(payload) {
     if (window.chrome && window.chrome.webview) {
       window.chrome.webview.postMessage(payload);
     } else if (window.MedicalReader) {
-      window.MedicalReader.postMessage(
-        payload.type + '|' + (payload.direction || payload.value || '')
-      );
+      window.MedicalReader.postMessage(JSON.stringify(payload));
     }
   };
 
@@ -56,8 +56,51 @@ class EpubPaginationInteraction {
     '.medicalreader-focus ::selection { background: rgba(120,120,120,.35); }';
   document.head.appendChild(focusStyle);
 
-  // A short tap is intentionally not intercepted on selectable text. This keeps
-  // ruby/text selection usable while allowing the empty margins to turn pages.
+  const selectionContainer = function(node) {
+    if (!node) return null;
+    return node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+  };
+
+  const sentenceFor = function(text) {
+    const clean = (text || '').replace(/\s+/g, ' ').trim();
+    if (!clean) return '';
+    const source = (document.body && document.body.innerText) || clean;
+    const index = source.indexOf(clean);
+    if (index < 0) return clean;
+    const start = Math.max(0, source.lastIndexOf('。', index), source.lastIndexOf('！', index), source.lastIndexOf('？', index), source.lastIndexOf('.', index), source.lastIndexOf('!', index), source.lastIndexOf('?', index)) + 1;
+    const tail = source.slice(index + clean.length);
+    const endMatch = tail.search(/[。！？.!?]/);
+    const end = endMatch < 0 ? source.length : index + clean.length + endMatch + 1;
+    return source.slice(start, end).replace(/\s+/g, ' ').trim().slice(0, 500);
+  };
+
+  const emitSelection = function() {
+    selectionTimer = null;
+    const selection = window.getSelection ? window.getSelection() : null;
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return;
+    const selectedText = selection.toString().replace(/\s+/g, ' ').trim();
+    if (!selectedText || selectedText.length > 500) return;
+    const range = selection.getRangeAt(0);
+    const startNode = selectionContainer(range.startContainer);
+    if (!startNode || !body.contains(startNode)) return;
+    const key = selectedText + '|' + (location.href || '') + '|' + range.startOffset + '|' + range.endOffset;
+    if (key === lastSelectionKey) return;
+    lastSelectionKey = key;
+    bridge({
+      type: 'selection',
+      selectedText: selectedText,
+      sentence: sentenceFor(selectedText),
+      href: location.href || '',
+      startOffset: Number.isFinite(range.startOffset) ? range.startOffset : null,
+      endOffset: Number.isFinite(range.endOffset) ? range.endOffset : null,
+    });
+  };
+
+  document.addEventListener('selectionchange', function() {
+    if (selectionTimer) clearTimeout(selectionTimer);
+    selectionTimer = setTimeout(emitSelection, 120);
+  }, {passive: true});
+
   body.addEventListener('pointerdown', function(event) {
     tapX = event.clientX;
     tapY = event.clientY;
@@ -108,9 +151,6 @@ class EpubPaginationInteraction {
     }
   }, true);
 
-  // Android WebView can expose hardware volume/media keys as keyboard events.
-  // Keep them at the reader layer instead of letting a long press become a
-  // system-volume action when the WebView reports the key to JavaScript.
   document.addEventListener('keydown', function(event) {
     const key = event.key || '';
     const code = event.code || '';
@@ -146,8 +186,6 @@ class EpubPaginationInteraction {
     if (isPaginated()) scheduleProgress();
   };
 
-  // Continuous mode uses the same progress channel, but never recalculates
-  // semantic character geometry for every scroll event.
   body.addEventListener('scroll', function() {
     if (!isPaginated()) scheduleProgress();
   }, {passive: true});
