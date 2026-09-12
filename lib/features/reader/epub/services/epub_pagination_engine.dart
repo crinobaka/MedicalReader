@@ -91,7 +91,7 @@ class EpubPaginationEngine {
     },
     countChars: function(text) {
       let count = 0, offset = 0;
-      while (offset < text.length) { const ch = String.fromCodePoint(text.codePointAt(offset)); if (!/^\\s$/.test(ch)) count++; offset += ch.length; }
+      while (offset < text.length) { const ch = String.fromCodePoint(text.codePointAt(offset)); if (!/^\\s\$/.test(ch)) count++; offset += ch.length; }
       return count;
     },
     createWalker: function() {
@@ -143,27 +143,30 @@ class EpubPaginationEngine {
       if (direction === 'forward') {
         if (current >= metrics.maxScroll - 1) { bridge({type:'boundary', direction:'forward'}); return 'limit'; }
         const next = Math.min(metrics.maxScroll, this.alignToPage(current + size));
-        if (next <= current + 1) { bridge({type:'boundary', direction:'forward'}); return 'limit'; }
-        this.setPagePosition(next); return 'scrolled';
+        this.setPagePosition(next); return next;
       }
       if (current <= metrics.minScroll + 1) { bridge({type:'boundary', direction:'backward'}); return 'limit'; }
-      const previous = Math.max(metrics.minScroll, this.alignToPage(current - size));
-      if (previous >= current - 1) { bridge({type:'boundary', direction:'backward'}); return 'limit'; }
-      this.setPagePosition(previous); return 'scrolled';
+      const next = Math.max(metrics.minScroll, this.alignToPage(current - size));
+      this.setPagePosition(next); return next;
     },
-    handlePagedScroll: function() {
-      this.lockRootViewport(); if (!paginated) return;
-      const metrics = this.metrics || this.buildPaginationMetrics(), current = this.position();
-      const snapped = Math.min(metrics.maxScroll, Math.max(metrics.minScroll, Math.round(current / this.pageSize()) * this.pageSize()));
-      if (Math.abs(current - snapped) > 1) this.assignPagePosition(this.lastPageScroll); else { this.lastPageScroll = snapped; this.notifyProgress(); }
-    },
-    prepare: function() { this.pageHeight = window.innerHeight; this.pageWidth = window.innerWidth; this.metrics = null; this.buildPaginationMetrics(); this.restoreProgress(initialProgress); this.notifyProgress(); }
+    scrollToProgress: function(progress) { this.setPagePosition(this.alignToPage(this.maxScroll() * Math.min(1, Math.max(0, progress)))); },
+    start: function() {
+      if (!paginated) { this.notifyProgress(); return; }
+      this.buildPaginationMetrics(); this.restoreProgress(initialProgress);
+      window.addEventListener('resize', () => { this.pageHeight = window.innerHeight; this.pageWidth = window.innerWidth; this.metrics = null; this.buildPaginationMetrics(); });
+      document.addEventListener('scroll', () => { this.lockRootViewport(); }, true);
+      let lastX = body.scrollLeft;
+      const snap = () => {
+        if (this.snapTimer) clearTimeout(this.snapTimer);
+        this.snapTimer = setTimeout(() => {
+          const current = this.position(); this.setPagePosition(this.alignToPage(current));
+        }, 90);
+      };
+      body.addEventListener('scroll', () => { if (Math.abs(body.scrollLeft - lastX) > 1) { lastX = body.scrollLeft; snap(); } }, {passive:true});
+    }
   };
-  window.medicalReaderPagination = reader; reader.lockRootViewport();
-  const prepare = function() { if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => reader.prepare()); else setTimeout(() => reader.prepare(), 80); };
-  if (document.readyState === 'complete') prepare(); else window.addEventListener('load', prepare, {once:true});
-  body.addEventListener('scroll', function() { reader.handlePagedScroll(); if (reader.snapTimer) clearTimeout(reader.snapTimer); if (paginated) reader.snapTimer = setTimeout(() => reader.handlePagedScroll(), 80); }, {passive:true});
-  window.addEventListener('resize', () => setTimeout(() => reader.prepare(), 40)); window.addEventListener('scroll', () => reader.lockRootViewport(), {passive:true});
+  window.MedicalReaderPagination = reader;
+  reader.start();
 })();
 ''';
   }
