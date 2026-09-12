@@ -8,15 +8,22 @@ class EpubPaginationHoshiCompat {
   if (!reader || window.medicalReaderPaginationHoshiCompatReady) return;
   window.medicalReaderPaginationHoshiCompatReady = true;
 
-  // Hoshi removes publisher viewport declarations so WebView CSS pixels stay
-  // aligned with the reader's pageWidth/pageHeight model.
   const head = document.head || document.documentElement;
-  const oldViewports = document.querySelectorAll('meta[name="viewport"]');
-  oldViewports.forEach(function(meta) { meta.remove(); });
+  document.querySelectorAll('meta[name="viewport"]').forEach(function(meta) { meta.remove(); });
   const viewport = document.createElement('meta');
   viewport.name = 'viewport';
   viewport.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
   head.appendChild(viewport);
+
+  const bridge = function(payload) {
+    if (window.chrome && window.chrome.webview) {
+      window.chrome.webview.postMessage(payload);
+      return;
+    }
+    if (window.MedicalReader) {
+      window.MedicalReader.postMessage(JSON.stringify(payload));
+    }
+  };
 
   reader.nativeSelectionActive = false;
   reader.nativeSelectionScrollPosition = null;
@@ -33,10 +40,7 @@ class EpubPaginationHoshiCompat {
       return;
     }
     if (this.nativeSelectionActive && this.nativeSelectionScrollPosition != null) {
-      const locked = Math.min(
-        Math.max(0, this.nativeSelectionScrollPosition),
-        context.maxScroll
-      );
+      const locked = Math.min(Math.max(0, this.nativeSelectionScrollPosition), context.maxScroll);
       if (this.assignPagePosition) this.assignPagePosition(locked);
       this.lastPageScroll = locked;
     }
@@ -44,8 +48,45 @@ class EpubPaginationHoshiCompat {
     this.nativeSelectionScrollPosition = null;
   };
 
-  // Native Android selection can trigger body scrolling while the contextual
-  // selection toolbar is open. Freeze the page exactly like Hoshi does.
+  const textOffset = function(root, node, offset) {
+    let total = 0;
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let current;
+    while ((current = walker.nextNode())) {
+      if (current === node) return total + offset;
+      total += current.textContent ? current.textContent.length : 0;
+    }
+    return null;
+  };
+
+  const sentenceFor = function(range) {
+    let element = range.startContainer.nodeType === 1
+      ? range.startContainer
+      : range.startContainer.parentElement;
+    element = element && element.closest ? element.closest('p, li, blockquote, section, article, div') : null;
+    const text = element ? (element.textContent || '').replace(/\s+/g, ' ').trim() : '';
+    return text.length > 800 ? text.substring(0, 800) : text;
+  };
+
+  const emitSelection = function() {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) return;
+    const range = selection.getRangeAt(0);
+    const selectedText = selection.toString().replace(/\s+/g, ' ').trim();
+    if (!selectedText || selectedText.length > 2000) return;
+    const root = document.body;
+    const startOffset = textOffset(root, range.startContainer, range.startOffset);
+    const endOffset = textOffset(root, range.endContainer, range.endOffset);
+    bridge({
+      type: 'selection',
+      selectedText: selectedText,
+      sentence: sentenceFor(range),
+      href: window.location.pathname || '',
+      startOffset: startOffset,
+      endOffset: endOffset
+    });
+  };
+
   let selectionTimer = null;
   document.addEventListener('selectionchange', function() {
     const selection = window.getSelection();
@@ -53,12 +94,11 @@ class EpubPaginationHoshiCompat {
     if (active) {
       if (selectionTimer) clearTimeout(selectionTimer);
       reader.setNativeSelectionActive(true);
+      selectionTimer = setTimeout(emitSelection, 120);
       return;
     }
     if (selectionTimer) clearTimeout(selectionTimer);
-    selectionTimer = setTimeout(function() {
-      reader.setNativeSelectionActive(false);
-    }, 80);
+    selectionTimer = setTimeout(function() { reader.setNativeSelectionActive(false); }, 80);
   });
 
   window.medicalReaderSetNativeSelectionActive = function(active) {
