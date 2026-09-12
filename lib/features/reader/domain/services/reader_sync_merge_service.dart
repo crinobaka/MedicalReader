@@ -4,8 +4,12 @@ class ReaderSyncMergeService {
   const ReaderSyncMergeService();
 
   ReaderSyncPayload merge(ReaderSyncPayload local, ReaderSyncPayload remote) {
-    if (remote.updatedAt.isAfter(local.updatedAt)) return remote;
-    if (local.updatedAt.isAfter(remote.updatedAt)) return local;
+    if (remote.updatedAt.isAfter(local.updatedAt)) {
+      return _replacePayload(remote, _mergeAnnotations(local.annotations, remote.annotations));
+    }
+    if (local.updatedAt.isAfter(remote.updatedAt)) {
+      return _replacePayload(local, _mergeAnnotations(local.annotations, remote.annotations));
+    }
     return ReaderSyncPayload(
       bookId: local.bookId,
       progress: {...remote.progress, ...local.progress},
@@ -14,6 +18,17 @@ class ReaderSyncMergeService {
       updatedAt: local.updatedAt,
     );
   }
+
+  ReaderSyncPayload _replacePayload(
+    ReaderSyncPayload payload,
+    List<Map<String, dynamic>> annotations,
+  ) => ReaderSyncPayload(
+        bookId: payload.bookId,
+        progress: payload.progress,
+        statistics: payload.statistics,
+        annotations: annotations,
+        updatedAt: payload.updatedAt,
+      );
 
   List<Map<String, dynamic>> _mergeAnnotations(
     List<Map<String, dynamic>> local,
@@ -30,7 +45,9 @@ class ReaderSyncMergeService {
       }
       final nextTime = DateTime.tryParse(item['updatedAt']?.toString() ?? '');
       final previousTime = DateTime.tryParse(previous['updatedAt']?.toString() ?? '');
-      if (previousTime == null || (nextTime != null && nextTime.isAfter(previousTime))) merged[id] = item;
+      if (previousTime == null || (nextTime != null && nextTime.isAfter(previousTime))) {
+        merged[id] = item;
+      }
     }
     return merged.values.toList(growable: false);
   }
