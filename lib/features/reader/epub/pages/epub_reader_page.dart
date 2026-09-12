@@ -15,6 +15,7 @@ import '../../services/reader_settings_store.dart';
 import '../../widgets/reader_lookup_sheet.dart';
 import '../../widgets/reader_mining_sheet.dart';
 import '../controllers/epub_reader_controller.dart';
+import '../models/epub_book.dart';
 import '../widgets/epub_reader_settings_sheet.dart';
 import '../widgets/epub_reader_view.dart';
 
@@ -55,9 +56,20 @@ class _EpubReaderPageState extends ConsumerState<EpubReaderPage> {
   }
 
   Future<void> _savePosition(ReaderPosition position) => ref.read(readerPositionStoreProvider).save(widget.document, position);
-  List<String> get _chapterTitles => [for (var i = 0; i < _controller.chapterCount; i++) _chapterTitle(i)];
   List<ReaderAnnotation> get _annotations => ref.watch(readerAnnotationsProvider(widget.document));
   bool get _bookmarked => _annotations.any((x) => x.type == ReaderAnnotationType.bookmark && x.pageIndex == _controller.chapterIndex);
+
+  List<EpubNavItem> get _navigation {
+    final result = <EpubNavItem>[];
+    void visit(List<EpubNavItem> items, int depth) {
+      for (final item in items) {
+        result.add(EpubNavItem(title: '${'  ' * depth}${item.title}', href: item.href, fragment: item.fragment, children: item.children));
+        visit(item.children, depth + 1);
+      }
+    }
+    visit(_controller.book?.navigation ?? const [], 0);
+    return result;
+  }
 
   void _openSettings() => showModalBottomSheet<void>(
         context: context,
@@ -66,11 +78,11 @@ class _EpubReaderPageState extends ConsumerState<EpubReaderPage> {
         builder: (_) => EpubReaderSettingsSheet(
           settings: _settings,
           onChanged: _saveSettings,
-          chapters: _chapterTitles,
+          navigation: _navigation,
           currentChapter: _controller.chapterIndex,
-          onChapterSelected: (index) async {
+          onNavigationSelected: (item) async {
             Navigator.of(context).pop();
-            await _controller.goToChapter(index);
+            await _controller.goToNavigation(item);
             if (mounted) setState(() {});
           },
           onBookmark: _toggleBookmark,
