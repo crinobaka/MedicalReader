@@ -2,41 +2,24 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../../library/models/library_document.dart';
+import '../domain/models/reader_position.dart';
 import '../domain/models/reader_sync.dart';
 import '../models/reader_annotation.dart';
 import 'reader_annotation_service.dart';
 import 'reader_progress_service.dart';
-import '../domain/models/reader_position.dart';
 
 class ReaderBackupService {
-  const ReaderBackupService({
-    this.annotationService = const ReaderAnnotationService(),
-  });
-
+  const ReaderBackupService({this.annotationService = const ReaderAnnotationService()});
   final ReaderAnnotationService annotationService;
 
-  Future<File> exportBook({
-    required LibraryDocument document,
-    required ReaderProgressService progressService,
-    required String destinationPath,
-  }) async {
+  Future<File> exportBook({required LibraryDocument document, required ReaderProgressService progressService, required String destinationPath}) async {
     final progress = await progressService.load(document.id);
     final annotations = await annotationService.load(document);
     final payload = <String, dynamic>{
       'schema': 1,
-      'book': {
-        'id': document.id,
-        'title': document.title,
-        'format': document.format.name,
-      },
-      'progress': progress.position?.toJson() ??
-          ReaderPosition(progress: 0, spineIndex: progress.lastPage).toJson(),
-      'reader': {
-        'lastPage': progress.lastPage,
-        'zoom': progress.zoom,
-        'mode': progress.mode,
-        'cropMargins': progress.cropMargins,
-      },
+      'book': {'id': document.id, 'title': document.title, 'format': document.format.name},
+      'progress': progress.position?.toJson() ?? ReaderPosition(progress: 0, spineIndex: progress.lastPage).toJson(),
+      'reader': {'lastPage': progress.lastPage, 'zoom': progress.zoom, 'mode': progress.mode, 'cropMargins': progress.cropMargins},
       'annotations': [for (final annotation in annotations) annotation.toJson()],
       'exportedAt': DateTime.now().toIso8601String(),
     };
@@ -46,18 +29,15 @@ class ReaderBackupService {
     return file;
   }
 
-  Future<int> restoreAnnotations({
-    required LibraryDocument document,
-    required String backupPath,
-  }) async {
+  Future<int> restoreAnnotations({required LibraryDocument document, required String backupPath}) async {
     final file = File(backupPath);
     if (!await file.exists()) return 0;
     final decoded = jsonDecode(await file.readAsString());
     if (decoded is! Map || decoded['annotations'] is! List) return 0;
     final restored = (decoded['annotations'] as List)
         .whereType<Map>()
-        .map((item) => ReaderAnnotation.fromJson(Map<String, dynamic>.from(item)))
-        .map((annotation) => annotation.copyWith(bookId: document.id))
+        .map<ReaderAnnotation>((item) => ReaderAnnotation.fromJson(Map<String, dynamic>.from(item)))
+        .map<ReaderAnnotation>((annotation) => annotation.copyWith(bookId: document.id))
         .toList(growable: false);
     await annotationService.save(document, restored);
     return restored.length;
@@ -77,7 +57,7 @@ class ReaderBackupService {
         progress: progress is Map ? Map<String, dynamic>.from(progress) : const {},
         statistics: readerStats is Map ? Map<String, dynamic>.from(readerStats) : const {},
         annotations: annotations is List
-            ? annotations.whereType<Map>().map(Map<String, dynamic>.from).toList(growable: false)
+            ? annotations.whereType<Map>().map<Map<String, dynamic>>((item) => Map<String, dynamic>.from(item)).toList(growable: false)
             : const [],
         updatedAt: DateTime.tryParse(decoded['exportedAt']?.toString() ?? '') ?? DateTime.now(),
       );
