@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../domain/models/reader_settings.dart';
 import '../epub/models/epub_book.dart';
-import '../services/reader_ui_theme.dart';
 
 /// The single settings surface shared by PDF and EPUB readers.
 ///
@@ -22,6 +21,8 @@ class ReaderUnifiedSettingsPanel extends StatelessWidget {
   final VoidCallback? onReset;
   final ScrollController? scrollController;
   final bool showHeader;
+  final bool showTypography;
+  final bool showReadingMode;
 
   const ReaderUnifiedSettingsPanel({
     super.key,
@@ -38,6 +39,8 @@ class ReaderUnifiedSettingsPanel extends StatelessWidget {
     this.onReset,
     this.scrollController,
     this.showHeader = true,
+    this.showTypography = true,
+    this.showReadingMode = true,
   });
 
   @override
@@ -60,46 +63,48 @@ class ReaderUnifiedSettingsPanel extends StatelessWidget {
           if (navigation.isEmpty)
             const ListTile(title: Text('暂无目录'))
           else
-            for (final item in navigation)
+            for (var index = 0; index < navigation.length; index++)
               ListTile(
                 dense: true,
-                selected: navigation.indexOf(item) == currentChapter,
+                selected: index == currentChapter,
                 leading: const Icon(Icons.menu_book_outlined),
-                title: Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis),
+                title: Text(navigation[index].title, maxLines: 2, overflow: TextOverflow.ellipsis),
                 trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: onNavigationSelected == null ? null : () => onNavigationSelected!(item),
+                onTap: onNavigationSelected == null ? null : () => onNavigationSelected!(navigation[index]),
               ),
         ]),
-      _group(context, '主题与排版', [
-        _theme(context),
-        _slider('字号', settings.fontSize, 12, 36, (v) => _update(settings.copyWith(fontSize: v))),
-        _slider('行高', settings.lineHeight, 1, 2.4, (v) => _update(settings.copyWith(lineHeight: v))),
-        _slider('段落间距', settings.paragraphSpacing, 0, 32, (v) => _update(settings.copyWith(paragraphSpacing: v))),
-        _slider('左右边距', settings.horizontalPadding, 8, 56, (v) => _update(settings.copyWith(horizontalPadding: v))),
-        _slider('上下边距', settings.verticalPadding, 0, 48, (v) => _update(settings.copyWith(verticalPadding: v))),
-      ]),
-      _group(context, '阅读方式', [
-        _label('方向'),
-        SegmentedButton<ReaderReadingDirection>(
-          segments: const [
-            ButtonSegment(value: ReaderReadingDirection.ltr, label: Text('横排')),
-            ButtonSegment(value: ReaderReadingDirection.rtl, label: Text('横排 RTL')),
-            ButtonSegment(value: ReaderReadingDirection.vertical, label: Text('竖排')),
-          ],
-          selected: {settings.readingDirection},
-          onSelectionChanged: (v) => _update(settings.copyWith(readingDirection: v.first)),
-        ),
-        const SizedBox(height: 12),
-        _label('翻页'),
-        SegmentedButton<ReaderReadingMode>(
-          segments: const [
-            ButtonSegment(value: ReaderReadingMode.paginated, label: Text('分页')),
-            ButtonSegment(value: ReaderReadingMode.continuous, label: Text('连续')),
-          ],
-          selected: {settings.readingMode},
-          onSelectionChanged: (v) => _update(settings.copyWith(readingMode: v.first)),
-        ),
-      ]),
+      if (showTypography)
+        _group(context, '主题与排版', [
+          _theme(context),
+          _slider('字号', settings.fontSize, 12, 36, (v) => _update(settings.copyWith(fontSize: v))),
+          _slider('行高', settings.lineHeight, 1, 2.4, (v) => _update(settings.copyWith(lineHeight: v))),
+          _slider('段落间距', settings.paragraphSpacing, 0, 32, (v) => _update(settings.copyWith(paragraphSpacing: v))),
+          _slider('左右边距', settings.horizontalPadding, 8, 56, (v) => _update(settings.copyWith(horizontalPadding: v))),
+          _slider('上下边距', settings.verticalPadding, 0, 48, (v) => _update(settings.copyWith(verticalPadding: v))),
+        ]),
+      if (showReadingMode)
+        _group(context, '阅读方式', [
+          _label('方向'),
+          SegmentedButton<ReaderReadingDirection>(
+            segments: const [
+              ButtonSegment(value: ReaderReadingDirection.ltr, label: Text('横排')),
+              ButtonSegment(value: ReaderReadingDirection.rtl, label: Text('横排 RTL')),
+              ButtonSegment(value: ReaderReadingDirection.vertical, label: Text('竖排')),
+            ],
+            selected: {settings.readingDirection},
+            onSelectionChanged: (v) => _update(settings.copyWith(readingDirection: v.first)),
+          ),
+          const SizedBox(height: 12),
+          _label('翻页'),
+          SegmentedButton<ReaderReadingMode>(
+            segments: const [
+              ButtonSegment(value: ReaderReadingMode.paginated, label: Text('分页')),
+              ButtonSegment(value: ReaderReadingMode.continuous, label: Text('连续')),
+            ],
+            selected: {settings.readingMode},
+            onSelectionChanged: (v) => _update(settings.copyWith(readingMode: v.first)),
+          ),
+        ]),
       _group(context, '阅读界面', [
         _switch('悬浮控件', '工具不挤占正文空间', settings.floatingControls, (v) => _update(settings.copyWith(floatingControls: v))),
         _switch('位置栏', null, settings.showLocationBar, (v) => _update(settings.copyWith(showLocationBar: v))),
@@ -200,11 +205,5 @@ class ReaderUnifiedSettingsPanel extends StatelessWidget {
           Text('$label  ${value.toStringAsFixed(label == '行高' ? 1 : 0)}'),
           Slider(value: value.clamp(min, max), min: min, max: max, onChanged: onChanged),
         ],
-      );
-
-  // Kept here as the single visual theme resolver used by the panel's future
-  // preview cards; importing it also keeps theme semantics in one UI layer.
-  ColorScheme _previewScheme(BuildContext context) => Theme.of(context).colorScheme.copyWith(
-        primary: ReaderUiTheme.resolve(settings.themePreset, Theme.of(context).brightness).accent,
       );
 }
