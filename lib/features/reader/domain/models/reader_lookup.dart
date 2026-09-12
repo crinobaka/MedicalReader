@@ -40,15 +40,17 @@ class ReaderLookupHistoryItem {
   Map<String, dynamic> toJson() => {
         'text': text,
         'createdAt': createdAt.toIso8601String(),
-        'entries': [
-          for (final entry in entries)
-            {
-              'headword': entry.headword,
-              'reading': entry.reading,
-              'definition': entry.definition,
-              if (entry.audio != null) 'audio': entry.audio,
-              'tags': entry.tags,
-            },
-        ],
+        'entries': [for (final entry in entries) entry.toJson()],
       };
+
+  factory ReaderLookupHistoryItem.fromJson(Map<String, dynamic> json) => ReaderLookupHistoryItem(
+        text: json['text']?.toString() ?? '',
+        createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? '') ?? DateTime.now(),
+        entries: json['entries'] is List
+            ? [
+                for (final value in json['entries'] as List)
+                  if (value is Map) DictionaryEntry.fromJson(Map<String, dynamic>.from(value)),
+              ]
+            : const [],
+      );
 }
