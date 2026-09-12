@@ -63,7 +63,7 @@ class _EpubReaderPageState extends ConsumerState<EpubReaderPage> {
     final result = <EpubNavItem>[];
     void visit(List<EpubNavItem> items, int depth) {
       for (final item in items) {
-        result.add(EpubNavItem(title: '${'  ' * depth}${item.title}', href: item.href, fragment: item.fragment, children: item.children));
+        result.add(EpubNavItem(title: '${List.filled(depth, '  ').join()}${item.title}', href: item.href, fragment: item.fragment, children: item.children));
         visit(item.children, depth + 1);
       }
     }
