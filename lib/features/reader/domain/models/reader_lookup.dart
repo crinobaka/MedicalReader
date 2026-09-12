@@ -19,7 +19,7 @@ class ReaderLookupContext {
 
   DictionaryLookupRequest toRequest() => DictionaryLookupRequest(
         text: selectedText,
-        sentence: sentence,
+        sentence: sentence.isEmpty ? null : sentence,
         href: href,
         startOffset: startOffset,
         endOffset: endOffset,
