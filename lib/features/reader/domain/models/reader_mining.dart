@@ -28,6 +28,24 @@ class DictionaryEntry {
     this.audio,
     this.tags = const [],
   });
+
+  Map<String, dynamic> toJson() => {
+        'headword': headword,
+        'reading': reading,
+        'definition': definition,
+        if (audio != null) 'audio': audio,
+        'tags': tags,
+      };
+
+  factory DictionaryEntry.fromJson(Map<String, dynamic> json) => DictionaryEntry(
+        headword: json['headword']?.toString() ?? '',
+        reading: json['reading']?.toString() ?? '',
+        definition: json['definition']?.toString() ?? '',
+        audio: json['audio']?.toString(),
+        tags: json['tags'] is List
+            ? (json['tags'] as List).map((value) => value.toString()).toList(growable: false)
+            : const [],
+      );
 }
 
 class AnkiCardDraft {
@@ -46,6 +64,15 @@ class AnkiCardDraft {
     this.image,
     this.fields = const {},
   });
+
+  Map<String, dynamic> toJson() => {
+        'front': front,
+        'back': back,
+        if (sentence != null) 'sentence': sentence,
+        if (audio != null) 'audio': audio,
+        if (image != null) 'image': image,
+        'fields': fields,
+      };
 }
 
 abstract interface class ReaderDictionaryService {
