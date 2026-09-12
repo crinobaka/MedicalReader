@@ -87,7 +87,7 @@ class _BookStatistics extends ConsumerWidget {
     final async = ref.watch(readerStatisticsProvider(book));
     return async.when(
       loading: () => const ListTile(title: Text('加载中…')),
-      error: (_, __) => ListTile(title: Text(book.title), subtitle: const Text('统计不可用')),
+      error: (_, _) => ListTile(title: Text(book.title), subtitle: const Text('统计不可用')),
       data: (stats) => Card(
         child: ListTile(
           title: Text(book.title, maxLines: 1, overflow: TextOverflow.ellipsis),

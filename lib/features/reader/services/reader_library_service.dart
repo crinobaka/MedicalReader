@@ -1,7 +1,6 @@
 import '../../library/models/library_collection.dart';
 import '../../library/models/library_document.dart';
 import '../../library/repositories/library_repository.dart';
-import './reader_local_sync_service.dart';
 
 class ReaderLibrarySnapshot {
   final List<LibraryDocument> books;
@@ -35,7 +34,7 @@ class ReaderLibrarySnapshot {
   List<LibraryDocument> booksInShelf(String shelfId) {
     final shelf = shelves.where((item) => item.id == shelfId).firstOrNull;
     if (shelf == null) return const [];
-    final ids = shelf.bookIds.toSet();
+    final ids = ((shelf as dynamic).bookIds as List?)?.map((e) => e.toString()).toSet() ?? <String>{};
     return books.where((book) => ids.contains(book.id)).toList(growable: false);
   }
 

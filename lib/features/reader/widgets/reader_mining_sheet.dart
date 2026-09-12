@@ -46,8 +46,11 @@ class _ReaderMiningSheetState extends State<ReaderMiningSheet> {
     setState(() => _busy = true);
     final ok = await widget.onMine(AnkiCardDraft(front: _front.text.trim(), back: _back.text.trim(), tags: widget.entry.tags));
     if (!mounted) return;
-    if (ok) Navigator.pop(context, true);
-    else setState(() => _busy = false);
+    if (ok) {
+      Navigator.pop(context, true);
+    } else {
+      setState(() => _busy = false);
+    }
   }
 
   @override

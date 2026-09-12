@@ -140,7 +140,7 @@ class _NoteDrawingPainter extends CustomPainter {
     for (final stroke in layer.strokes) {
       if (stroke.points.isEmpty || stroke.tool == NoteDrawingTool.eraser) continue;
       final paint = Paint()
-        ..color = Color(stroke.color).withOpacity(stroke.opacity.clamp(0.0, 1.0))
+        ..color = Color(stroke.color).withValues(alpha: stroke.opacity.clamp(0.0, 1.0))
         ..strokeWidth = stroke.width
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round

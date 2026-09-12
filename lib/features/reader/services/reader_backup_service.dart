@@ -74,7 +74,7 @@ class ReaderBackupService {
       final readerStats = decoded['statistics'];
       return ReaderSyncPayload(
         bookId: book['id'].toString(),
-        progress: progress is Map ? (progress['progress'] as num?)?.toDouble() ?? 0 : 0,
+        progress: progress is Map ? Map<String, dynamic>.from(progress) : const {},
         statistics: readerStats is Map ? Map<String, dynamic>.from(readerStats) : const {},
         annotations: annotations is List
             ? annotations.whereType<Map>().map(Map<String, dynamic>.from).toList(growable: false)

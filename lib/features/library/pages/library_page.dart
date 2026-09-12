@@ -133,8 +133,11 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with WidgetsBindingOb
             tooltip: '书架分类',
             icon: const Icon(Icons.folder_copy_outlined),
             onSelected: (value) async {
-              if (value == '__manage__') await _manageCollections();
-              else await _selectCollection(value == '__all__' ? null : value);
+              if (value == '__manage__') {
+                await _manageCollections();
+              } else {
+                await _selectCollection(value == '__all__' ? null : value);
+              }
             },
             itemBuilder: (context) => [
               const PopupMenuItem(value: '__all__', child: Text('全部书籍')),
@@ -305,7 +308,11 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with WidgetsBindingOb
                           title: Text(collection.name),
                           contentPadding: EdgeInsets.zero,
                           onChanged: (value) => setDialogState(() {
-                            if (value == true) selected.add(collection.id); else selected.remove(collection.id);
+                            if (value == true) {
+                              selected.add(collection.id);
+                            } else {
+                              selected.remove(collection.id);
+                            }
                           }),
                         ),
                     ])),

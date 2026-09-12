@@ -1,10 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import '../lib/features/reader/domain/models/reader_lookup.dart';
-import '../lib/features/reader/domain/models/reader_mining.dart';
-import '../lib/features/reader/domain/models/reader_position.dart';
-import '../lib/features/reader/domain/models/reader_sync.dart';
-import '../lib/features/reader/services/reader_local_sync_service.dart';
+import 'package:medicalreader/features/reader/domain/models/reader_lookup.dart';
+import 'package:medicalreader/features/reader/domain/models/reader_position.dart';
+import 'package:medicalreader/features/reader/domain/models/reader_sync.dart';
+import 'package:medicalreader/features/reader/services/reader_local_sync_service.dart';
 
 void main() {
   test('lookup context preserves semantic selection', () {

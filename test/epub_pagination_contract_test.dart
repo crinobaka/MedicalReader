@@ -1,11 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import '../lib/features/reader/epub/services/epub_pagination_dom.dart';
-import '../lib/features/reader/epub/services/epub_pagination_engine.dart';
-import '../lib/features/reader/epub/services/epub_pagination_interaction.dart';
-import '../lib/features/reader/epub/services/epub_pagination_media.dart';
-import '../lib/features/reader/epub/services/epub_pagination_precision.dart';
-import '../lib/features/reader/epub/services/epub_pagination_refinements.dart';
+import 'package:medicalreader/features/reader/epub/services/epub_pagination_dom.dart';
+import 'package:medicalreader/features/reader/epub/services/epub_pagination_engine.dart';
+import 'package:medicalreader/features/reader/epub/services/epub_pagination_interaction.dart';
+import 'package:medicalreader/features/reader/epub/services/epub_pagination_media.dart';
+import 'package:medicalreader/features/reader/epub/services/epub_pagination_precision.dart';
+import 'package:medicalreader/features/reader/epub/services/epub_pagination_refinements.dart';
 
 void main() {
   group('EPUB pagination contract', () {

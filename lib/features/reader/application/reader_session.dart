@@ -16,16 +16,13 @@ class ReaderSession {
     required this.document,
     required LibraryRepository libraryRepository,
     ReaderAnnotationService? annotationService,
-    ReaderDictionaryService? dictionaryService,
-    ReaderAnkiService? ankiService,
-    ReaderSyncService? syncService,
+    this.dictionaryService,
+    this.ankiService,
+    this.syncService,
   })  : book = ReaderBook.fromLibraryDocument(document),
         _progressService = ReaderProgressService(libraryRepository: libraryRepository),
         _statisticsService = ReaderStatisticsService(libraryRepository: libraryRepository),
-        _annotationService = annotationService ?? const ReaderAnnotationService(),
-        dictionaryService = dictionaryService,
-        ankiService = ankiService,
-        syncService = syncService;
+        _annotationService = annotationService ?? const ReaderAnnotationService();
 
   final LibraryDocument document;
   final ReaderBook book;
@@ -134,7 +131,7 @@ class ReaderSession {
 
   Future<ReaderSyncPayload?> pullSync() async {
     final service = syncService;
-    return service == null ? null : service.pull(book.id);
+    return service?.pull(book.id);
   }
 
   int _characterOffset(ReaderPosition value) => value.characterOffset ?? 0;

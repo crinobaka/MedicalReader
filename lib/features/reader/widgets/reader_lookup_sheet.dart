@@ -47,7 +47,7 @@ class _ReaderLookupSheetState extends State<ReaderLookupSheet> {
                     child: ListView.separated(
                       shrinkWrap: true,
                       itemCount: entries.length,
-                      separatorBuilder: (_, __) => const Divider(),
+                      separatorBuilder: (_, _) => const Divider(),
                       itemBuilder: (_, index) {
                         final entry = entries[index];
                         return ListTile(

@@ -54,6 +54,7 @@ class AnkiCardDraft {
   final String? sentence;
   final String? audio;
   final String? image;
+  final List<String> tags;
   final Map<String, String> fields;
 
   const AnkiCardDraft({
@@ -62,6 +63,7 @@ class AnkiCardDraft {
     this.sentence,
     this.audio,
     this.image,
+    this.tags = const [], 
     this.fields = const {},
   });
 
@@ -71,6 +73,7 @@ class AnkiCardDraft {
         if (sentence != null) 'sentence': sentence,
         if (audio != null) 'audio': audio,
         if (image != null) 'image': image,
+        'tags': tags, 
         'fields': fields,
       };
 }

@@ -245,7 +245,11 @@ class ReaderPageController extends ChangeNotifier {
 
   void _replaceNeighbor(int slot, ui.Image? next) {
     final old = slot == 0 ? previousPageImage : nextPageImage;
-    if (slot == 0) previousPageImage = next; else nextPageImage = next;
+    if (slot == 0) {
+      previousPageImage = next;
+    } else {
+      nextPageImage = next;
+    }
     if (old != null && !identical(old, next)) old.dispose();
   }
 

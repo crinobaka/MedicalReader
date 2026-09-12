@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
-import '../lib/features/reader/domain/models/reader_capabilities.dart';
-import '../lib/features/reader/domain/models/reader_mining.dart';
-import '../lib/features/reader/domain/models/reader_position.dart';
-import '../lib/features/reader/domain/models/reader_statistics.dart';
-import '../lib/features/reader/domain/models/reader_sync.dart';
+import 'package:medicalreader/features/reader/domain/models/reader_capabilities.dart';
+import 'package:medicalreader/features/reader/domain/models/reader_mining.dart';
+import 'package:medicalreader/features/reader/domain/models/reader_position.dart';
+import 'package:medicalreader/features/reader/domain/models/reader_statistics.dart';
+import 'package:medicalreader/features/reader/domain/models/reader_sync.dart';
 
 void main() {
   test('position is semantic and serializable', () {

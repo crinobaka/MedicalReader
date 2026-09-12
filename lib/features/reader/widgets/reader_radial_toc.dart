@@ -295,8 +295,8 @@ class _RevolverPainter extends CustomPainter {
         center: Alignment.center,
         radius: 1.0,
         colors: [
-          Colors.white.withOpacity(0.96),
-          Colors.white.withOpacity(0.80),
+          Colors.white.withValues(alpha: 0.96),
+          Colors.white.withValues(alpha: 0.80),
         ],
         stops: const [0.2, 1.0],
       ).createShader(rect);
@@ -304,7 +304,7 @@ class _RevolverPainter extends CustomPainter {
 
     final strokePaint = Paint()
       ..style = PaintingStyle.stroke
-      ..color = accent.withOpacity(0.25)
+      ..color = accent.withValues(alpha: 0.25)
       ..strokeWidth = 1.5;
     canvas.drawArc(rect, -math.pi / 2, math.pi, false, strokePaint);
 
@@ -332,18 +332,18 @@ class _RevolverPainter extends CustomPainter {
 
       if (isSelected) {
         final hlPaint = Paint()
-          ..color = accent.withOpacity(0.18)
+          ..color = accent.withValues(alpha: 0.18)
           ..style = PaintingStyle.fill;
         canvas.drawCircle(position, 20, hlPaint);
         final borderPaint = Paint()
-          ..color = accent.withOpacity(0.5)
+          ..color = accent.withValues(alpha: 0.5)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.8;
         canvas.drawCircle(position, 20, borderPaint);
       }
 
       final textStyle = TextStyle(
-        color: isSelected ? accent : Colors.black.withOpacity(opacity),
+        color: isSelected ? accent : Colors.black.withValues(alpha: opacity),
         fontSize: isSelected ? 16 : 13,
         fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
       );
@@ -360,7 +360,7 @@ class _RevolverPainter extends CustomPainter {
           text: TextSpan(
             text: ' ›',
             style: TextStyle(
-              color: accent.withOpacity(opacity * 0.6),
+              color: accent.withValues(alpha: opacity * 0.6),
               fontSize: 14,
             ),
           ),
@@ -379,7 +379,7 @@ class _RevolverPainter extends CustomPainter {
 
     if (count > slots) {
       final tipPaint = Paint()
-        ..color = accent.withOpacity(0.2)
+        ..color = accent.withValues(alpha: 0.2)
         ..style = PaintingStyle.fill;
       if (firstIndex > 0) {
         canvas.drawCircle(

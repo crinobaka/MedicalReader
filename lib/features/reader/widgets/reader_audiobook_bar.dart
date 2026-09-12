@@ -24,8 +24,11 @@ class _ReaderAudiobookBarState extends State<ReaderAudiobookBar> {
             IconButton(
               tooltip: state.playing ? '暂停' : '播放',
               onPressed: () async {
-                if (state.playing) await widget.controller.pause();
-                else await widget.controller.play();
+                if (state.playing) {
+                  await widget.controller.pause();
+                } else {
+                  await widget.controller.play();
+                }
                 if (mounted) setState(() {});
               },
               icon: Icon(state.playing ? Icons.pause : Icons.play_arrow),

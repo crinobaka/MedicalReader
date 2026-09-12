@@ -32,7 +32,7 @@ void main() {
   });
 
   test('lookup history preserves dictionary entries', () {
-    const item = ReaderLookupHistoryItem(
+    final item = ReaderLookupHistoryItem(
       text: '読む',
       createdAt: DateTime.utc(2026, 9, 12),
       entries: [

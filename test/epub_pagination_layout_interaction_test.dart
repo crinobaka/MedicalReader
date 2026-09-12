@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import '../lib/features/reader/epub/services/epub_pagination_engine.dart';
-import '../lib/features/reader/epub/services/epub_pagination_interaction.dart';
-import '../lib/features/reader/epub/services/epub_pagination_layout.dart';
+import 'package:medicalreader/features/reader/epub/services/epub_pagination_engine.dart';
+import 'package:medicalreader/features/reader/epub/services/epub_pagination_interaction.dart';
+import 'package:medicalreader/features/reader/epub/services/epub_pagination_layout.dart';
 
 void main() {
   test('vertical pagination uses Hoshi viewport dimensions and 100vh columns', () {

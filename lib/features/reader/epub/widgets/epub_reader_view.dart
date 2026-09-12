@@ -259,7 +259,7 @@ class _EpubReaderViewState extends State<EpubReaderView> {
     final vertical = settings.readingDirection == ReaderReadingDirection.vertical;
     final rtl = settings.readingDirection == ReaderReadingDirection.rtl;
     final paginated = settings.readingMode == ReaderReadingMode.paginated;
-    final background = _backgroundColor().value.toRadixString(16).padLeft(8, '0').substring(2);
+    final background = _backgroundColor().toARGB32().toRadixString(16).padLeft(8, '0').substring(2);
     final foreground = settings.theme == ReaderTheme.dark ? 'white' : 'inherit';
     final font = _cssFont(settings.fontFamily);
     return EpubPaginationEngine.build(

@@ -4,9 +4,9 @@ import '../domain/models/reader_audiobook.dart';
 
 class ReaderAudiobookController {
   ReaderAudiobookController({
-    ReaderAudiobookService? service,
+    this._service,
     this.segments = const [],
-  }) : _service = service;
+  });
 
   final ReaderAudiobookService? _service;
   final List<ReaderSubtitleSegment> segments;
@@ -42,7 +42,7 @@ class ReaderAudiobookController {
       : segments.elementAtOrNull(state.activeSegment!);
 
   void _setPosition(Duration position) {
-    var active;
+    int active = state.activeSegment ?? 0;
     for (var i = 0; i < segments.length; i++) {
       if (segments[i].contains(position)) {
         active = i;
