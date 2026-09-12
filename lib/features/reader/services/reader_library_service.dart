@@ -1,6 +1,7 @@
 import '../../library/models/library_collection.dart';
 import '../../library/models/library_document.dart';
 import '../../library/repositories/library_repository.dart';
+import './reader_local_sync_service.dart';
 
 class ReaderLibrarySnapshot {
   final List<LibraryDocument> books;

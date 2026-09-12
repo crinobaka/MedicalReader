@@ -53,7 +53,7 @@ class HomePage extends ConsumerWidget {
 
   Widget _action(BuildContext context, IconData icon, String title, String subtitle, VoidCallback onTap) => SizedBox(
         width: MediaQuery.sizeOf(context).width >= 700 ? 250 : (MediaQuery.sizeOf(context).width - 42) / 2,
-        child: Card(child: InkWell(onTap: onTap, child: Padding(padding: const EdgeInsets.all(15), child: Row(children: [Icon(icon), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.w700)), const SizedBox(height: 3), Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis)]))]))));
+        child: Card(child: InkWell(onTap: onTap, child: Padding(padding: const EdgeInsets.all(15), child: Row(children: [Icon(icon), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.w700)), const SizedBox(height: 3), Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis)]))])))));
 
   SliverToBoxAdapter _sectionTitle(String title, String subtitle, IconData icon) => SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.fromLTRB(18, 18, 18, 8), child: Row(children: [Icon(icon, size: 21), const SizedBox(width: 8), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18)), Text(subtitle, style: const TextStyle(fontSize: 12))]))])));
 
@@ -72,7 +72,7 @@ class HomePage extends ConsumerWidget {
         },
       );
 
-  Future<void> _showSync(BuildContext context) => showModalBottomSheet<void>(context: context, builder: (_) => const SafeArea(child: Padding(padding: EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Text('同步与备份', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)), SizedBox(height: 10), Text('ReaderSyncPayload 已统一阅读位置、统计与批注。当前本地持久化可用；云端连接器和跨设备导入/导出作为下一阶段能力。'), SizedBox(height: 8), ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.check_circle_outline), title: Text('阅读状态已持久化'), subtitle: Text('PDF / EPUB 使用统一语义位置模型'))])));
+  Future<void> _showSync(BuildContext context) => showModalBottomSheet<void>(context: context, builder: (_) => const SafeArea(child: Padding(padding: EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Text('同步与备份', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)), SizedBox(height: 10), Text('ReaderSyncPayload 已统一阅读位置、统计与批注。当前本地持久化可用；云端连接器和跨设备导入/导出作为下一阶段能力。'), SizedBox(height: 8), ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.check_circle_outline), title: Text('阅读状态已持久化'), subtitle: Text('PDF / EPUB 使用统一语义位置模型'))]))));
 
   static double _progress(LibraryDocument d) {
     final raw = d.metadata['reader_position'];

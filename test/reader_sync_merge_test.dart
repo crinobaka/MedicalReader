@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:medical_reader/features/reader/domain/models/reader_sync.dart';
-import 'package:medical_reader/features/reader/domain/services/reader_backup_service.dart';
-import 'package:medical_reader/features/reader/domain/services/reader_sync_merge_service.dart';
+import 'package:medicalreader/features/reader/domain/models/reader_sync.dart';
+import 'package:medicalreader/features/reader/domain/services/reader_backup_service.dart';
+import 'package:medicalreader/features/reader/domain/services/reader_sync_merge_service.dart';
 
 void main() {
   test('backup bundle round trips multiple books', () {

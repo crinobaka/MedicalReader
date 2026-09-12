@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:medical_reader/features/reader/application/reader_audiobook_controller.dart';
-import 'package:medical_reader/features/reader/domain/models/reader_audiobook.dart';
-import 'package:medical_reader/features/reader/domain/models/reader_lookup.dart';
-import 'package:medical_reader/features/reader/domain/models/reader_mining.dart';
-import 'package:medical_reader/features/reader/domain/services/reader_dictionary_service.dart';
+import 'package:medicalreader/features/reader/application/reader_audiobook_controller.dart';
+import 'package:medicalreader/features/reader/domain/models/reader_audiobook.dart';
+import 'package:medicalreader/features/reader/domain/models/reader_lookup.dart';
+import 'package:medicalreader/features/reader/domain/models/reader_mining.dart';
+import 'package:medicalreader/features/reader/domain/services/reader_dictionary_service.dart';
 
 class _Dictionary implements ReaderDictionaryService {
   @override
@@ -23,7 +23,7 @@ class _Audio implements ReaderAudiobookService {
 void main() {
   test('lookup context reaches dictionary registry', () async {
     const context = ReaderLookupContext(selectedText: 'reader', sentence: 'reader app');
-    final entries = await const ReaderDictionaryRegistry(primary: _Dictionary()).lookup(context.toRequest());
+    final entries = await ReaderDictionaryRegistry(primary: _Dictionary()).lookup(context.toRequest());
     expect(entries.single.headword, 'reader');
   });
 
