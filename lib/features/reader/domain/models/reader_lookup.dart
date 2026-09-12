@@ -43,13 +43,15 @@ class ReaderLookupHistoryItem {
         'entries': [for (final entry in entries) entry.toJson()],
       };
 
-  factory ReaderLookupHistoryItem.fromJson(Map<String, dynamic> json) => ReaderLookupHistoryItem(
+  factory ReaderLookupHistoryItem.fromJson(Map<String, dynamic> json) =>
+      ReaderLookupHistoryItem(
         text: json['text']?.toString() ?? '',
         createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? '') ?? DateTime.now(),
         entries: json['entries'] is List
             ? [
                 for (final value in json['entries'] as List)
-                  if (value is Map) DictionaryEntry.fromJson(Map<String, dynamic>.from(value)),
+                  if (value is Map)
+                    DictionaryEntry.fromJson(Map<String, dynamic>.from(value)),
               ]
             : const [],
       );
