@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:medicalreader/features/reader/domain/models/reader_lookup.dart';
+import 'package:medicalreader/features/reader/domain/models/reader_mining.dart';
 import 'package:medicalreader/features/reader/domain/models/reader_sync.dart';
 import 'package:medicalreader/features/reader/domain/services/reader_backup_service.dart';
 import 'package:medicalreader/features/reader/domain/services/reader_sync_merge_service.dart';
@@ -12,7 +14,8 @@ void main() {
         ReaderSyncPayload(bookId: 'b', progress: const {'progress': .8}, updatedAt: DateTime.utc(2026, 9, 11)),
       ],
     );
-    final restored = const ReaderBackupService().decode(const ReaderBackupService().encode(bundle));
+    final service = const ReaderBackupService();
+    final restored = service.decode(service.encode(bundle));
     expect(restored.version, 1);
     expect(restored.books.length, 2);
     expect(restored.books.last.progress['progress'], .8);
@@ -36,5 +39,30 @@ void main() {
     final equalMerged = const ReaderSyncMergeService().merge(local, equal);
     expect(equalMerged.annotations.length, 3);
     expect(equalMerged.annotations.firstWhere((x) => x['id'] == 'same')['content'], 'local');
+  });
+
+  test('dictionary entry and lookup history keep stable DTO shapes', () {
+    const entry = DictionaryEntry(
+      headword: '読む',
+      reading: 'よむ',
+      definition: 'to read',
+      tags: ['verb'],
+    );
+    final restored = ReaderLookupHistoryItem.fromJson(
+      ReaderLookupHistoryItem(
+        text: '読む',
+        createdAt: DateTime.utc(2026, 9, 11),
+        entries: const [entry],
+      ).toJson(),
+    );
+    expect(restored.text, '読む');
+    expect(restored.entries.single.headword, '読む');
+    expect(restored.entries.single.tags, ['verb']);
+  });
+
+  test('lookup context does not emit an empty sentence', () {
+    const context = ReaderLookupContext(selectedText: '読む');
+    expect(context.toRequest().sentence, isNull);
+    expect(context.toRequest().text, '読む');
   });
 }
