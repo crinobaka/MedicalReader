@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 
 import '../../domain/models/reader_settings.dart';
+import '../models/epub_book.dart';
 
 class EpubReaderSettingsSheet extends StatefulWidget {
   final ReaderSettings settings;
   final ValueChanged<ReaderSettings> onChanged;
-  final List<String> chapters;
+  final List<EpubNavItem> navigation;
   final int currentChapter;
-  final ValueChanged<int>? onChapterSelected;
+  final ValueChanged<EpubNavItem>? onNavigationSelected;
   final VoidCallback? onBookmark;
   final VoidCallback? onNote;
   final VoidCallback? onAnnotations;
@@ -16,9 +17,9 @@ class EpubReaderSettingsSheet extends StatefulWidget {
     super.key,
     required this.settings,
     required this.onChanged,
-    this.chapters = const [],
+    this.navigation = const [],
     this.currentChapter = 0,
-    this.onChapterSelected,
+    this.onNavigationSelected,
     this.onBookmark,
     this.onNote,
     this.onAnnotations,
@@ -48,9 +49,9 @@ class _EpubReaderSettingsSheetState extends State<EpubReaderSettingsSheet> {
     return SafeArea(
       child: DraggableScrollableSheet(
         expand: false,
-        initialChildSize: .78,
+        initialChildSize: .82,
         minChildSize: .5,
-        maxChildSize: .94,
+        maxChildSize: .96,
         builder: (context, controller) => ListView(
           controller: controller,
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
@@ -58,23 +59,24 @@ class _EpubReaderSettingsSheetState extends State<EpubReaderSettingsSheet> {
             Center(child: Container(width: 38, height: 4, decoration: BoxDecoration(color: scheme.outlineVariant, borderRadius: BorderRadius.circular(4)))),
             const SizedBox(height: 14),
             Text('阅读器', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
-            Text('Hoshi 风格统一面板：阅读、目录、标注和外观在同一入口。', style: Theme.of(context).textTheme.bodySmall),
+            Text('统一面板：阅读方式、目录、标注和外观使用同一套 ReaderSettings。', style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 16),
             _group(context, '快速操作', [
               _action(context, Icons.bookmark_add_outlined, '书签', '标记当前阅读位置', widget.onBookmark),
               _action(context, Icons.note_add_outlined, '笔记', '为当前章节创建阅读笔记', widget.onNote),
-              _action(context, Icons.collections_bookmark_outlined, '标注与笔记', '查看已保存的高亮、书签和笔记', widget.onAnnotations),
+              _action(context, Icons.collections_bookmark_outlined, '标注与笔记', '查看高亮、书签和笔记', widget.onAnnotations),
             ]),
             _group(context, '目录', [
-              if (widget.chapters.isEmpty)
-                const ListTile(title: Text('暂无目录'))
+              if (widget.navigation.isEmpty)
+                const ListTile(title: Text('暂无 EPUB 导航目录'))
               else
-                for (var i = 0; i < widget.chapters.length; i++)
+                for (final item in widget.navigation)
                   ListTile(
                     dense: true,
-                    leading: Icon(i == widget.currentChapter ? Icons.radio_button_checked : Icons.radio_button_off),
-                    title: Text(widget.chapters[i], maxLines: 2, overflow: TextOverflow.ellipsis),
-                    onTap: widget.onChapterSelected == null ? null : () => widget.onChapterSelected!(i),
+                    leading: const Icon(Icons.menu_book_outlined),
+                    title: Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: widget.onNavigationSelected == null ? null : () => widget.onNavigationSelected!(item),
                   ),
             ]),
             _group(context, '主题与排版', [
