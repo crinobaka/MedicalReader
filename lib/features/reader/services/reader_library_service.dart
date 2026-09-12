@@ -23,25 +23,15 @@ class ReaderLibrarySnapshot {
         return page is num && page.toInt() > 0;
       }).toList(growable: false);
 
-  Future<List<LibraryDocument>> booksInShelf(String shelfId) async {
-    final ids = <String>{};
-    for (final book in books) {
-      final assigned = await repositoryForSnapshot.getDocumentCollectionIds(book.id);
-      if (assigned.contains(shelfId)) ids.add(book.id);
-    }
-    return books.where((book) => ids.contains(book.id)).toList(growable: false);
-  }
+  List<LibraryDocument> booksInShelf(String shelfId) => books.where((book) {
+        final raw = book.metadata['collection_ids'];
+        return raw is List && raw.any((value) => value.toString() == shelfId);
+      }).toList(growable: false);
 
   DateTime _readAt(LibraryDocument book) {
     final value = book.metadata['last_read_at'];
-    return value is String
-        ? DateTime.tryParse(value) ?? DateTime.fromMillisecondsSinceEpoch(0)
-        : DateTime.fromMillisecondsSinceEpoch(0);
+    return value is String ? DateTime.tryParse(value) ?? DateTime.fromMillisecondsSinceEpoch(0) : DateTime.fromMillisecondsSinceEpoch(0);
   }
-
-  // Kept injectable so the snapshot remains a pure data object for callers
-  // that do not need shelf membership. The service supplies this accessor.
-  late final LibraryRepository repositoryForSnapshot;
 }
 
 class ReaderLibraryService {
@@ -51,9 +41,7 @@ class ReaderLibraryService {
   Future<ReaderLibrarySnapshot> load() async {
     await repository.initialize();
     await repository.initializeCollections();
-    final snapshot = ReaderLibrarySnapshot(books: repository.getDocuments(), shelves: await repository.getCollections());
-    snapshot.repositoryForSnapshot = repository;
-    return snapshot;
+    return ReaderLibrarySnapshot(books: repository.getDocuments(), shelves: await repository.getCollections());
   }
 
   Future<LibraryCollection?> createShelf(String name) => repository.createCollection(name);
