@@ -56,15 +56,15 @@ class MedicalCoreDocument {
 
 class MedicalCore {
   MedicalCore._(this._library) {
-    _hello = _lookup('medical_core_hello');
-    _openBook = _lookup('medical_core_open_book');
-    _closeBook = _lookup('medical_core_close_book');
-    _getPageCount = _lookup('medical_core_get_page_count');
-    _renderPage = _lookup('medical_core_render_page');
-    _freePage = _lookup('medical_core_free_page');
-    _getOutline = _lookup('medical_core_get_outline');
-    _searchBook = _lookup('medical_core_search_book');
-    _freeString = _lookup('medical_core_free_string');
+    _hello = _library.lookupFunction<_MedicalCoreHelloNative, _MedicalCoreHelloDart>('medical_core_hello');
+    _openBook = _library.lookupFunction<_MedicalCoreOpenBookNative, _MedicalCoreOpenBookDart>('medical_core_open_book');
+    _closeBook = _library.lookupFunction<_MedicalCoreCloseBookNative, _MedicalCoreCloseBookDart>('medical_core_close_book');
+    _getPageCount = _library.lookupFunction<_MedicalCoreGetPageCountNative, _MedicalCoreGetPageCountDart>('medical_core_get_page_count');
+    _renderPage = _library.lookupFunction<_MedicalCoreRenderPageNative, _MedicalCoreRenderPageDart>('medical_core_render_page');
+    _freePage = _library.lookupFunction<_MedicalCoreFreePageNative, _MedicalCoreFreePageDart>('medical_core_free_page');
+    _getOutline = _library.lookupFunction<_MedicalCoreGetOutlineNative, _MedicalCoreGetOutlineDart>('medical_core_get_outline');
+    _searchBook = _library.lookupFunction<_MedicalCoreSearchBookNative, _MedicalCoreSearchBookDart>('medical_core_search_book');
+    _freeString = _library.lookupFunction<_MedicalCoreFreeStringNative, _MedicalCoreFreeStringDart>('medical_core_free_string');
   }
 
   static MedicalCore? _instance;
@@ -79,7 +79,6 @@ class MedicalCore {
   late final _MedicalCoreSearchBookDart _searchBook;
   late final _MedicalCoreFreeStringDart _freeString;
 
-  T _lookup<T extends Function>(String name) => _library.lookup<NativeFunction<T>>(name).asFunction<T>();
   factory MedicalCore() => _instance ??= MedicalCore._(_openLibrary());
   int hello() => _hello();
 
