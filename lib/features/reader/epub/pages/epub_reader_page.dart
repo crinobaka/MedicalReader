@@ -1,17 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../library/models/library_document.dart';
-import '../../domain/models/reader_lookup.dart';
-import '../../domain/models/reader_mining.dart';
 import '../../domain/models/reader_position.dart';
 import '../../domain/models/reader_settings.dart';
-import '../../domain/services/reader_anki_service.dart';
-import '../../domain/services/reader_dictionary_service.dart';
 import '../../models/reader_annotation.dart';
+import '../../models/reader_mining.dart';
 import '../../providers/reader_annotation_provider.dart';
-import '../../services/reader_position_store.dart';
-import '../../services/reader_settings_store.dart';
+import '../../providers/reader_position_provider.dart';
+import '../../services/reader_anki_service.dart';
+import '../../services/reader_dictionary_service.dart';
 import '../../widgets/reader_lookup_sheet.dart';
 import '../../widgets/reader_mining_sheet.dart';
 import '../controllers/epub_reader_controller.dart';
@@ -20,8 +17,9 @@ import '../widgets/epub_reader_settings_sheet.dart';
 import '../widgets/epub_reader_view.dart';
 
 class EpubReaderPage extends ConsumerStatefulWidget {
-  final LibraryDocument document;
   const EpubReaderPage({super.key, required this.document});
+  final dynamic document;
+
   @override
   ConsumerState<EpubReaderPage> createState() => _EpubReaderPageState();
 }
@@ -29,171 +27,198 @@ class EpubReaderPage extends ConsumerStatefulWidget {
 class _EpubReaderPageState extends ConsumerState<EpubReaderPage> {
   late final EpubReaderController _controller;
   ReaderSettings _settings = const ReaderSettings();
-  bool _settingsLoading = true;
   final ReaderDictionaryRegistry _dictionary = const ReaderDictionaryRegistry();
   final ReaderAnkiService _anki = const DisabledReaderAnkiService();
 
   @override
   void initState() {
     super.initState();
-    _loadSettings();
     _controller = EpubReaderController(
       document: widget.document,
       initialPosition: ref.read(readerPositionStoreProvider).read(widget.document),
       onPositionSaved: _savePosition,
-    )..open().then((_) { if (mounted) setState(() {}); });
+    )..open();
   }
 
-  Future<void> _loadSettings() async {
-    final settings = await ref.read(readerSettingsStoreProvider).load(widget.document);
-    if (!mounted) return;
-    setState(() { _settings = settings; _settingsLoading = false; });
+  Future<void> _savePosition(ReaderPosition position) async {
+    await ref.read(readerPositionStoreProvider).save(widget.document, position);
   }
-
-  Future<void> _saveSettings(ReaderSettings settings) async {
-    setState(() => _settings = settings);
-    await ref.read(readerSettingsStoreProvider).save(widget.document, settings);
-  }
-
-  Future<void> _savePosition(ReaderPosition position) => ref.read(readerPositionStoreProvider).save(widget.document, position);
-  List<ReaderAnnotation> get _annotations => ref.watch(readerAnnotationsProvider(widget.document));
-  bool get _bookmarked => _annotations.any((x) => x.type == ReaderAnnotationType.bookmark && x.pageIndex == _controller.chapterIndex);
 
   List<EpubNavItem> get _navigation {
+    final book = _controller.book;
+    if (book == null) return const [];
     final result = <EpubNavItem>[];
     void visit(List<EpubNavItem> items, int depth) {
       for (final item in items) {
-        result.add(EpubNavItem(title: '${List.filled(depth, '  ').join()}${item.title}', href: item.href, fragment: item.fragment, children: item.children));
+        result.add(EpubNavItem(
+          title: '${List.filled(depth, '  ').join()}${item.title}',
+          href: item.href,
+          children: item.children,
+        ));
         visit(item.children, depth + 1);
       }
     }
-    visit(_controller.book?.navigation ?? const [], 0);
+    visit(book.navigation, 0);
     return result;
   }
 
-  void _openSettings() => showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        useSafeArea: true,
-        builder: (_) => EpubReaderSettingsSheet(
-          settings: _settings,
-          onChanged: _saveSettings,
-          navigation: _navigation,
-          currentChapter: _controller.chapterIndex,
-          onNavigationSelected: (item) async {
-            Navigator.of(context).pop();
-            await _controller.goToNavigation(item);
-            if (mounted) setState(() {});
-          },
-          onBookmark: _toggleBookmark,
-          onNote: _saveNote,
-          onAnnotations: _openAnnotations,
-        ),
-      );
+  List<ReaderAnnotation> get _annotations => ref.read(readerAnnotationsProvider(widget.document));
+
+  String _chapterTitle(int index) {
+    final book = _controller.book;
+    if (book == null || book.spine.isEmpty) return 'EPUB';
+    final chapter = book.spine[index.clamp(0, book.spine.length - 1)];
+    return chapter.title?.isNotEmpty == true ? chapter.title! : chapter.href.split('/').last;
+  }
 
   Future<void> _toggleBookmark() async {
     final notifier = ref.read(readerAnnotationsProvider(widget.document).notifier);
-    final existing = _annotations.where((x) => x.type == ReaderAnnotationType.bookmark && x.pageIndex == _controller.chapterIndex).toList(growable: false);
+    final existing = _annotations
+        .where((x) => x.type == ReaderAnnotationType.bookmark && x.pageIndex == _controller.chapterIndex)
+        .toList(growable: false);
     if (existing.isNotEmpty) {
-      for (final item in existing) await notifier.remove(item.id);
+      for (final item in existing) {
+        await notifier.remove(item.id);
+      }
       if (mounted) setState(() {});
       return;
     }
     final now = DateTime.now();
-    await notifier.add(ReaderAnnotation(id: 'epub_bookmark_${widget.document.id}_${_controller.chapterIndex}', bookId: widget.document.id, pageIndex: _controller.chapterIndex, type: ReaderAnnotationType.bookmark, title: _chapterTitle(_controller.chapterIndex), createdAt: now, updatedAt: now));
+    await notifier.add(ReaderAnnotation(
+      id: 'epub_bookmark_${widget.document.id}_${_controller.chapterIndex}',
+      bookId: widget.document.id,
+      pageIndex: _controller.chapterIndex,
+      type: ReaderAnnotationType.bookmark,
+      title: _chapterTitle(_controller.chapterIndex),
+      createdAt: now,
+      updatedAt: now,
+    ));
     if (mounted) setState(() {});
   }
 
   Future<void> _saveNote() async {
-    final notifier = ref.read(readerAnnotationsProvider(widget.document).notifier);
-    final existing = _annotations.where((x) => x.type == ReaderAnnotationType.note && x.pageIndex == _controller.chapterIndex).firstOrNull;
-    final editor = TextEditingController(text: existing?.content ?? '');
-    final text = await showDialog<String>(
+    final controller = TextEditingController();
+    final value = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(existing == null ? '添加笔记' : '编辑笔记'),
-        content: TextField(controller: editor, autofocus: true, minLines: 4, maxLines: 10, decoration: const InputDecoration(hintText: '写下这一章的阅读笔记…')),
-        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')), FilledButton(onPressed: () => Navigator.pop(context, editor.text.trim()), child: const Text('保存'))],
+        title: Text('笔记 · ${_chapterTitle(_controller.chapterIndex)}'),
+        content: TextField(controller: controller, maxLines: 6, autofocus: true, decoration: const InputDecoration(hintText: '输入阅读笔记…')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
+          FilledButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: const Text('保存')),
+        ],
       ),
     );
-    editor.dispose();
-    if (text == null || text.isEmpty) return;
+    controller.dispose();
+    if (value == null || value.isEmpty) return;
     final now = DateTime.now();
-    await notifier.add(ReaderAnnotation(id: existing?.id ?? 'epub_note_${widget.document.id}_${_controller.chapterIndex}', bookId: widget.document.id, pageIndex: _controller.chapterIndex, type: ReaderAnnotationType.note, title: _chapterTitle(_controller.chapterIndex), content: text, createdAt: existing?.createdAt ?? now, updatedAt: now));
+    await ref.read(readerAnnotationsProvider(widget.document).notifier).add(ReaderAnnotation(
+      id: 'epub_note_${widget.document.id}_${_controller.chapterIndex}_${now.microsecondsSinceEpoch}',
+      bookId: widget.document.id,
+      pageIndex: _controller.chapterIndex,
+      type: ReaderAnnotationType.note,
+      title: _chapterTitle(_controller.chapterIndex),
+      content: value,
+      createdAt: now,
+      updatedAt: now,
+    ));
   }
 
-  void _openAnnotations() {
-    Navigator.of(context).pop();
-    showModalBottomSheet<void>(
+  Future<void> _openAnnotations() async {
+    final items = _annotations;
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-          children: [
-            Text('标注与笔记', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 10),
-            if (_annotations.isEmpty) const ListTile(title: Text('还没有保存的标注')),
-            for (final item in _annotations)
-              ListTile(
-                leading: Icon(_iconForAnnotation(item.type)),
-                title: Text(item.title.isNotEmpty ? item.title : _chapterTitle(item.pageIndex)),
-                subtitle: Text(item.content.isNotEmpty ? item.content : item.type.name),
-                onTap: () async {
-                  Navigator.of(context).pop();
-                  await _controller.goToChapter(item.pageIndex.clamp(0, _controller.chapterCount - 1));
-                  if (mounted) setState(() {});
-                },
-              ),
-          ],
+      builder: (context) => SafeArea(
+        child: ListView.separated(
+          padding: const EdgeInsets.all(16),
+          itemCount: items.length,
+          separatorBuilder: (_, __) => const Divider(),
+          itemBuilder: (_, index) {
+            final item = items[index];
+            return ListTile(
+              leading: Icon(item.type == ReaderAnnotationType.note ? Icons.note_outlined : Icons.bookmark_outline),
+              title: Text(item.title?.isNotEmpty == true ? item.title! : _chapterTitle(item.pageIndex)),
+              subtitle: Text(item.content?.isNotEmpty == true ? item.content! : '第 ${item.pageIndex + 1} 章'),
+              onTap: () {
+                Navigator.pop(context);
+                unawaited(_controller.goToChapter(item.pageIndex));
+              },
+            );
+          },
         ),
       ),
     );
   }
 
-  IconData _iconForAnnotation(ReaderAnnotationType type) => switch (type) {
-        ReaderAnnotationType.bookmark => Icons.bookmark_rounded,
-        ReaderAnnotationType.note => Icons.sticky_note_2_rounded,
-        ReaderAnnotationType.highlight => Icons.highlight_rounded,
-        ReaderAnnotationType.tag => Icons.sell_outlined,
-        ReaderAnnotationType.ink => Icons.draw_rounded,
-      };
-
-  Future<void> _openLookup(ReaderLookupContext lookup) async {
-    final entry = await showModalBottomSheet<DictionaryEntry>(context: context, isScrollControlled: true, builder: (_) => ReaderLookupSheet(contextData: lookup, dictionary: _dictionary));
-    if (entry == null || !mounted) return;
-    final mined = await showModalBottomSheet<bool>(context: context, isScrollControlled: true, builder: (_) => ReaderMiningSheet(entry: entry, onMine: _mineToAnki));
-    if (mined == true && mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已提交 Anki 卡片')));
-  }
-
-  Future<bool> _mineToAnki(AnkiCardDraft draft) => _anki.createCard(draft);
-  Future<void> _handleBoundary(String direction) async { await _controller.navigatePageBoundary(direction); if (mounted) setState(() {}); }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_controller.loading || _settingsLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    if (_controller.error != null || _controller.archive == null) return Scaffold(appBar: AppBar(title: const Text('EPUB')), body: Center(child: Padding(padding: const EdgeInsets.all(24), child: Text('${_controller.error ?? 'Unable to open EPUB'}'))));
-    final book = _controller.book!;
-    return Scaffold(
-      appBar: AppBar(title: Text(book.title, overflow: TextOverflow.ellipsis), actions: [
-        IconButton(tooltip: _bookmarked ? '取消书签' : '书签', onPressed: _toggleBookmark, icon: Icon(_bookmarked ? Icons.bookmark : Icons.bookmark_border)),
-        IconButton(tooltip: '阅读器面板', onPressed: _openSettings, icon: const Icon(Icons.tune_rounded)),
-      ]),
-      body: EpubReaderView(
-        key: ValueKey('${_controller.chapterIndex}:${_controller.initialProgress}:${_controller.initialFragment}:${_settings.toJson()}'),
-        archive: _controller.archive!, chapterIndex: _controller.chapterIndex, fragment: _controller.initialFragment, initialProgress: _controller.initialProgress, settings: _settings,
-        onPositionChanged: (href, progress) => _controller.updateProgress(href, progress), onPageBoundary: _handleBoundary, onSelectionChanged: _openLookup,
+  Future<void> _openLookup() async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => const ReaderLookupSheet(),
+    );
+    if (selected == null || selected.isEmpty || !mounted) return;
+    final request = DictionaryLookupRequest(text: selected);
+    final entries = await _dictionary.lookup(request);
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => ReaderMiningSheet(
+        selectedText: selected,
+        entries: entries,
+        anki: _anki,
       ),
     );
   }
 
-  String _chapterTitle(int index) {
-    final spine = _controller.archive!.book.spine[index];
-    final item = _controller.archive!.book.manifestById(spine.idref);
-    return item?.href.split('/').last ?? 'Chapter ${index + 1}';
+  Future<void> _openSettings() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => EpubReaderSettingsSheet(
+        settings: _settings,
+        navigation: _navigation,
+        currentChapter: _controller.chapterIndex,
+        onChanged: (value) => setState(() => _settings = value),
+        onNavigationSelected: (item) => _controller.goToNavigation(item),
+        onBookmark: _toggleBookmark,
+        onNote: _saveNote,
+        onAnnotations: _openAnnotations,
+        onSearch: _openLookup,
+      ),
+    );
   }
 
   @override
-  void dispose() { _controller.dispose(); super.dispose(); }
+  Widget build(BuildContext context) {
+    if (_controller.loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (_controller.error != null) {
+      return Scaffold(body: Center(child: Text('EPUB 打开失败：${_controller.error}')));
+    }
+    return Scaffold(
+      body: EpubReaderView(
+        document: widget.document,
+        controller: _controller,
+        settings: _settings,
+        onSettings: _openSettings,
+        onPositionChanged: (position) => _controller.updateProgress(position.progress),
+        onPageBoundary: _controller.navigatePageBoundary,
+        onSelectionChanged: (text) {
+          if (text == null || text.isEmpty) return;
+          _openLookup();
+        },
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 }
