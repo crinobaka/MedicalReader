@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../library/models/library_document.dart';
-import '../../library/providers/library_repository_provider.dart';
+import '../../library/providers/library_provider.dart';
 import '../models/reader_annotation.dart';
 import '../providers/reader_annotation_provider.dart';
+import 'reader_entry_page.dart';
 
 class ReaderAnnotationsPage extends ConsumerStatefulWidget {
   const ReaderAnnotationsPage({super.key, this.document});
@@ -62,7 +63,7 @@ class _ReaderAnnotationsPageState extends ConsumerState<ReaderAnnotationsPage> {
         initiallyExpanded: true,
         title: Text(book.title, maxLines: 1, overflow: TextOverflow.ellipsis),
         subtitle: Text('${visible.length} 条'),
-        children: [for (final item in visible) _annotationTile(context, item)],
+        children: [for (final item in visible) _annotationTile(context, book, item)],
       ));
     }
     if (sections.isEmpty) return const Center(child: Text('没有匹配的批注'));
@@ -75,18 +76,19 @@ class _ReaderAnnotationsPageState extends ConsumerState<ReaderAnnotationsPage> {
     return query.isEmpty || item.content.toLowerCase().contains(query) || item.title.toLowerCase().contains(query);
   }
 
-  Widget _annotationTile(BuildContext context, ReaderAnnotation item) => ListTile(
+  Widget _annotationTile(BuildContext context, LibraryDocument book, ReaderAnnotation item) => ListTile(
         leading: Icon(_icon(item.type)),
         title: Text(item.title.isEmpty ? _label(item.type) : item.title),
         subtitle: Text(item.content.isEmpty ? '第 ${item.pageIndex + 1} 页' : item.content, maxLines: 3, overflow: TextOverflow.ellipsis),
         trailing: Text('P${item.pageIndex + 1}'),
-        onTap: () => Navigator.pop(context, item),
+        onTap: () => Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => ReaderEntryPage(document: book, initialPage: item.pageIndex),
+        )),
       );
 
   Future<List<LibraryDocument>> _documents() async {
-    final repository = ref.read(libraryRepositoryProvider);
-    await repository.initialize();
-    return repository.getDocuments();
+    final documents = ref.read(libraryProvider);
+    return documents;
   }
 
   IconData _icon(ReaderAnnotationType type) => switch (type) {
