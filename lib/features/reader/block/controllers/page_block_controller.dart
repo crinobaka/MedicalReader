@@ -31,6 +31,14 @@ class PageBlockController extends ChangeNotifier {
       ? uiPageLabel
       : '${currentPageIndex + 1}(${currentBlockIndex + 1})';
 
+  bool get canPrevious => enabled && currentBlock != null && (currentPageIndex > 0 || currentBlockIndex > 0);
+
+  Future<bool> get canNext async {
+    if (!enabled || currentBlock == null) return false;
+    final blocks = await manager.resolve(docId, currentPageIndex);
+    return currentBlockIndex < blocks.length - 1 || currentPageIndex < pageCount - 1;
+  }
+
   void configurePageCount(int value) {
     final next = value < 1 ? 1 : value;
     if (next == pageCount) return;
@@ -147,15 +155,19 @@ class PageBlockController extends ChangeNotifier {
   }
 
   Future<void> saveOrderedBlocks(List<PageBlock> blocks) async {
+    final previousRect = currentBlock?.rect;
     await manager.saveManualBlocks(docId, currentPageIndex, blocks);
     final refreshed = await manager.resolve(docId, currentPageIndex);
     if (refreshed.isEmpty) {
       currentBlock = null;
       currentBlockIndex = 0;
     } else {
-      final targetIndex = currentBlockIndex.clamp(0, refreshed.length - 1).toInt();
-      currentBlockIndex = targetIndex;
-      currentBlock = refreshed[targetIndex];
+      final targetIndex = previousRect == null
+          ? currentBlockIndex.clamp(0, refreshed.length - 1).toInt()
+          : refreshed.indexWhere((b) => b.rect == previousRect);
+      final safeIndex = (targetIndex < 0 ? currentBlockIndex : targetIndex).clamp(0, refreshed.length - 1).toInt();
+      currentBlockIndex = safeIndex;
+      currentBlock = refreshed[safeIndex];
     }
     notifyListeners();
   }
