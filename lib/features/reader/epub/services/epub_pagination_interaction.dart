@@ -3,7 +3,7 @@ class EpubPaginationInteraction {
 
   static String build() => r'''
 (function() {
-  const reader = window.medicalReaderPagination;
+  const reader = window.medicalReaderPagination || window.MedicalReaderPagination;
   const body = document.body;
   if (!reader || !body || window.medicalReaderPaginationInteractionReady) return;
   window.medicalReaderPaginationInteractionReady = true;
@@ -149,7 +149,7 @@ class EpubPaginationInteraction {
 
   reader.notifyProgress = function() { scheduleProgress(); };
   const originalHandleScroll = reader.handlePagedScroll;
-  reader.handlePagedScroll = function() { originalHandleScroll.call(this); if (isPaginated()) scheduleProgress(); };
+  reader.handlePagedScroll = function() { if (originalHandleScroll) originalHandleScroll.call(this); if (isPaginated()) scheduleProgress(); };
   body.addEventListener('scroll', function() { if (!isPaginated()) scheduleProgress(); }, {passive: true});
   window.addEventListener('blur', function() { if (progressTimer) clearTimeout(progressTimer); progressTimer = null; progressDirty = false; });
 })();
