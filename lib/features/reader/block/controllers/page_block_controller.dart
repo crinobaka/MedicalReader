@@ -36,7 +36,6 @@ class PageBlockController extends ChangeNotifier {
     if (next == pageCount) return;
     pageCount = next;
     currentPageIndex = currentPageIndex.clamp(0, pageCount - 1).toInt();
-    notifyListeners();
   }
 
   Future<void> enable({int? pageIndex}) async {
