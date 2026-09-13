@@ -45,7 +45,10 @@ class PageBlockStorage {
     final canonical = _canonicalizeManual(blocks
         .where((b) => b.docId == docId && b.pageIndex == pageIndex)
         .toList());
-    if (canonical.isEmpty) return;
+    if (canonical.isEmpty) {
+      await deleteManual(docId, pageIndex);
+      return;
+    }
     final file = await _fileFor(docId, pageIndex);
     final temp = File('${file.path}.tmp');
     await temp.writeAsString(
