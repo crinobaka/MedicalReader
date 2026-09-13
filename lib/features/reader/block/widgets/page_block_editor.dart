@@ -4,15 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../models/page_block.dart';
 
-/// Full-page editor: draw any number of rectangles, then drag the cards below
-/// to change reading order. All geometry is stored in normalized page space.
 class PageBlockEditor extends StatefulWidget {
-  const PageBlockEditor({
-    super.key,
-    required this.image,
-    required this.initialBlocks,
-    required this.onSave,
-  });
+  const PageBlockEditor({super.key, required this.image, required this.initialBlocks, required this.onSave});
 
   final ui.Image image;
   final List<PageBlock> initialBlocks;
@@ -36,23 +29,21 @@ class _PageBlockEditorState extends State<PageBlockEditor> {
   void _finishRect(Size size) {
     final start = _dragStart;
     final end = _dragCurrent;
-    if (start == null || end == null) return;
+    if (start == null || end == null || size.isEmpty) return;
     final left = (start.dx / size.width).clamp(0.0, 1.0).toDouble();
     final top = (start.dy / size.height).clamp(0.0, 1.0).toDouble();
     final right = (end.dx / size.width).clamp(0.0, 1.0).toDouble();
     final bottom = (end.dy / size.height).clamp(0.0, 1.0).toDouble();
-    final rect = NormalizedRect(
-      x: left,
-      y: top,
-      width: right - left,
-      height: bottom - top,
-    ).normalized();
+    final rect = NormalizedRect(x: left, y: top, width: right - left, height: bottom - top).normalized();
     if (rect.width < .02 || rect.height < .02) return;
+    final source = _blocks.isEmpty ? widget.initialBlocks : _blocks;
+    final docId = source.isEmpty ? '' : source.first.docId;
+    final pageIndex = source.isEmpty ? 0 : source.first.pageIndex;
     setState(() {
       final nextIndex = _blocks.length;
       _blocks.add(PageBlock(
-        docId: widget.initialBlocks.firstOrNull?.docId ?? '',
-        pageIndex: widget.initialBlocks.firstOrNull?.pageIndex ?? 0,
+        docId: docId,
+        pageIndex: pageIndex,
         blockIndex: nextIndex,
         rect: rect,
         order: nextIndex + 1,
@@ -69,13 +60,6 @@ class _PageBlockEditorState extends State<PageBlockEditor> {
     ];
   }
 
-  void _deleteAt(int index) {
-    setState(() {
-      _blocks.removeAt(index);
-      _reindex();
-    });
-  }
-
   Future<void> _save() async {
     await widget.onSave(_blocks);
     if (mounted) Navigator.of(context).pop();
@@ -86,9 +70,7 @@ class _PageBlockEditorState extends State<PageBlockEditor> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('编辑阅读块'),
-        actions: [
-          IconButton(onPressed: _blocks.isEmpty ? null : _save, icon: const Icon(Icons.check)),
-        ],
+        actions: [IconButton(onPressed: _blocks.isEmpty ? null : _save, icon: const Icon(Icons.check))],
       ),
       body: Column(
         children: [
@@ -154,14 +136,8 @@ class _PageBlockEditorState extends State<PageBlockEditor> {
                   key: ValueKey('${block.pageIndex}-${block.blockIndex}-${block.rect.x}-${block.rect.y}'),
                   leading: CircleAvatar(child: Text('${index + 1}')),
                   title: Text('${block.pageIndex + 1}(${index + 1})'),
-                  subtitle: Text(
-                    'x ${block.rect.x.toStringAsFixed(2)}  y ${block.rect.y.toStringAsFixed(2)}  '
-                    'w ${block.rect.width.toStringAsFixed(2)}  h ${block.rect.height.toStringAsFixed(2)}',
-                  ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete_outline),
-                    onPressed: () => _deleteAt(index),
-                  ),
+                  subtitle: Text('x ${block.rect.x.toStringAsFixed(2)}  y ${block.rect.y.toStringAsFixed(2)}  w ${block.rect.width.toStringAsFixed(2)}  h ${block.rect.height.toStringAsFixed(2)}'),
+                  trailing: IconButton(icon: const Icon(Icons.delete_outline), onPressed: () => setState(() { _blocks.removeAt(index); _reindex(); })),
                 );
               },
             ),
@@ -173,12 +149,7 @@ class _PageBlockEditorState extends State<PageBlockEditor> {
 }
 
 class _BlockEditorPainter extends CustomPainter {
-  const _BlockEditorPainter({
-    required this.image,
-    required this.blocks,
-    this.draftStart,
-    this.draftEnd,
-  });
+  const _BlockEditorPainter({required this.image, required this.blocks, this.draftStart, this.draftEnd});
 
   final ui.Image image;
   final List<PageBlock> blocks;
@@ -187,8 +158,7 @@ class _BlockEditorPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final full = Offset.zero & size;
-    canvas.drawImageRect(image, Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()), full, Paint());
+    canvas.drawImageRect(image, Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()), Offset.zero & size, Paint());
     final fill = Paint()..style = PaintingStyle.fill..color = Colors.black.withOpacity(.12);
     final border = Paint()..style = PaintingStyle.stroke..strokeWidth = 2..color = Colors.white;
     for (var i = 0; i < blocks.length; i++) {
@@ -207,6 +177,5 @@ class _BlockEditorPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _BlockEditorPainter oldDelegate) =>
-      oldDelegate.image != image || oldDelegate.blocks != blocks || oldDelegate.draftStart != draftStart || oldDelegate.draftEnd != draftEnd;
+  bool shouldRepaint(covariant _BlockEditorPainter oldDelegate) => true;
 }
