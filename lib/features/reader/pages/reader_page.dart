@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:record/record.dart';
 import '../../library/models/library_document.dart';
 import '../../library/providers/library_repository_provider.dart';
+import '../block/controllers/page_block_controller.dart';
+import '../block/widgets/page_block_mode_overlay.dart';
 import '../controllers/reader_page_controller.dart';
 import '../models/book_tree_node.dart';
 import '../models/reader_annotation.dart';
@@ -24,12 +26,6 @@ import '../widgets/reader_serch_dialog.dart';
 import '../widgets/reader_settings_panel.dart';
 import '../widgets/reader_page_turn_registration.dart';
 
-// PAGE TURN REGISTRATION ONLY:
-// The visual page-turn implementation lives in ../widgets/reader_page_turn.dart.
-// Keep the implementation out of ReaderPage; this comment is the intentional
-// integration boundary for deciding where the transition should be mounted.
-// Do not move page-turn animation/gesture implementation into this file.
-
 class ReaderPage extends ConsumerStatefulWidget {
   const ReaderPage({super.key, required this.document, this.initialPage = 0});
   final LibraryDocument document;
@@ -40,6 +36,7 @@ class ReaderPage extends ConsumerStatefulWidget {
 
 class _ReaderPageState extends ConsumerState<ReaderPage> {
   late final ReaderPageController _controller;
+  late final PageBlockController _blockController;
   final ReaderSearchService _searchService = const ReaderSearchService();
   final AudioRecorder _audioRecorder = AudioRecorder();
   late final FocusNode _focusNode;
@@ -47,6 +44,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   List<ReaderSearchHit> _searchHits = const [];
   bool _gestureEnabled = true;
   bool _settingsVisible = false;
+
   @override
   void initState() {
     super.initState();
@@ -57,6 +55,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       initialPage: widget.initialPage,
       libraryRepository: ref.read(libraryRepositoryProvider),
     )..open();
+    _blockController = PageBlockController(
+      docId: widget.document.id,
+      pageCount: widget.document.pages ?? 1,
+    );
   }
 
   List<ReaderAnnotation> get _annotations => ref
@@ -285,7 +287,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   Future<void> _showSearch() async {
     if (_settingsVisible) {
-      // 如果设置已显示，关闭它
       Navigator.pop(context);
       setState(() {
         _settingsVisible = false;
@@ -293,13 +294,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       });
       return;
     }
-
-    // 打开设置
     setState(() {
       _settingsVisible = true;
       _gestureEnabled = false;
     });
-
     final r = await showDialog<ReaderSearchResult>(
       context: context,
       builder: (_) => ReaderSearchDialog(
@@ -319,9 +317,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     if (r == null || !mounted) return;
     setState(() => _searchHits = r.hits);
     await _controller.goToPage(r.pageIndex);
+    if (_blockController.enabled) {
+      await _blockController.moveToPage(r.pageIndex);
+    }
     if (mounted) _focusNode.requestFocus();
-  
-  // 设置关闭后恢复
     if (mounted) {
       setState(() {
         _settingsVisible = false;
@@ -333,8 +332,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   Future<void> _editBookTree() async {
     final r = await showDialog<List<BookTreeNode>>(
       context: context,
-      builder: (_) =>
-          BookTreeEditorDialog(nodes: _controller.bookTreeIndex.nodes),
+      builder: (_) => BookTreeEditorDialog(nodes: _controller.bookTreeIndex.nodes),
     );
     if (r == null || !mounted) return;
     await BookTreeService().saveTreeForDocument(widget.document, r);
@@ -343,7 +341,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   Future<void> _showBookTree() async {
     if (_settingsVisible) {
-      // 如果设置已显示，关闭它
       Navigator.pop(context);
       setState(() {
         _settingsVisible = false;
@@ -351,13 +348,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       });
       return;
     }
-
-    // 打开设置
     setState(() {
       _settingsVisible = true;
       _gestureEnabled = false;
     });
-
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -376,7 +370,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       ),
     );
     if (mounted) _focusNode.requestFocus();
-    // 设置关闭后恢复
     if (mounted) {
       setState(() {
         _settingsVisible = false;
@@ -387,7 +380,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   Future<void> _showNote() async {
     if (_settingsVisible) {
-      // 如果设置已显示，关闭它
       Navigator.pop(context);
       setState(() {
         _settingsVisible = false;
@@ -395,17 +387,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       });
       return;
     }
-
-    // 打开设置
     setState(() {
       _settingsVisible = true;
       _gestureEnabled = false;
     });
-
     if (_controller.pageLoading) return;
-    final notifier = ref.read(
-      readerAnnotationsProvider(widget.document).notifier,
-    );
+    final notifier = ref.read(readerAnnotationsProvider(widget.document).notifier);
     final e = _annotations.where((x) => x.type == ReaderAnnotationType.note);
     final note = e.isNotEmpty
         ? e.first
@@ -430,16 +417,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           if (f.isEmpty) return null;
           final p = f.first.path;
           if (p == null || p.isEmpty) return null;
-          return const ReaderAnnotationService().importAttachment(
-            widget.document,
-            p,
-          );
+          return const ReaderAnnotationService().importAttachment(widget.document, p);
         },
         onInsertAudio: _recordAudio,
       ),
     );
     if (r != null) await notifier.add(r);
-    // 设置关闭后恢复
     if (mounted) {
       setState(() {
         _settingsVisible = false;
@@ -452,15 +435,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     if (!await _audioRecorder.hasPermission()) return null;
     final s = const ReaderAnnotationService();
     final d = await s.ensureAttachmentsDirectory(widget.document);
-    final p =
-        '${d.path}${Platform.pathSeparator}audio_${DateTime.now().microsecondsSinceEpoch}.wav';
-    await _audioRecorder.start(
-      const RecordConfig(encoder: AudioEncoder.wav),
-      path: p,
-    );
+    final p = '${d.path}${Platform.pathSeparator}audio_${DateTime.now().microsecondsSinceEpoch}.wav';
+    await _audioRecorder.start(const RecordConfig(encoder: AudioEncoder.wav), path: p);
     if (!mounted) return null;
-    final stop =
-        await showDialog<bool>(
+    final stop = await showDialog<bool>(
           context: context,
           barrierDismissible: false,
           builder: (c) => AlertDialog(
@@ -485,7 +463,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   Future<void> _showSettings() async {
     if (_settingsVisible) {
-      // 如果设置已显示，关闭它
       Navigator.pop(context);
       setState(() {
         _settingsVisible = false;
@@ -493,36 +470,30 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       });
       return;
     }
-
-    // 打开设置
     setState(() {
       _settingsVisible = true;
       _gestureEnabled = false;
     });
-
-      await showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        showDragHandle: true,
-        builder: (c) => SafeArea(
-          child: SizedBox(
-            height: MediaQuery.sizeOf(c).height * .86,
-            child: Consumer(
-              builder: (c, ref, _) {
-                final o = ref.watch(readerViewOptionsProvider);
-                return ReaderSettingsPanel(
-                  options: o,
-                  onChanged: (v) =>
-                      ref.read(readerViewOptionsProvider.notifier).update(v),
-                  onReset: () =>
-                      ref.read(readerViewOptionsProvider.notifier).reset(),
-                );
-              },
-            ),
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (c) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.sizeOf(c).height * .86,
+          child: Consumer(
+            builder: (c, ref, _) {
+              final o = ref.watch(readerViewOptionsProvider);
+              return ReaderSettingsPanel(
+                options: o,
+                onChanged: (v) => ref.read(readerViewOptionsProvider.notifier).update(v),
+                onReset: () => ref.read(readerViewOptionsProvider.notifier).reset(),
+              );
+            },
           ),
         ),
-      );
-    // 设置关闭后恢复
+      ),
+    );
     if (mounted) {
       setState(() {
         _settingsVisible = false;
@@ -533,7 +504,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   Future<void> _showPageJump() async {
     if (_settingsVisible) {
-      // 如果设置已显示，关闭它
       Navigator.pop(context);
       setState(() {
         _settingsVisible = false;
@@ -541,13 +511,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       });
       return;
     }
-
-    // 打开设置
     setState(() {
       _settingsVisible = true;
       _gestureEnabled = false;
     });
-
     final v = await showDialog<int>(
       context: context,
       builder: (_) => PageJumpDialog(
@@ -555,8 +522,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         pageCount: _controller.pageCount,
       ),
     );
-    if (v != null) await _controller.goToPage(v - 1);
-    // 设置关闭后恢复
+    if (v != null) {
+      await _goToPage(v - 1);
+    }
     if (mounted) {
       setState(() {
         _settingsVisible = false;
@@ -567,7 +535,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   Future<void> _showBookPageJump() async {
     if (_settingsVisible) {
-      // 如果设置已显示，关闭它
       Navigator.pop(context);
       setState(() {
         _settingsVisible = false;
@@ -575,22 +542,17 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       });
       return;
     }
-
-    // 打开设置
     setState(() {
       _settingsVisible = true;
       _gestureEnabled = false;
     });
-
     final v = await showDialog<int>(
       context: context,
-      builder: (_) =>
-          BookPageJumpDialog(currentPage: _controller.currentBookPage),
+      builder: (_) => BookPageJumpDialog(currentPage: _controller.currentBookPage),
     );
     if (v == null) return;
     final p = _controller.bookPageMapping.pdfPageForBookPage(v);
-    if (p != null) await _controller.goToPage(p);
-    // 设置关闭后恢复
+    if (p != null) await _goToPage(p);
     if (mounted) {
       setState(() {
         _settingsVisible = false;
@@ -599,11 +561,79 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     }
   }
 
+  Future<void> _goToPage(int pageIndex, {double? originalX, double? originalY}) async {
+    await _controller.goToPage(pageIndex);
+    if (_blockController.enabled) {
+      await _blockController.moveToPage(
+        pageIndex,
+        originalX: originalX,
+        originalY: originalY,
+      );
+    }
+  }
+
+  Future<void> _toggleBlockMode() async {
+    if (_blockController.enabled) {
+      await _closeBlockMode();
+      return;
+    }
+    _blockController.configurePageCount(_controller.pageCount);
+    await _blockController.enable(pageIndex: _controller.currentPage);
+  }
+
+  Future<void> _closeBlockMode() async {
+    final block = _blockController.currentBlock;
+    final page = _blockController.currentPageIndex;
+    final x = block == null
+        ? .5
+        : block.rect.x + block.rect.width / 2;
+    final y = block == null
+        ? .5
+        : block.rect.y + block.rect.height * block.scrollPercent;
+    // Closing must never wait on prefetch/loading. Return to the original PDF
+    // page immediately, then discard the in-memory block cache.
+    if (_controller.currentPage != page) {
+      await _controller.goToPage(page);
+    }
+    await _blockController.disable();
+    if (mounted) {
+      _focusNode.requestFocus();
+      setState(() {});
+    }
+    // Keep the original coordinates available for a future locator-aware
+    // scroll implementation without inventing a second page identity.
+    final _ = Offset(x, y);
+  }
+
+  Future<void> _nextReaderPage() async {
+    if (!_blockController.enabled) {
+      await _controller.nextPage();
+      return;
+    }
+    final oldPage = _blockController.currentPageIndex;
+    final moved = await _blockController.next();
+    if (moved && _blockController.currentPageIndex != oldPage) {
+      await _controller.goToPage(_blockController.currentPageIndex);
+    }
+  }
+
+  Future<void> _previousReaderPage() async {
+    if (!_blockController.enabled) {
+      await _controller.previousPage();
+      return;
+    }
+    final oldPage = _blockController.currentPageIndex;
+    final moved = await _blockController.previous();
+    if (moved && _blockController.currentPageIndex != oldPage) {
+      await _controller.goToPage(_blockController.currentPageIndex);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.watch(readerAnnotationsProvider(widget.document));
+    _blockController.configurePageCount(_controller.pageCount);
 
-    // 定义一个 builder，用于构建 ReaderPageLayout
     Widget buildPageLayout(BuildContext context) {
       return ReaderPageLayout(
         locationLabel: _controller.currentLocationLabel,
@@ -619,8 +649,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         searchHits: _searchHits,
         bookmarked: _bookmarked,
         cropEnabled: _controller.cropMargins,
-        canGoPrevious: _controller.currentPage > 0,
-        canGoNext: _controller.currentPage < _controller.pageCount - 1,
+        canGoPrevious: _blockController.enabled
+            ? (_blockController.currentPageIndex > 0 || _blockController.currentBlockIndex > 0)
+            : _controller.currentPage > 0,
+        canGoNext: _blockController.enabled
+            ? (_blockController.currentPageIndex < _controller.pageCount - 1 || _blockController.currentBlock != null)
+            : _controller.currentPage < _controller.pageCount - 1,
         currentPage: _controller.currentPage,
         pageCount: _controller.pageCount,
         bookPage: _controller.currentBookPage,
@@ -633,13 +667,28 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         onInkStrokeData: _saveInkStrokeData,
         keyboardFocusNode: _focusNode,
         transformationController: _transformationController,
-        onPrevious: _controller.previousPage,
-        onNext: _controller.nextPage,
-        onFirst: _controller.firstPage,
-        onLast: _controller.lastPage,
+        onPrevious: _previousReaderPage,
+        onNext: _nextReaderPage,
+        onFirst: () async {
+          if (_blockController.enabled) {
+            await _blockController.moveToPage(0);
+            await _controller.goToPage(0);
+          } else {
+            await _controller.firstPage();
+          }
+        },
+        onLast: () async {
+          if (_blockController.enabled) {
+            final last = _controller.pageCount - 1;
+            await _blockController.moveToPage(last);
+            await _controller.goToPage(last);
+          } else {
+            await _controller.lastPage();
+          }
+        },
         onPageJump: _showPageJump,
         onBookPageJump: _showBookPageJump,
-        onPageSelected: (p) => _controller.goToPage(p),
+        onPageSelected: (p) => _goToPage(p),
         onBookTree: _showBookTree,
         onSearch: _showSearch,
         onBookmark: _toggleBookmark,
@@ -650,16 +699,50 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       );
     }
 
-    // 直接返回注册组件，所有翻页交互被封装
     return AnimatedBuilder(
-      animation: _controller,
+      animation: Listenable.merge([_controller, _blockController]),
       builder: (context, _) {
-        return ReaderPageTurnRegistration(
+        final base = ReaderPageTurnRegistration(
           controller: _controller,
           pageLayoutBuilder: buildPageLayout,
           toolBarHeight: 80.0,
-          middleAreaAction: MiddleAreaAction.settings, // 可配置
-          enabled: _gestureEnabled,
+          middleAreaAction: MiddleAreaAction.settings,
+          enabled: _gestureEnabled && !_blockController.enabled,
+        );
+
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            base,
+            if (!_blockController.enabled && !_blockController.loading)
+              Positioned(
+                top: 88,
+                right: 16,
+                child: Material(
+                  color: Theme.of(context).colorScheme.surface.withOpacity(.94),
+                  elevation: 4,
+                  borderRadius: BorderRadius.circular(14),
+                  child: IconButton(
+                    tooltip: '分块阅读',
+                    onPressed: _controller.pageLoading ? null : _toggleBlockMode,
+                    icon: const Icon(Icons.view_quilt_outlined),
+                  ),
+                ),
+              ),
+            if (_blockController.enabled && _controller.image != null)
+              Positioned(
+                top: 80,
+                left: 0,
+                right: 0,
+                bottom: 72,
+                child: PageBlockModeOverlay(
+                  image: _controller.image!,
+                  controller: _blockController,
+                  onClose: _closeBlockMode,
+                  onPageChanged: (page) => _controller.goToPage(page),
+                ),
+              ),
+          ],
         );
       },
     );
@@ -667,6 +750,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   @override
   void dispose() {
+    _blockController.clearSessionCache();
+    _blockController.dispose();
     _focusNode.dispose();
     _transformationController.dispose();
     _audioRecorder.dispose();
