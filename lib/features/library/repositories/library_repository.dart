@@ -36,7 +36,11 @@ class LibraryRepository {
     return files.map((file) {
       final storedJson = _documentJsonById[file.id];
       if (storedJson == null) return LibraryDocument.fromFile(file);
-      try { return LibraryDocument.fromJson(storedJson, file); } catch (_) { return LibraryDocument.fromFile(file); }
+      try {
+        return LibraryDocument.fromJson(storedJson, file);
+      } catch (_) {
+        return LibraryDocument.fromFile(file);
+      }
     }).toList();
   }
 
@@ -48,6 +52,52 @@ class LibraryRepository {
       final id = document['id'];
       if (id is String && id.isNotEmpty) _documentJsonById[id] = Map<String, dynamic>.from(document);
     }
+    await _reconcileMetadataIds();
+  }
+
+  /// Android updates can leave a valid metadata record with an old document id
+  /// after a file is migrated/re-scanned. Preserve that record by matching the
+  /// stable path first, then the stored filename/title.
+  Future<void> _reconcileMetadataIds() async {
+    final files = loadFiles();
+    if (files.isEmpty || _documentJsonById.isEmpty) return;
+    final used = <String>{};
+    final migrations = <MapEntry<String, String>>[];
+    for (final file in files) {
+      if (_documentJsonById.containsKey(file.id)) continue;
+      String? oldId;
+      for (final entry in _documentJsonById.entries) {
+        if (used.contains(entry.key)) continue;
+        final json = entry.value;
+        if (json['path']?.toString() == file.path) {
+          oldId = entry.key;
+          break;
+        }
+      }
+      if (oldId == null) {
+        final fileTitle = LibraryDocument.fromFile(file).title.trim().toLowerCase();
+        for (final entry in _documentJsonById.entries) {
+          if (used.contains(entry.key)) continue;
+          final storedTitle = entry.value['title']?.toString().trim().toLowerCase();
+          if (storedTitle != null && storedTitle.isNotEmpty && storedTitle == fileTitle) {
+            oldId = entry.key;
+            break;
+          }
+        }
+      }
+      if (oldId != null) {
+        used.add(oldId);
+        migrations.add(MapEntry(oldId, file.id));
+      }
+    }
+    for (final migration in migrations) {
+      final json = _documentJsonById.remove(migration.key);
+      if (json == null) continue;
+      json['id'] = migration.value;
+      json['path'] = files.firstWhere((file) => file.id == migration.value).path;
+      _documentJsonById[migration.value] = json;
+    }
+    if (migrations.isNotEmpty) await _persist();
   }
 
   Future<void> _loadCollections() async {
@@ -131,7 +181,7 @@ class LibraryRepository {
 
   Future<void> saveDocuments(List<LibraryDocument> documents) async {
     await initialize();
-    for (final document in documents) { _documentJsonById[document.id] = document.toJson(); }
+    for (final document in documents) _documentJsonById[document.id] = document.toJson();
     await _persist();
   }
 
@@ -166,5 +216,6 @@ class LibraryRepository {
       final id = document['id'];
       if (id is String && id.isNotEmpty) _documentJsonById[id] = Map<String, dynamic>.from(document);
     }
+    await _reconcileMetadataIds();
   }
 }
