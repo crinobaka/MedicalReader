@@ -7,13 +7,14 @@ import '../services/page_block_manager.dart';
 import '../services/page_block_navigation.dart';
 
 class PageBlockController extends ChangeNotifier {
-  PageBlockController({required this.docId, required this.pageCount, PageBlockManager? manager})
-      : manager = manager ?? PageBlockManager() {
+  PageBlockController({required this.docId, required int pageCount, PageBlockManager? manager})
+      : pageCount = pageCount < 1 ? 1 : pageCount,
+        manager = manager ?? PageBlockManager() {
     navigation = PageBlockNavigation(manager: this.manager);
   }
 
   final String docId;
-  final int pageCount;
+  int pageCount;
   final PageBlockManager manager;
   late final PageBlockNavigation navigation;
 
@@ -26,14 +27,26 @@ class PageBlockController extends ChangeNotifier {
   Object? error;
 
   String get uiPageLabel => '${currentPageIndex + 1}';
-  String get internalBlockLabel => currentBlock == null ? uiPageLabel : '${currentPageIndex + 1}(${currentBlockIndex + 1})';
+  String get internalBlockLabel => currentBlock == null
+      ? uiPageLabel
+      : '${currentPageIndex + 1}(${currentBlockIndex + 1})';
+
+  void configurePageCount(int value) {
+    final next = value < 1 ? 1 : value;
+    if (next == pageCount) return;
+    pageCount = next;
+    currentPageIndex = currentPageIndex.clamp(0, pageCount - 1).toInt();
+    notifyListeners();
+  }
 
   Future<void> enable({int? pageIndex}) async {
     if (enabled && pageIndex == null) return;
     enabled = true;
     loading = true;
     error = null;
-    if (pageIndex != null) currentPageIndex = pageIndex.clamp(0, pageCount - 1).toInt();
+    if (pageIndex != null) {
+      currentPageIndex = pageIndex.clamp(0, pageCount - 1).toInt();
+    }
     notifyListeners();
     try {
       final position = await navigation.first(docId, currentPageIndex);
@@ -50,6 +63,9 @@ class PageBlockController extends ChangeNotifier {
   Future<void> disable() async {
     enabled = false;
     loading = false;
+    editing = false;
+    currentBlock = null;
+    manager.clear();
     notifyListeners();
   }
 
@@ -57,11 +73,17 @@ class PageBlockController extends ChangeNotifier {
     if (!enabled) return;
     currentPageIndex = pageIndex.clamp(0, pageCount - 1).toInt();
     loading = true;
+    error = null;
     notifyListeners();
     try {
       final position = originalX == null || originalY == null
           ? await navigation.first(docId, currentPageIndex)
-          : await navigation.fromOriginalPosition(docId: docId, pageIndex: currentPageIndex, x: originalX, y: originalY);
+          : await navigation.fromOriginalPosition(
+              docId: docId,
+              pageIndex: currentPageIndex,
+              x: originalX,
+              y: originalY,
+            );
       _setPosition(position);
       unawaited(_prefetch());
     } catch (e) {
@@ -77,7 +99,12 @@ class PageBlockController extends ChangeNotifier {
     loading = true;
     notifyListeners();
     try {
-      final position = await navigation.next(docId: docId, pageIndex: currentPageIndex, blockIndex: currentBlockIndex, pageCount: pageCount);
+      final position = await navigation.next(
+        docId: docId,
+        pageIndex: currentPageIndex,
+        blockIndex: currentBlockIndex,
+        pageCount: pageCount,
+      );
       if (position == null) return false;
       _setPosition(position);
       unawaited(_prefetch());
@@ -96,7 +123,11 @@ class PageBlockController extends ChangeNotifier {
     loading = true;
     notifyListeners();
     try {
-      final position = await navigation.previous(docId: docId, pageIndex: currentPageIndex, blockIndex: currentBlockIndex);
+      final position = await navigation.previous(
+        docId: docId,
+        pageIndex: currentPageIndex,
+        blockIndex: currentBlockIndex,
+      );
       if (position == null) return false;
       _setPosition(position);
       unawaited(_prefetch());
@@ -119,9 +150,14 @@ class PageBlockController extends ChangeNotifier {
   Future<void> saveOrderedBlocks(List<PageBlock> blocks) async {
     await manager.saveManualBlocks(docId, currentPageIndex, blocks);
     final refreshed = await manager.resolve(docId, currentPageIndex);
-    final targetIndex = currentBlockIndex.clamp(0, refreshed.length - 1).toInt();
-    currentBlockIndex = targetIndex;
-    currentBlock = refreshed[targetIndex];
+    if (refreshed.isEmpty) {
+      currentBlock = null;
+      currentBlockIndex = 0;
+    } else {
+      final targetIndex = currentBlockIndex.clamp(0, refreshed.length - 1).toInt();
+      currentBlockIndex = targetIndex;
+      currentBlock = refreshed[targetIndex];
+    }
     notifyListeners();
   }
 
@@ -130,7 +166,9 @@ class PageBlockController extends ChangeNotifier {
     if (block == null) return;
     final next = block.copyWith(scrollPercent: percent);
     currentBlock = next;
-    if (block.source == PageBlockSource.manual) await manager.saveScrollPercent(next, percent);
+    if (block.source == PageBlockSource.manual) {
+      await manager.saveScrollPercent(next, percent);
+    }
     notifyListeners();
   }
 
