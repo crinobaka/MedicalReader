@@ -3,7 +3,6 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../controllers/page_block_controller.dart';
-import '../models/page_block.dart';
 import 'page_block_editor.dart';
 import 'page_block_loading_overlay.dart';
 import 'page_block_viewport.dart';
@@ -51,8 +50,7 @@ class _PageBlockModeOverlayState extends State<PageBlockModeOverlay> {
   }
 
   Future<void> _edit() async {
-    final block = _controller.currentBlock;
-    if (block == null) return;
+    if (_controller.currentBlock == null) return;
     final blocks = await _controller.manager.resolve(
       _controller.docId,
       _controller.currentPageIndex,
@@ -80,19 +78,10 @@ class _PageBlockModeOverlayState extends State<PageBlockModeOverlay> {
     _dragStartY = null;
     if (start == null || _controller.currentBlock == null) return;
     final velocity = details.primaryVelocity ?? 0;
-    if (velocity.abs() > 180) {
-      final direction = velocity < 0 ? 1 : -1;
-      final current = _controller.currentBlock!.scrollPercent;
-      await _controller.updateScrollPercent(
-        (current + direction * .18).clamp(0.0, 1.0).toDouble(),
-      );
-      return;
-    }
-    final delta = details.localPosition.dy - start;
-    if (delta.abs() < 12) return;
+    if (velocity.abs() <= 180) return;
     final current = _controller.currentBlock!.scrollPercent;
     await _controller.updateScrollPercent(
-      (current + (-delta / 220)).clamp(0.0, 1.0).toDouble(),
+      (current + (velocity < 0 ? .18 : -.18)).clamp(0.0, 1.0).toDouble(),
     );
   }
 
@@ -163,7 +152,7 @@ class _PageBlockModeOverlayState extends State<PageBlockModeOverlay> {
                     IconButton(
                       tooltip: '查看原页',
                       color: Colors.white,
-                      onPressed: _controller.loading ? widget.onClose : widget.onClose,
+                      onPressed: widget.onClose,
                       icon: const Icon(Icons.picture_as_pdf_outlined),
                     ),
                   ],
