@@ -51,9 +51,7 @@ class PageBlockController extends ChangeNotifier {
     enabled = true;
     loading = true;
     error = null;
-    if (pageIndex != null) {
-      currentPageIndex = pageIndex.clamp(0, pageCount - 1).toInt();
-    }
+    if (pageIndex != null) currentPageIndex = pageIndex.clamp(0, pageCount - 1).toInt();
     notifyListeners();
     try {
       final position = await navigation.first(docId, currentPageIndex);
@@ -85,12 +83,7 @@ class PageBlockController extends ChangeNotifier {
     try {
       final position = originalX == null || originalY == null
           ? await navigation.first(docId, currentPageIndex)
-          : await navigation.fromOriginalPosition(
-              docId: docId,
-              pageIndex: currentPageIndex,
-              x: originalX,
-              y: originalY,
-            );
+          : await navigation.fromOriginalPosition(docId: docId, pageIndex: currentPageIndex, x: originalX, y: originalY);
       _setPosition(position);
       unawaited(_prefetch());
     } catch (e) {
@@ -106,12 +99,7 @@ class PageBlockController extends ChangeNotifier {
     loading = true;
     notifyListeners();
     try {
-      final position = await navigation.next(
-        docId: docId,
-        pageIndex: currentPageIndex,
-        blockIndex: currentBlockIndex,
-        pageCount: pageCount,
-      );
+      final position = await navigation.next(docId: docId, pageIndex: currentPageIndex, blockIndex: currentBlockIndex, pageCount: pageCount);
       if (position == null) return false;
       _setPosition(position);
       unawaited(_prefetch());
@@ -130,11 +118,7 @@ class PageBlockController extends ChangeNotifier {
     loading = true;
     notifyListeners();
     try {
-      final position = await navigation.previous(
-        docId: docId,
-        pageIndex: currentPageIndex,
-        blockIndex: currentBlockIndex,
-      );
+      final position = await navigation.previous(docId: docId, pageIndex: currentPageIndex, blockIndex: currentBlockIndex);
       if (position == null) return false;
       _setPosition(position);
       unawaited(_prefetch());
@@ -162,10 +146,15 @@ class PageBlockController extends ChangeNotifier {
       currentBlock = null;
       currentBlockIndex = 0;
     } else {
-      final targetIndex = previousRect == null
-          ? currentBlockIndex.clamp(0, refreshed.length - 1).toInt()
-          : refreshed.indexWhere((b) => b.rect == previousRect);
-      final safeIndex = (targetIndex < 0 ? currentBlockIndex : targetIndex).clamp(0, refreshed.length - 1).toInt();
+      var targetIndex = currentBlockIndex;
+      if (previousRect != null) {
+        targetIndex = refreshed.indexWhere((b) {
+          final r = b.rect;
+          return r.x == previousRect.x && r.y == previousRect.y && r.width == previousRect.width && r.height == previousRect.height;
+        });
+        if (targetIndex < 0) targetIndex = currentBlockIndex;
+      }
+      final safeIndex = targetIndex.clamp(0, refreshed.length - 1).toInt();
       currentBlockIndex = safeIndex;
       currentBlock = refreshed[safeIndex];
     }
@@ -177,9 +166,7 @@ class PageBlockController extends ChangeNotifier {
     if (block == null) return;
     final next = block.copyWith(scrollPercent: percent);
     currentBlock = next;
-    if (block.source == PageBlockSource.manual) {
-      await manager.saveScrollPercent(next, percent);
-    }
+    if (block.source == PageBlockSource.manual) await manager.saveScrollPercent(next, percent);
     notifyListeners();
   }
 
