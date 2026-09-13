@@ -67,7 +67,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               ListTile(
                 leading: Icon(Icons.info_outline),
                 title: Text('MedicalReader'),
-                subtitle: Text('PDF 阅读、知识整理与医学文献管理 · 版本 1.5.0'),
+                subtitle: Text('PDF 阅读、知识整理与医学文献管理 · 版本 3.0.0'),
                 contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               ),
             ]),

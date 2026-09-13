@@ -56,3 +56,6 @@ build/
 # Built locally from core/medical_core.
 android/app/src/main/jniLibs/
 assets/Bookrelease
+
+*.apk
+*.exe
