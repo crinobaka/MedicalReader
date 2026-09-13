@@ -1,0 +1,176 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+
+import '../models/page_block.dart';
+import '../services/page_block_manager.dart';
+import '../services/page_block_navigation.dart';
+
+/// Runtime state for PDF block reading. It deliberately knows only the
+/// original page index plus a virtual block cursor.
+class PageBlockController extends ChangeNotifier {
+  PageBlockController({
+    required this.docId,
+    required this.pageCount,
+    PageBlockManager? manager,
+  }) : manager = manager ?? PageBlockManager() {
+    navigation = PageBlockNavigation(manager: this.manager);
+  }
+
+  final String docId;
+  final int pageCount;
+  final PageBlockManager manager;
+  late final PageBlockNavigation navigation;
+
+  bool enabled = false;
+  bool loading = false;
+  bool editing = false;
+  int currentPageIndex = 0;
+  int currentBlockIndex = 0;
+  PageBlock? currentBlock;
+  Object? error;
+
+  String get uiPageLabel => '${currentPageIndex + 1}';
+  String get internalBlockLabel => currentBlock == null
+      ? uiPageLabel
+      : '${currentPageIndex + 1}(${currentBlockIndex + 1})';
+
+  Future<void> enable({int? pageIndex}) async {
+    if (enabled && pageIndex == null) return;
+    enabled = true;
+    loading = true;
+    error = null;
+    if (pageIndex != null) currentPageIndex = pageIndex.clamp(0, pageCount - 1);
+    notifyListeners();
+    try {
+      final position = await navigation.first(docId, currentPageIndex);
+      _setPosition(position);
+      unawaited(_prefetch());
+    } catch (e) {
+      error = e;
+    } finally {
+      loading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> disable() async {
+    enabled = false;
+    loading = false;
+    notifyListeners();
+  }
+
+  Future<void> moveToPage(int pageIndex, {double? originalX, double? originalY}) async {
+    if (!enabled) return;
+    currentPageIndex = pageIndex.clamp(0, pageCount - 1);
+    loading = true;
+    notifyListeners();
+    try {
+      final position = originalX == null || originalY == null
+          ? await navigation.first(docId, currentPageIndex)
+          : await navigation.fromOriginalPosition(
+              docId: docId,
+              pageIndex: currentPageIndex,
+              x: originalX,
+              y: originalY,
+            );
+      _setPosition(position);
+      unawaited(_prefetch());
+    } catch (e) {
+      error = e;
+    } finally {
+      loading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> next() async {
+    if (!enabled || loading || currentBlock == null) return false;
+    loading = true;
+    notifyListeners();
+    try {
+      final position = await navigation.next(
+        docId: docId,
+        pageIndex: currentPageIndex,
+        blockIndex: currentBlockIndex,
+        pageCount: pageCount,
+      );
+      if (position == null) return false;
+      _setPosition(position);
+      unawaited(_prefetch());
+      return true;
+    } catch (e) {
+      error = e;
+      return false;
+    } finally {
+      loading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> previous() async {
+    if (!enabled || loading || currentBlock == null) return false;
+    loading = true;
+    notifyListeners();
+    try {
+      final position = await navigation.previous(
+        docId: docId,
+        pageIndex: currentPageIndex,
+        blockIndex: currentBlockIndex,
+      );
+      if (position == null) return false;
+      _setPosition(position);
+      unawaited(_prefetch());
+      return true;
+    } catch (e) {
+      error = e;
+      return false;
+    } finally {
+      loading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> saveManualBlocks(List<NormalizedRect> rects) async {
+    await manager.saveManual(docId, currentPageIndex, rects);
+    final position = await navigation.first(docId, currentPageIndex);
+    _setPosition(position);
+    notifyListeners();
+  }
+
+  Future<void> saveOrderedBlocks(List<PageBlock> blocks) async {
+    await manager.saveManualBlocks(docId, currentPageIndex, blocks);
+    final refreshed = await manager.resolve(docId, currentPageIndex);
+    final targetIndex = currentBlockIndex.clamp(0, refreshed.length - 1);
+    currentBlockIndex = targetIndex;
+    currentBlock = refreshed[targetIndex];
+    notifyListeners();
+  }
+
+  Future<void> updateScrollPercent(double percent) async {
+    final block = currentBlock;
+    if (block == null) return;
+    final next = block.copyWith(scrollPercent: percent);
+    currentBlock = next;
+    if (block.source == PageBlockSource.manual) {
+      await manager.saveScrollPercent(next, percent);
+    }
+    notifyListeners();
+  }
+
+  void clearSessionCache() => manager.clear();
+
+  void setEditing(bool value) {
+    editing = value;
+    notifyListeners();
+  }
+
+  void _setPosition(PageBlockPosition position) {
+    currentPageIndex = position.pageIndex;
+    currentBlockIndex = position.blockIndex;
+    currentBlock = position.block;
+    error = null;
+  }
+
+  Future<void> _prefetch() => manager.prefetchDefaults(docId, currentPageIndex, pageCount);
+}
