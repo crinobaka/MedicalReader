@@ -26,22 +26,16 @@ class ReaderEngineService {
     PageCropService? cropService,
     CropEngineService? cropEngine,
     CropConfigurationStore? cropConfigurationStore,
-  }) : _core = core ?? MedicalCore(),
-       _pageCache = pageCache ?? PageCache(),
-       _cropService = cropService ?? const PageCropService(),
-       _cropEngine = cropEngine ?? const CropEngineService(),
-       _cropConfigurationStore =
-           cropConfigurationStore ?? CropConfigurationStore.instance {
+  })  : _core = core ?? MedicalCore(),
+        _pageCache = pageCache ?? PageCache(),
+        _cropService = cropService ?? const PageCropService(),
+        _cropEngine = cropEngine ?? const CropEngineService(),
+        _cropConfigurationStore = cropConfigurationStore ?? CropConfigurationStore.instance {
     _cropConfigurationListener = _handleCropConfigurationChanged;
     _cropConfigurationStore.addListener(_cropConfigurationListener);
   }
 
-  void _handleCropConfigurationChanged() {
-    // Crop configuration participates in the page cache key, but changing the
-    // configuration must also invalidate already cached images immediately.
-    // Otherwise a later render could keep an image produced by the old layout.
-    _pageCache.clear();
-  }
+  void _handleCropConfigurationChanged() => _pageCache.clear();
 
   MedicalCoreDocument openDocument({required String id, required String path}) {
     _pageCache.clear();
@@ -49,10 +43,8 @@ class ReaderEngineService {
     return _core.openBook(id: id, path: path);
   }
 
-  /// 渲染页面。
-  ///
-  /// 已保存的单栏/双栏/三栏/自定义模板是页面布局，因此独立于
-  /// [cropMargins] 这个旧的“自动去白边”开关。
+  /// Render a complete PDF page by default. Saved crop/split regions only
+  /// become active when the user explicitly enables crop mode.
   Future<ui.Image> renderPage({
     required MedicalCoreDocument document,
     required int pageIndex,
@@ -61,48 +53,34 @@ class ReaderEngineService {
     CropConfiguration? cropConfiguration,
     List<CropRegion>? previousCropRegions,
   }) async {
-    CropConfiguration? effectiveConfiguration = cropConfiguration;
-
-    effectiveConfiguration ??= await _cropConfigurationStore.getForCurrentDocument();
-
-    final hasConfiguredRegions =
-        effectiveConfiguration != null &&
-        effectiveConfiguration.regions.isNotEmpty;
-
-    final cropSignature = effectiveConfiguration?.cacheKey ?? '';
-
+    final effectiveConfiguration = cropMargins
+        ? (cropConfiguration ?? await _cropConfigurationStore.getForCurrentDocument())
+        : null;
+    final hasConfiguredRegions = effectiveConfiguration != null && effectiveConfiguration.regions.isNotEmpty;
+    final cropSignature = cropMargins ? (effectiveConfiguration?.cacheKey ?? '') : '';
     final cached = _pageCache.get(
       pageIndex: pageIndex,
       dpi: dpi,
       cropMargins: cropMargins,
       cropSignature: cropSignature,
     );
+    if (cached != null) return cached;
 
-    if (cached != null) {
-      return cached;
-    }
-
-    final page = document.renderPage(
-      pageIndex: pageIndex,
-      dpi: dpi,
-    );
-
+    final page = document.renderPage(pageIndex: pageIndex, dpi: dpi);
     ui.Image image = await MedicalCoreImage.decode(page);
 
-    if (effectiveConfiguration != null && hasConfiguredRegions) {
+    if (cropMargins && effectiveConfiguration != null && hasConfiguredRegions) {
       final regions = _cropEngine.resolveRegions(
         configuration: effectiveConfiguration,
         pageIndex: pageIndex,
         previousRegions: previousCropRegions,
       );
-
       if (regions.isNotEmpty) {
         final cropped = await _cropEngine.cropAndCompose(
           source: image,
           regions: regions,
           layout: effectiveConfiguration.layout,
         );
-
         if (!identical(cropped, image)) {
           image.dispose();
           image = cropped;
@@ -110,7 +88,6 @@ class ReaderEngineService {
       }
     } else if (cropMargins) {
       final cropped = await _cropService.cropWhiteMargins(image);
-
       if (!identical(cropped, image)) {
         image.dispose();
         image = cropped;
@@ -124,18 +101,13 @@ class ReaderEngineService {
       cropSignature: cropSignature,
       image: image,
     );
-
-    final removed = _pageCache.trim();
-    for (final oldImage in removed) {
+    for (final oldImage in _pageCache.trim()) {
       oldImage.dispose();
     }
-
     return image.clone();
   }
 
-  void clearPageCache({ui.Image? keepImage}) {
-    _pageCache.clearExcept(keepImage);
-  }
+  void clearPageCache({ui.Image? keepImage}) => _pageCache.clearExcept(keepImage);
 
   void dispose() {
     _cropConfigurationStore.removeListener(_cropConfigurationListener);
