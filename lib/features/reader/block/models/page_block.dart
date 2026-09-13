@@ -1,9 +1,5 @@
 import 'dart:math' as math;
 
-/// A virtual reading viewport on one original PDF page.
-///
-/// Coordinates are normalized against the original page (0..1). The original
-/// PDF page index remains the only user-visible page identity.
 class PageBlock {
   const PageBlock({
     required this.docId,
@@ -45,7 +41,7 @@ class PageBlock {
         'blockIndex': blockIndex,
         'rect': rect.toJson(),
         'order': order,
-        'source': source.name,
+        'source': source == PageBlockSource.defaultBlock ? 'default' : 'manual',
         'scrollPercent': scrollPercent,
       };
 
@@ -55,10 +51,9 @@ class PageBlock {
         blockIndex: (json['blockIndex'] as num?)?.toInt() ?? 0,
         rect: NormalizedRect.fromJson(json['rect']),
         order: (json['order'] as num?)?.toInt() ?? 0,
-        source: PageBlockSource.values.firstWhere(
-          (v) => v.name == json['source'],
-          orElse: () => PageBlockSource.manual,
-        ),
+        source: json['source']?.toString() == 'default'
+            ? PageBlockSource.defaultBlock
+            : PageBlockSource.manual,
         scrollPercent: ((json['scrollPercent'] as num?)?.toDouble() ?? 0).clamp(0, 1),
       );
 
@@ -92,8 +87,7 @@ class NormalizedRect {
     );
   }
 
-  bool contains(double px, double py) =>
-      px >= x && px <= right && py >= y && py <= bottom;
+  bool contains(double px, double py) => px >= x && px <= right && py >= y && py <= bottom;
 
   bool containsRect(NormalizedRect other) =>
       other.x >= x && other.right <= right && other.y >= y && other.bottom <= bottom;
