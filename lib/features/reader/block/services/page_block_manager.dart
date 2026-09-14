@@ -20,21 +20,23 @@ class PageBlockManager {
   String? _layoutSignature;
 
   /// Supplies the actual rendered page and viewport used by the current reader.
-  /// Defaults are regenerated when this signature changes; manual blocks are
-  /// never affected by it.
+  /// Defaults are regenerated when the rendered page or viewport changes;
+  /// manual blocks are never affected by it.
   void configureLayout({
     required ui.Image image,
     required double viewportWidth,
     required double viewportHeight,
   }) {
     if (viewportWidth <= 0 || viewportHeight <= 0) return;
-    final signature = '${image.width}x${image.height}:$viewportWidth:$viewportHeight';
+    final signature = '${identityHashCode(image)}:${image.width}x${image.height}:$viewportWidth:$viewportHeight';
     if (signature == _layoutSignature) return;
     _layoutSignature = signature;
     _layoutImage = image;
     _viewportWidth = viewportWidth;
     _viewportHeight = viewportHeight;
-    _cache.removeWhere((key, blocks) => blocks.isNotEmpty && blocks.first.source == PageBlockSource.defaultBlock);
+    _cache.removeWhere(
+      (key, blocks) => blocks.isNotEmpty && blocks.first.source == PageBlockSource.defaultBlock,
+    );
   }
 
   Future<List<PageBlock>> resolve(String docId, int pageIndex) async {
@@ -110,9 +112,8 @@ class PageBlockManager {
     _put(_key(block.docId, block.pageIndex), updated);
   }
 
-  /// Adaptive defaults are intentionally generated lazily: only the current
-  /// page has the raster needed to verify a reading gutter. Future pages are
-  /// resolved immediately when entered, never by waiting for prefetch.
+  /// Adaptive defaults are generated lazily: the current rendered page is
+  /// required so a column gutter can be verified before splitting.
   Future<void> prefetchDefaults(String docId, int currentPage, int pageCount) async {
     _trim(currentPage: currentPage, docId: docId);
   }
