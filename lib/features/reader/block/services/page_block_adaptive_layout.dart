@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import '../models/page_block.dart';
@@ -23,41 +22,74 @@ class PageBlockAdaptiveLayout {
       return _singlePage(docId, pageIndex);
     }
 
-    final hasTwoColumns = await _hasVerticalReadingGutter(image);
-    if (!hasTwoColumns) return _singlePage(docId, pageIndex);
+    final gutter = await _findVerticalReadingGutter(image);
+    if (gutter == null) return _singlePage(docId, pageIndex);
 
+    final leftWidth = gutter;
+    final rightWidth = 1 - gutter;
     final pageAspect = image.width / image.height;
     final viewportAspect = viewportWidth / viewportHeight;
-    final idealRowHeight = pageAspect / (2 * viewportAspect);
-    final rowCount = idealRowHeight >= 1
-        ? 1
-        : (1 / idealRowHeight).ceil().clamp(1, 8).toInt();
+    final idealRowHeight = pageAspect * leftWidth / viewportAspect;
+    final idealRightRowHeight = pageAspect * rightWidth / viewportAspect;
+    final rowCount = _rowCount(idealRowHeight);
+    final rightRowCount = _rowCount(idealRightRowHeight);
 
     final blocks = <PageBlock>[];
     var order = 1;
-    for (var column = 0; column < 2; column++) {
-      for (var row = 0; row < rowCount; row++) {
-        final top = row / rowCount;
-        final bottom = (row + 1) / rowCount;
-        blocks.add(
-          PageBlock(
-            docId: docId,
-            pageIndex: pageIndex,
-            blockIndex: blocks.length,
-            rect: NormalizedRect(
-              x: column == 0 ? 0 : .5,
-              y: top,
-              width: .5,
-              height: bottom - top,
-            ),
-            order: order++,
-            source: PageBlockSource.defaultBlock,
-          ),
-        );
-      }
+    for (var row = 0; row < rowCount; row++) {
+      final top = row / rowCount;
+      final bottom = (row + 1) / rowCount;
+      blocks.add(_block(
+        docId: docId,
+        pageIndex: pageIndex,
+        index: blocks.length,
+        order: order++,
+        x: 0,
+        y: top,
+        width: leftWidth,
+        height: bottom - top,
+      ));
+    }
+    for (var row = 0; row < rightRowCount; row++) {
+      final top = row / rightRowCount;
+      final bottom = (row + 1) / rightRowCount;
+      blocks.add(_block(
+        docId: docId,
+        pageIndex: pageIndex,
+        index: blocks.length,
+        order: order++,
+        x: gutter,
+        y: top,
+        width: rightWidth,
+        height: bottom - top,
+      ));
     }
     return blocks;
   }
+
+  int _rowCount(double idealRowHeight) {
+    if (idealRowHeight >= 1) return 1;
+    if (idealRowHeight <= 0) return 1;
+    return (1 / idealRowHeight).ceil().clamp(1, 8).toInt();
+  }
+
+  PageBlock _block({
+    required String docId,
+    required int pageIndex,
+    required int index,
+    required int order,
+    required double x,
+    required double y,
+    required double width,
+    required double height,
+  }) => PageBlock(
+        docId: docId,
+        pageIndex: pageIndex,
+        blockIndex: index,
+        rect: NormalizedRect(x: x, y: y, width: width, height: height),
+        order: order,
+        source: PageBlockSource.defaultBlock,
+      );
 
   List<PageBlock> _singlePage(String docId, int pageIndex) => [
         PageBlock(
@@ -70,18 +102,18 @@ class PageBlockAdaptiveLayout {
         ),
       ];
 
-  Future<bool> _hasVerticalReadingGutter(ui.Image image) async {
+  Future<double?> _findVerticalReadingGutter(ui.Image image) async {
     final data = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
-    if (data == null) return false;
+    if (data == null) return null;
 
     final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
     final width = image.width;
     final height = image.height;
     final stride = width * 4;
-    final samplesY = 18;
+    const samplesY = 18;
     final startX = (width * .30).round();
     final endX = (width * .70).round();
-    if (endX - startX < 12) return false;
+    if (endX - startX < 12) return null;
 
     double inkAt(int x) {
       var ink = 0;
@@ -98,11 +130,14 @@ class PageBlockAdaptiveLayout {
       return ink / samplesY;
     }
 
+    final step = (width / 160).ceil();
     final profile = <double>[];
-    for (var x = startX; x <= endX; x += (width / 160).ceil()) {
+    final positions = <int>[];
+    for (var x = startX; x <= endX; x += step) {
+      positions.add(x);
       profile.add(inkAt(x));
     }
-    if (profile.length < 8) return false;
+    if (profile.length < 8) return null;
 
     final center = profile.length / 2;
     var bestIndex = -1;
@@ -111,8 +146,9 @@ class PageBlockAdaptiveLayout {
       final distanceFromCenter = ((i - center).abs() / center);
       if (distanceFromCenter > .35) continue;
       final valley = (profile[i - 1] + profile[i] + profile[i + 1]) / 3;
-      final sideLeft = profile.sublist(0, i).fold<double>(0, (a, b) => a + b) / i;
+      final leftCount = i;
       final rightCount = profile.length - i - 1;
+      final sideLeft = profile.sublist(0, i).fold<double>(0, (a, b) => a + b) / leftCount;
       final sideRight = profile.sublist(i + 1).fold<double>(0, (a, b) => a + b) / rightCount;
       final sideInk = (sideLeft + sideRight) / 2;
       if (sideInk < .08) continue;
@@ -122,6 +158,7 @@ class PageBlockAdaptiveLayout {
         bestIndex = i;
       }
     }
-    return bestIndex >= 0;
+    if (bestIndex < 0) return null;
+    return (positions[bestIndex] / width).clamp(.35, .65).toDouble();
   }
 }
