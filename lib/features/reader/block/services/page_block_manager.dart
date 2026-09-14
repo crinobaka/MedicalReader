@@ -1,14 +1,41 @@
 import 'dart:collection';
+import 'dart:ui' as ui;
 
 import '../models/page_block.dart';
+import 'page_block_adaptive_layout.dart';
 import 'page_block_storage.dart';
 
 class PageBlockManager {
-  PageBlockManager({PageBlockStorage? storage, this.maxFuturePages = 5}) : storage = storage ?? PageBlockStorage();
+  PageBlockManager({PageBlockStorage? storage, this.maxFuturePages = 5})
+      : storage = storage ?? PageBlockStorage();
 
   final PageBlockStorage storage;
   final int maxFuturePages;
   final LinkedHashMap<String, List<PageBlock>> _cache = LinkedHashMap();
+  final PageBlockAdaptiveLayout _adaptiveLayout = const PageBlockAdaptiveLayout();
+
+  ui.Image? _layoutImage;
+  double? _viewportWidth;
+  double? _viewportHeight;
+  String? _layoutSignature;
+
+  /// Supplies the actual rendered page and viewport used by the current reader.
+  /// Defaults are regenerated when this signature changes; manual blocks are
+  /// never affected by it.
+  void configureLayout({
+    required ui.Image image,
+    required double viewportWidth,
+    required double viewportHeight,
+  }) {
+    if (viewportWidth <= 0 || viewportHeight <= 0) return;
+    final signature = '${image.width}x${image.height}:$viewportWidth:$viewportHeight';
+    if (signature == _layoutSignature) return;
+    _layoutSignature = signature;
+    _layoutImage = image;
+    _viewportWidth = viewportWidth;
+    _viewportHeight = viewportHeight;
+    _cache.removeWhere((key, blocks) => blocks.isNotEmpty && blocks.first.source == PageBlockSource.defaultBlock);
+  }
 
   Future<List<PageBlock>> resolve(String docId, int pageIndex) async {
     final manual = await storage.loadManual(docId, pageIndex);
@@ -22,13 +49,27 @@ class PageBlockManager {
       _touch(key);
       return cached;
     }
-    final blocks = defaultFour(docId, pageIndex);
+
+    final image = _layoutImage;
+    final viewportWidth = _viewportWidth;
+    final viewportHeight = _viewportHeight;
+    final blocks = image != null && viewportWidth != null && viewportHeight != null
+        ? await _adaptiveLayout.generate(
+            docId: docId,
+            pageIndex: pageIndex,
+            image: image,
+            viewportWidth: viewportWidth,
+            viewportHeight: viewportHeight,
+          )
+        : defaultFour(docId, pageIndex);
     _put(key, blocks);
     return blocks;
   }
 
-  Future<bool> hasManual(String docId, int pageIndex) async => (await storage.loadManual(docId, pageIndex))?.isNotEmpty ?? false;
+  Future<bool> hasManual(String docId, int pageIndex) async =>
+      (await storage.loadManual(docId, pageIndex))?.isNotEmpty ?? false;
 
+  /// Legacy fallback retained for callers/tests that have no rendered page.
   List<PageBlock> defaultFour(String docId, int pageIndex) => [
         _defaultBlock(docId, pageIndex, 0, 0, 0),
         _defaultBlock(docId, pageIndex, 1, 0, .5),
@@ -39,7 +80,14 @@ class PageBlockManager {
   Future<void> saveManual(String docId, int pageIndex, List<NormalizedRect> rects) async {
     final blocks = [
       for (var i = 0; i < rects.length; i++)
-        PageBlock(docId: docId, pageIndex: pageIndex, blockIndex: i, rect: rects[i].normalized(), order: i + 1, source: PageBlockSource.manual),
+        PageBlock(
+          docId: docId,
+          pageIndex: pageIndex,
+          blockIndex: i,
+          rect: rects[i].normalized(),
+          order: i + 1,
+          source: PageBlockSource.manual,
+        ),
     ];
     await storage.saveManual(docId, pageIndex, blocks);
     _put(_key(docId, pageIndex), blocks);
@@ -54,24 +102,27 @@ class PageBlockManager {
   Future<void> saveScrollPercent(PageBlock block, double percent) async {
     final current = await storage.loadManual(block.docId, block.pageIndex);
     if (current == null) return;
-    final updated = [for (final b in current) b.blockIndex == block.blockIndex ? b.copyWith(scrollPercent: percent) : b];
+    final updated = [
+      for (final b in current)
+        b.blockIndex == block.blockIndex ? b.copyWith(scrollPercent: percent) : b,
+    ];
     await storage.saveManual(block.docId, block.pageIndex, updated);
     _put(_key(block.docId, block.pageIndex), updated);
   }
 
-  /// Only default four-way blocks are generated ahead of the reader cursor.
-  /// Manual records are resolved lazily and always win when a page is entered.
+  /// Adaptive defaults are intentionally generated lazily: only the current
+  /// page has the raster needed to verify a reading gutter. Future pages are
+  /// resolved immediately when entered, never by waiting for prefetch.
   Future<void> prefetchDefaults(String docId, int currentPage, int pageCount) async {
-    for (var page = currentPage + 1; page <= currentPage + maxFuturePages && page < pageCount; page++) {
-      final key = _key(docId, page);
-      if (_cache.containsKey(key)) continue;
-      await Future<void>.delayed(Duration.zero);
-      _put(key, defaultFour(docId, page));
-    }
     _trim(currentPage: currentPage, docId: docId);
   }
 
-  void clear() => _cache.clear();
+  void clear() {
+    _cache.clear();
+    _layoutSignature = null;
+    _layoutImage = null;
+  }
+
   void clearDocument(String docId) => _cache.removeWhere((key, _) => key.startsWith('$docId:'));
 
   void _put(String key, List<PageBlock> blocks) {
@@ -85,7 +136,9 @@ class PageBlockManager {
   }
 
   void _trim({required int currentPage, required String docId}) {
-    final allowed = <String>{for (var p = currentPage; p <= currentPage + maxFuturePages; p++) _key(docId, p)};
+    final allowed = <String>{
+      for (var p = currentPage; p <= currentPage + maxFuturePages; p++) _key(docId, p),
+    };
     _cache.removeWhere((key, _) => key.startsWith('$docId:') && !allowed.contains(key));
   }
 
