@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:medicalreader/features/reader/block/models/page_block.dart';
+import 'package:medicalreader/features/reader/block/services/page_block_adaptive_layout.dart';
 import 'package:medicalreader/features/reader/block/services/page_block_manager.dart';
 import 'package:medicalreader/features/reader/block/services/page_block_navigation.dart';
 import 'package:medicalreader/features/reader/block/services/page_block_storage.dart';
@@ -32,6 +33,42 @@ void main() {
     expect(blocks[2].rect.toJson(), {'x': .5, 'y': 0, 'w': .5, 'h': .5});
     expect(blocks[3].rect.toJson(), {'x': .5, 'y': .5, 'w': .5, 'h': .5});
     expect(blocks.map((b) => b.order), [1, 2, 3, 4]);
+  });
+
+  test('adaptive row count follows viewport without exceeding eight pieces', () {
+    const layout = PageBlockAdaptiveLayout();
+    expect(
+      layout.rowCountForRegion(
+        regionWidth: .45,
+        pageAspect: .707,
+        viewportAspect: .56,
+      ),
+      2,
+    );
+    expect(
+      layout.rowCountForRegion(
+        regionWidth: 1,
+        pageAspect: 1.4,
+        viewportAspect: .56,
+      ),
+      3,
+    );
+    expect(
+      layout.rowCountForRegion(
+        regionWidth: 1,
+        pageAspect: .4,
+        viewportAspect: 3,
+      ),
+      1,
+    );
+    expect(
+      layout.rowCountForRegion(
+        regionWidth: 1,
+        pageAspect: 10,
+        viewportAspect: .1,
+      ),
+      8,
+    );
   });
 
   test('navigation crosses page boundary by block', () async {
