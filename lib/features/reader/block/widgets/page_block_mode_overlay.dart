@@ -30,8 +30,24 @@ class PageBlockModeOverlay extends StatefulWidget {
 
 class _PageBlockModeOverlayState extends State<PageBlockModeOverlay> {
   double? _dragStartY;
+  String? _lastAdaptSignature;
 
   PageBlockController get _controller => widget.controller;
+
+  void _scheduleAdapt(Size viewport) {
+    if (viewport.isEmpty || !_controller.enabled) return;
+    final signature = '${_controller.currentPageIndex}:${widget.image.width}x${widget.image.height}:${viewport.width}x${viewport.height}';
+    if (signature == _lastAdaptSignature) return;
+    _lastAdaptSignature = signature;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_controller.enabled) return;
+      _controller.adaptCurrentPage(
+        image: widget.image,
+        viewportWidth: viewport.width,
+        viewportHeight: viewport.height,
+      );
+    });
+  }
 
   Future<void> _next() async {
     final oldPage = _controller.currentPageIndex;
@@ -90,77 +106,82 @@ class _PageBlockModeOverlayState extends State<PageBlockModeOverlay> {
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, _) {
-        final block = _controller.currentBlock;
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            if (block != null)
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onHorizontalDragEnd: (details) {
-                  final velocity = details.primaryVelocity ?? 0;
-                  if (velocity < -160) {
-                    _next();
-                  } else if (velocity > 160) {
-                    _previous();
-                  }
-                },
-                onVerticalDragStart: _onVerticalDragStart,
-                onVerticalDragEnd: _onVerticalDragEnd,
-                child: PageBlockViewport(
-                  image: widget.image,
-                  block: block,
-                  scrollPercent: block.scrollPercent,
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            _scheduleAdapt(constraints.biggest);
+            final block = _controller.currentBlock;
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                if (block != null)
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onHorizontalDragEnd: (details) {
+                      final velocity = details.primaryVelocity ?? 0;
+                      if (velocity < -160) {
+                        _next();
+                      } else if (velocity > 160) {
+                        _previous();
+                      }
+                    },
+                    onVerticalDragStart: _onVerticalDragStart,
+                    onVerticalDragEnd: _onVerticalDragEnd,
+                    child: PageBlockViewport(
+                      image: widget.image,
+                      block: block,
+                      scrollPercent: block.scrollPercent,
+                    ),
+                  )
+                else
+                  const SizedBox.expand(),
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: Material(
+                    color: Colors.black.withOpacity(.58),
+                    borderRadius: BorderRadius.circular(14),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          tooltip: '上一阅读块',
+                          color: Colors.white,
+                          onPressed: _controller.loading ? null : _previous,
+                          icon: const Icon(Icons.chevron_left),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: Text(
+                            _controller.internalBlockLabel,
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: '下一阅读块',
+                          color: Colors.white,
+                          onPressed: _controller.loading ? null : _next,
+                          icon: const Icon(Icons.chevron_right),
+                        ),
+                        IconButton(
+                          tooltip: '编辑阅读块',
+                          color: Colors.white,
+                          onPressed: _controller.loading ? null : _edit,
+                          icon: const Icon(Icons.crop_free),
+                        ),
+                        IconButton(
+                          tooltip: '查看原页',
+                          color: Colors.white,
+                          onPressed: widget.onClose,
+                          icon: const Icon(Icons.picture_as_pdf_outlined),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-              )
-            else
-              const SizedBox.expand(),
-            Positioned(
-              top: 12,
-              right: 12,
-              child: Material(
-                color: Colors.black.withOpacity(.58),
-                borderRadius: BorderRadius.circular(14),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      tooltip: '上一阅读块',
-                      color: Colors.white,
-                      onPressed: _controller.loading ? null : _previous,
-                      icon: const Icon(Icons.chevron_left),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: Text(
-                        _controller.internalBlockLabel,
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: '下一阅读块',
-                      color: Colors.white,
-                      onPressed: _controller.loading ? null : _next,
-                      icon: const Icon(Icons.chevron_right),
-                    ),
-                    IconButton(
-                      tooltip: '编辑阅读块',
-                      color: Colors.white,
-                      onPressed: _controller.loading ? null : _edit,
-                      icon: const Icon(Icons.crop_free),
-                    ),
-                    IconButton(
-                      tooltip: '查看原页',
-                      color: Colors.white,
-                      onPressed: widget.onClose,
-                      icon: const Icon(Icons.picture_as_pdf_outlined),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            if (_controller.loading) const PageBlockLoadingOverlay(),
-          ],
+                if (_controller.loading) const PageBlockLoadingOverlay(),
+              ],
+            );
+          },
         );
       },
     );
