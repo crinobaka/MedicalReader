@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 
@@ -63,6 +64,38 @@ class PageBlockController extends ChangeNotifier {
       loading = false;
       notifyListeners();
     }
+  }
+
+  /// Rebuilds only automatic blocks using the real page raster and viewport.
+  /// Persisted manual blocks always remain the source of truth.
+  Future<void> adaptCurrentPage({
+    required ui.Image image,
+    required double viewportWidth,
+    required double viewportHeight,
+  }) async {
+    if (!enabled || viewportWidth <= 0 || viewportHeight <= 0) return;
+    final page = currentPageIndex;
+    final oldBlock = currentBlock;
+    manager.configureLayout(
+      image: image,
+      viewportWidth: viewportWidth,
+      viewportHeight: viewportHeight,
+    );
+    final blocks = await manager.resolve(docId, page);
+    if (!enabled || currentPageIndex != page || blocks.isEmpty) return;
+
+    if (oldBlock != null && oldBlock.source == PageBlockSource.manual) {
+      final index = blocks.indexWhere((b) => b.blockIndex == oldBlock.blockIndex);
+      if (index >= 0) {
+        currentBlockIndex = index;
+        currentBlock = blocks[index];
+      }
+    } else {
+      final safeIndex = currentBlockIndex.clamp(0, blocks.length - 1).toInt();
+      currentBlockIndex = safeIndex;
+      currentBlock = blocks[safeIndex];
+    }
+    notifyListeners();
   }
 
   Future<void> disable() async {
