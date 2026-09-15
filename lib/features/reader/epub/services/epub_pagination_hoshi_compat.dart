@@ -4,7 +4,7 @@ class EpubPaginationHoshiCompat {
   static String build() => r'''
 (function() {
   'use strict';
-  const reader = window.medicalReaderPagination;
+  const reader = window.medicalReaderPagination || window.MedicalReaderPagination;
   if (!reader || window.medicalReaderPaginationHoshiCompatReady) return;
   window.medicalReaderPaginationHoshiCompatReady = true;
 
@@ -15,16 +15,16 @@ class EpubPaginationHoshiCompat {
   viewport.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
   head.appendChild(viewport);
 
+  const vertical = getComputedStyle(document.body).writingMode.indexOf('vertical') === 0;
   // Hoshi's vertical EPUB pagination is a horizontal CSS-column flow.
-  // Keep the page metric on the physical axis; using scrollTop here makes the
-  // viewport drift through the next column and exposes the following page.
-  if (reader.axis && reader.axis() === 'y') {
-    reader.axis = function() { return 'x'; };
-    reader.pageSize = function() { return Math.max(1, this.pageWidth); };
+  // Keep the metric on the physical horizontal axis; otherwise the viewport
+  // can drift into the next column and expose the following page.
+  if (vertical) {
+    reader.pageSize = function() { return Math.max(1, this.pageWidth + 22); };
     reader.position = function() {
       var raw = document.body.scrollLeft;
       var max = Math.max(0, document.body.scrollWidth - this.pageWidth);
-      return raw < 0 ? Math.min(max, Math.abs(raw)) : Math.max(0, Math.min(max, max - raw));
+      return Math.max(0, Math.min(max, max - raw));
     };
     reader.maxScroll = function() {
       return Math.max(0, document.body.scrollWidth - this.pageWidth);
@@ -50,7 +50,7 @@ class EpubPaginationHoshiCompat {
   reader.nativeSelectionActive = false;
   reader.nativeSelectionScrollPosition = null;
   reader.setNativeSelectionActive = function(active) {
-    const context = {vertical: this.axis() === 'y', scrollEl: document.body, maxScroll: this.maxScroll()};
+    const context = {maxScroll: this.maxScroll()};
     if (active) {
       this.nativeSelectionActive = true;
       this.nativeSelectionScrollPosition = this.position();
