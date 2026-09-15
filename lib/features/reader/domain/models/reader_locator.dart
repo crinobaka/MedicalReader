@@ -52,6 +52,9 @@ final class EpubReaderLocator extends ReaderLocator {
   final int? startOffset;
   final int? endOffset;
   final double? progress;
+  final String? textQuote;
+  final String? prefix;
+  final String? suffix;
 
   const EpubReaderLocator({
     required this.href,
@@ -59,6 +62,9 @@ final class EpubReaderLocator extends ReaderLocator {
     this.startOffset,
     this.endOffset,
     this.progress,
+    this.textQuote,
+    this.prefix,
+    this.suffix,
   });
 
   factory EpubReaderLocator.fromJson(Map<String, dynamic> json) {
@@ -68,6 +74,9 @@ final class EpubReaderLocator extends ReaderLocator {
       startOffset: (json['startOffset'] as num?)?.toInt(),
       endOffset: (json['endOffset'] as num?)?.toInt(),
       progress: (json['progress'] as num?)?.toDouble(),
+      textQuote: json['textQuote']?.toString(),
+      prefix: json['prefix']?.toString(),
+      suffix: json['suffix']?.toString(),
     );
   }
 
@@ -79,5 +88,8 @@ final class EpubReaderLocator extends ReaderLocator {
     if (startOffset != null) 'startOffset': startOffset,
     if (endOffset != null) 'endOffset': endOffset,
     if (progress != null) 'progress': progress,
+    if (textQuote != null && textQuote!.isNotEmpty) 'textQuote': textQuote,
+    if (prefix != null && prefix!.isNotEmpty) 'prefix': prefix,
+    if (suffix != null && suffix!.isNotEmpty) 'suffix': suffix,
   };
 }
