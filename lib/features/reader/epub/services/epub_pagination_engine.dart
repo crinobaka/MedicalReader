@@ -91,7 +91,7 @@ class EpubPaginationEngine {
     },
     countChars: function(text) {
       let count = 0, offset = 0;
-      while (offset < text.length) { const ch = String.fromCodePoint(text.codePointAt(offset)); if (!/^\\s$/.test(ch)) count++; offset += ch.length; }
+      while (offset < text.length) { const ch = String.fromCodePoint(text.codePointAt(offset)); if (!/^\\s\$/.test(ch)) count++; offset += ch.length; }
       return count;
     },
     createWalker: function() {
