@@ -6,7 +6,7 @@ import 'package:medicalreader/features/reader/domain/models/reader_position.dart
 import 'package:medicalreader/features/reader/domain/models/reader_sync.dart';
 
 void main() {
-  test('EPUB locator survives position round trip', () {
+  test('EPUB locator preserves semantic text quote context', () {
     const position = ReaderPosition(
       locator: EpubReaderLocator(
         href: 'text/chapter.xhtml',
@@ -14,6 +14,9 @@ void main() {
         startOffset: 12,
         endOffset: 20,
         progress: .42,
+        textQuote: 'important selected passage',
+        prefix: 'the sentence before ',
+        suffix: ' and the sentence after',
       ),
       progress: .42,
       spineIndex: 2,
@@ -28,6 +31,9 @@ void main() {
     expect(locator.fragment, 'p-3');
     expect(locator.startOffset, 12);
     expect(locator.endOffset, 20);
+    expect(locator.textQuote, 'important selected passage');
+    expect(locator.prefix, 'the sentence before ');
+    expect(locator.suffix, ' and the sentence after');
     expect(restored.characterOffset, 120);
   });
 
