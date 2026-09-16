@@ -8,7 +8,9 @@ import 'package:webview_flutter_windows/webview_flutter_windows.dart' as windows
 
 import '../../domain/models/reader_lookup.dart';
 import '../../domain/models/reader_settings.dart';
+import '../../models/reader_annotation.dart';
 import '../services/epub_archive_service.dart';
+import '../services/epub_pagination_annotations.dart';
 import '../services/epub_pagination_dom.dart';
 import '../services/epub_pagination_engine.dart';
 import '../services/epub_pagination_hoshi_compat.dart';
@@ -25,6 +27,7 @@ class EpubReaderView extends StatefulWidget {
   final String? fragment;
   final double initialProgress;
   final ReaderSettings settings;
+  final List<ReaderAnnotation> annotations;
   final void Function(String href, double progress)? onPositionChanged;
   final void Function(String direction)? onPageBoundary;
   final void Function(String action, String source)? onMediaAction;
@@ -37,6 +40,7 @@ class EpubReaderView extends StatefulWidget {
     required this.settings,
     this.fragment,
     this.initialProgress = 0,
+    this.annotations = const [],
     this.onPositionChanged,
     this.onPageBoundary,
     this.onMediaAction,
@@ -63,10 +67,7 @@ class _EpubReaderViewState extends State<EpubReaderView> {
   @override
   void initState() {
     super.initState();
-    if (_isWindows) {
-      unawaited(_initWindowsWebview());
-      return;
-    }
+    if (_isWindows) { unawaited(_initWindowsWebview()); return; }
     if (_isUnsupported) return;
     _initAndroidWebview();
   }
@@ -91,25 +92,15 @@ class _EpubReaderViewState extends State<EpubReaderView> {
       await controller.setPopupWindowPolicy(windows_webview.WebviewPopupWindowPolicy.deny);
       await controller.setDefaultContextMenusEnabled(true);
       await controller.setBackgroundColor(_backgroundColor());
-      _windowsMessages = controller.webMessage.listen(_onWindowsMessage, onError: (Object error, StackTrace stack) {
-        debugPrint('EPUB WebView2 message error: $error');
-      });
-      _windowsLoading = controller.loadingState.listen((state) {
-        if (state == windows_webview.LoadingState.navigationCompleted) unawaited(_applyReader());
-      });
-      await controller.addVirtualHostNameMapping(
-        'medicalreader.epub',
-        widget.archive.root.path,
-        windows_webview.WebviewHostResourceAccessKind.denyCors,
-      );
+      _windowsMessages = controller.webMessage.listen(_onWindowsMessage, onError: (Object error, StackTrace stack) { debugPrint('EPUB WebView2 message error: $error'); });
+      _windowsLoading = controller.loadingState.listen((state) { if (state == windows_webview.LoadingState.navigationCompleted) unawaited(_applyReader()); });
+      await controller.addVirtualHostNameMapping('medicalreader.epub', widget.archive.root.path, windows_webview.WebviewHostResourceAccessKind.denyCors);
       if (mounted) setState(() => _ready = false);
       await _loadChapter();
     } catch (error) {
       _windowsError = error.toString();
       if (mounted) setState(() {});
-    } finally {
-      _windowsInitializing = false;
-    }
+    } finally { _windowsInitializing = false; }
   }
 
   @override
@@ -117,9 +108,27 @@ class _EpubReaderViewState extends State<EpubReaderView> {
     super.didUpdateWidget(oldWidget);
     final chapter = widget.archive.chapterAt(widget.chapterIndex);
     final oldChapter = oldWidget.archive.chapterAt(oldWidget.chapterIndex);
-    if (chapter?.href == oldChapter?.href && widget.fragment == oldWidget.fragment && widget.settings == oldWidget.settings) return;
+    if (chapter?.href == oldChapter?.href && widget.fragment == oldWidget.fragment && widget.settings == oldWidget.settings && _sameAnnotationSet(oldWidget.annotations, widget.annotations)) return;
     if (_isUnsupported) return;
+    if (chapter?.href == oldChapter?.href && widget.settings == oldWidget.settings && !_sameAnnotationSet(oldWidget.annotations, widget.annotations)) {
+      unawaited(_refreshAnnotations());
+      return;
+    }
     unawaited(_loadChapter());
+  }
+
+  bool _sameAnnotationSet(List<ReaderAnnotation> a, List<ReaderAnnotation> b) {
+    final aa = a.where((x) => x.type == ReaderAnnotationType.highlight).map((x) => x.id).join('|');
+    final bb = b.where((x) => x.type == ReaderAnnotationType.highlight).map((x) => x.id).join('|');
+    return aa == bb;
+  }
+
+  Future<void> _refreshAnnotations() async {
+    final script = EpubPaginationAnnotations.build(widget.annotations);
+    try {
+      if (_isWindows) { final controller = _windowsController; if (controller != null && controller.value.isInitialized) await controller.executeScript(script); }
+      else { final controller = _androidController; if (controller != null) await controller.runJavaScript(script); }
+    } catch (_) {}
   }
 
   Future<void> _loadChapter() async {
@@ -130,21 +139,14 @@ class _EpubReaderViewState extends State<EpubReaderView> {
     if (_isWindows) {
       final controller = _windowsController;
       if (controller == null || !controller.value.isInitialized) return;
-      try {
-        await controller.loadUrl(_windowsChapterUrl(chapter.href));
-      } catch (error) {
-        _windowsError = error.toString();
-        if (mounted) setState(() {});
-      }
+      try { await controller.loadUrl(_windowsChapterUrl(chapter.href)); }
+      catch (error) { _windowsError = error.toString(); if (mounted) setState(() {}); }
       return;
     }
     final controller = _androidController;
     if (controller == null) return;
-    try {
-      await controller.loadFile(widget.archive.fileFor(chapter.href).path);
-    } catch (_) {
-      if (mounted) setState(() => _ready = false);
-    }
+    try { await controller.loadFile(widget.archive.fileFor(chapter.href).path); }
+    catch (_) { if (mounted) setState(() => _ready = false); }
   }
 
   String _windowsChapterUrl(String href) {
@@ -158,21 +160,12 @@ class _EpubReaderViewState extends State<EpubReaderView> {
 
   Future<void> _applyReader() async {
     if (_loadedHref == null) return;
-    final script = '${_readerScript()}\n${EpubPaginationRefinements.build()}\n${EpubPaginationLayout.build()}\n${EpubPaginationDom.build()}\n${EpubPaginationPrecision.build()}\n${EpubPaginationMetrics.build()}\n${EpubPaginationHoshiCompat.build()}\n${EpubPaginationMedia.build()}\n${EpubPaginationInteraction.build()}';
+    final script = '${_readerScript()}\n${EpubPaginationRefinements.build()}\n${EpubPaginationLayout.build()}\n${EpubPaginationDom.build()}\n${EpubPaginationPrecision.build()}\n${EpubPaginationMetrics.build()}\n${EpubPaginationHoshiCompat.build()}\n${EpubPaginationMedia.build()}\n${EpubPaginationAnnotations.build(widget.annotations)}\n${EpubPaginationInteraction.build()}';
     try {
-      if (_isWindows) {
-        final controller = _windowsController;
-        if (controller == null || !controller.value.isInitialized) return;
-        await controller.executeScript(script);
-      } else {
-        final controller = _androidController;
-        if (controller == null) return;
-        await controller.runJavaScript(script);
-      }
+      if (_isWindows) { final controller = _windowsController; if (controller == null || !controller.value.isInitialized) return; await controller.executeScript(script); }
+      else { final controller = _androidController; if (controller == null) return; await controller.runJavaScript(script); }
       if (mounted) setState(() => _ready = true);
-    } catch (_) {
-      if (mounted) setState(() => _ready = false);
-    }
+    } catch (_) { if (mounted) setState(() => _ready = false); }
   }
 
   void _handleMedia(String action, String source) => widget.onMediaAction?.call(action, source);
@@ -189,24 +182,18 @@ class _EpubReaderViewState extends State<EpubReaderView> {
       href: payload['href'] is String && (payload['href'] as String).isNotEmpty ? payload['href'] as String : _loadedHref,
       startOffset: start is num ? start.toInt() : null,
       endOffset: end is num ? end.toInt() : null,
+      textQuote: payload['textQuote'] is String ? payload['textQuote'] as String : selected.trim(),
+      prefix: payload['prefix'] is String ? payload['prefix'] as String : null,
+      suffix: payload['suffix'] is String ? payload['suffix'] as String : null,
     ));
   }
 
   void _onWindowsMessage(dynamic message) {
     if (message is! Map) return;
     final type = message['type'];
-    if (type == 'selection') {
-      _handleSelection(message);
-      return;
-    }
-    if (type == 'media' && message['action'] is String && message['source'] is String) {
-      _handleMedia(message['action'] as String, message['source'] as String);
-      return;
-    }
-    if (type == 'boundary' && message['direction'] is String) {
-      widget.onPageBoundary?.call(message['direction'] as String);
-      return;
-    }
+    if (type == 'selection') { _handleSelection(message); return; }
+    if (type == 'media' && message['action'] is String && message['source'] is String) { _handleMedia(message['action'] as String, message['source'] as String); return; }
+    if (type == 'boundary' && message['direction'] is String) { widget.onPageBoundary?.call(message['direction'] as String); return; }
     if (type != 'progress') return;
     final progress = message['value'];
     if (progress is num && _loadedHref != null) widget.onPositionChanged?.call(_loadedHref!, progress.clamp(0, 1).toDouble());
@@ -218,37 +205,16 @@ class _EpubReaderViewState extends State<EpubReaderView> {
       final decoded = jsonDecode(raw);
       if (decoded is Map) {
         final type = decoded['type'];
-        if (type == 'selection') {
-          _handleSelection(decoded);
-          return;
-        }
-        if (type == 'media' && decoded['action'] is String && decoded['source'] is String) {
-          _handleMedia(decoded['action'] as String, decoded['source'] as String);
-          return;
-        }
-        if (type == 'boundary' && decoded['direction'] is String) {
-          widget.onPageBoundary?.call(decoded['direction'] as String);
-          return;
-        }
-        if (type == 'progress') {
-          final progress = decoded['value'];
-          if (progress is num && _loadedHref != null) widget.onPositionChanged?.call(_loadedHref!, progress.clamp(0, 1).toDouble());
-          return;
-        }
+        if (type == 'selection') { _handleSelection(decoded); return; }
+        if (type == 'media' && decoded['action'] is String && decoded['source'] is String) { _handleMedia(decoded['action'] as String, decoded['source'] as String); return; }
+        if (type == 'boundary' && decoded['direction'] is String) { widget.onPageBoundary?.call(decoded['direction'] as String); return; }
+        if (type == 'progress') { final progress = decoded['value']; if (progress is num && _loadedHref != null) widget.onPositionChanged?.call(_loadedHref!, progress.clamp(0, 1).toDouble()); return; }
       }
-    } catch (_) {
-      // Legacy pipe-delimited messages remain supported.
-    }
+    } catch (_) {}
     final parts = raw.split('|');
     if (parts.isEmpty) return;
-    if (parts.first == 'media' && parts.length >= 3) {
-      _handleMedia(parts[1], parts.sublist(2).join('|'));
-      return;
-    }
-    if (parts.first == 'boundary' && parts.length > 1) {
-      widget.onPageBoundary?.call(parts[1]);
-      return;
-    }
+    if (parts.first == 'media' && parts.length >= 3) { _handleMedia(parts[1], parts.sublist(2).join('|')); return; }
+    if (parts.first == 'boundary' && parts.length > 1) { widget.onPageBoundary?.call(parts[1]); return; }
     if (parts.first != 'progress' || parts.length < 2) return;
     final progress = double.tryParse(parts[1]);
     if (progress != null && _loadedHref != null) widget.onPositionChanged?.call(_loadedHref!, progress.clamp(0, 1));
@@ -261,28 +227,10 @@ class _EpubReaderViewState extends State<EpubReaderView> {
     final paginated = settings.readingMode == ReaderReadingMode.paginated;
     final background = _backgroundColor().toARGB32().toRadixString(16).padLeft(8, '0').substring(2);
     final foreground = settings.theme == ReaderTheme.dark ? 'white' : 'inherit';
-    final font = _cssFont(settings.fontFamily);
-    return EpubPaginationEngine.build(
-      vertical: vertical,
-      rtl: rtl,
-      paginated: paginated,
-      background: background,
-      foreground: foreground,
-      font: font,
-      fontSize: settings.fontSize,
-      lineHeight: settings.lineHeight,
-      verticalPadding: settings.verticalPadding,
-      horizontalPadding: settings.horizontalPadding,
-      paragraphSpacing: settings.paragraphSpacing,
-      initialProgress: widget.initialProgress,
-      fragment: widget.fragment,
-    );
+    return EpubPaginationEngine.build(vertical: vertical, rtl: rtl, paginated: paginated, background: background, foreground: foreground, font: _cssFont(settings.fontFamily), fontSize: settings.fontSize, lineHeight: settings.lineHeight, verticalPadding: settings.verticalPadding, horizontalPadding: settings.horizontalPadding, paragraphSpacing: settings.paragraphSpacing, initialProgress: widget.initialProgress, fragment: widget.fragment);
   }
 
-  String _cssFont(String value) {
-    final font = value.trim().isEmpty ? 'sans-serif' : value.trim();
-    return font.replaceAll('\\', '\\\\').replaceAll("'", "\\'");
-  }
+  String _cssFont(String value) { final font = value.trim().isEmpty ? 'sans-serif' : value.trim(); return font.replaceAll('\\', '\\\\').replaceAll("'", "\\'"); }
 
   Color _backgroundColor() {
     switch (widget.settings.theme) {
