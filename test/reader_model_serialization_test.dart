@@ -24,19 +24,21 @@ void main() {
     expect(context.textQuote, '読む'); expect(context.prefix, '本を'); expect(context.suffix, 'ことが好き');
   });
 
-  test('pagination engine emits valid whitespace regex and column pagination primitives', () {
+  test('pagination engine preserves the embedded JavaScript whitespace regex and Hoshi page primitives', () {
     final script = EpubPaginationEngine.build(vertical: false, rtl: false, paginated: true, background: 'ffffff', foreground: 'inherit', font: 'sans-serif', fontSize: 16, lineHeight: 1.5, verticalPadding: 12, horizontalPadding: 16, paragraphSpacing: 8, initialProgress: 0);
     expect(script, contains(r'/^\s$/.test(ch)'));
     expect(script, contains('columnWidth'));
+    expect(script, contains('nativeSelectionActive'));
+    expect(script, contains('Math.round((current + size) / size) * size'));
     expect(script, contains('setTimeout(function() { reader.start(); }, 0)'));
   });
 
-  test('pagination engine uses scrollTop for vertical writing and scrollLeft for horizontal writing', () {
+  test('pagination engine uses Hoshi physical scroll axes', () {
     final script = EpubPaginationEngine.build(vertical: true, rtl: false, paginated: true, background: 'ffffff', foreground: 'inherit', font: 'sans-serif', fontSize: 16, lineHeight: 1.5, verticalPadding: 12, horizontalPadding: 16, paragraphSpacing: 8, initialProgress: 0);
-    expect(script, contains("const totalSize = vertical ? body.scrollHeight : body.scrollWidth"));
+    expect(script, contains("const totalSize = isVertical ? body.scrollHeight : body.scrollWidth"));
+    expect(script, contains("return context.vertical ? Math.max(0, context.scrollEl.scrollTop) : Math.max(0, context.scrollEl.scrollLeft)"));
     expect(script, contains("if (context.vertical) context.scrollEl.scrollTop = logical;"));
-    expect(script, contains("else context.scrollEl.scrollLeft = (rtl ? context.maxScroll - logical : logical);"));
-    expect(script, contains("const currentScroll = vertical ? body.scrollTop : body.scrollLeft"));
+    expect(script, contains("else context.scrollEl.scrollLeft = logical;"));
   });
 
   test('interaction routes space through the current pagination page before chapter boundary', () {
@@ -46,9 +48,13 @@ void main() {
     expect(script, contains("if (!isPaginated()) return;"));
   });
 
-  test('Hoshi compatibility exposes vertical column axis and Japanese line-break guards', () {
+  test('Hoshi compatibility does not replace the real WebView scroll axis', () {
     final script = EpubPaginationHoshiCompat.build();
-    expect(script, contains("reader.axis = axis"));
+    expect(script, contains('body.scrollHeight'));
+    expect(script, contains('body.scrollWidth'));
+    expect(script, contains('context.scrollEl.scrollTop'));
+    expect(script, contains('context.scrollEl.scrollLeft'));
+    expect(script, isNot(contains('reader.axis = axis')));
     expect(script, contains('isProhibitedLineStart'));
     expect(script, contains('isProhibitedLineEnd'));
     expect(script, contains('ruby.style.breakInside'));
