@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter_test/flutter_test.dart';
 
@@ -71,6 +72,37 @@ void main() {
     );
   });
 
+  test('adaptive layout recognizes three raster columns', () async {
+    final layout = const PageBlockAdaptiveLayout();
+    final image = await _makeThreeColumnImage();
+    addTearDown(image.dispose);
+
+    final blocks = await layout.generate(
+      docId: 'doc',
+      pageIndex: 4,
+      image: image,
+      viewportWidth: 360,
+      viewportHeight: 640,
+    );
+
+    expect(blocks.length, greaterThanOrEqualTo(3));
+    expect(blocks.map((b) => b.pageIndex).toSet(), {4});
+    expect(blocks.map((b) => b.blockIndex).toList(), orderedEquals(List.generate(blocks.length, (i) => i)));
+    expect(blocks.map((b) => b.order).toList(), orderedEquals(List.generate(blocks.length, (i) => i + 1)));
+
+    final firstColumn = blocks.first.rect.x;
+    final columnStarts = <double>[];
+    for (final block in blocks) {
+      if (columnStarts.isEmpty || (block.rect.x - columnStarts.last).abs() > .08) {
+        columnStarts.add(block.rect.x);
+      }
+    }
+    expect(columnStarts.length, 3);
+    expect(firstColumn, closeTo(0.0, .03));
+    expect(columnStarts[1], closeTo(1 / 3, .06));
+    expect(columnStarts[2], closeTo(2 / 3, .06));
+  });
+
   test('navigation crosses page boundary by block', () async {
     final next = await navigation.next(docId: 'doc', pageIndex: 0, blockIndex: 3, pageCount: 10);
     expect(next!.pageIndex, 1);
@@ -106,4 +138,17 @@ void main() {
     final restored = (await storage.loadManual('doc', 0))!.single;
     expect(restored.scrollPercent, .5);
   });
+}
+
+Future<ui.Image> _makeThreeColumnImage() async {
+  final recorder = ui.PictureRecorder();
+  final canvas = ui.Canvas(recorder);
+  final white = ui.Paint()..color = const ui.Color(0xffffffff);
+  final ink = ui.Paint()..color = const ui.Color(0xff111111);
+  canvas.drawRect(const ui.Rect.fromLTWH(0, 0, 300, 300), white);
+  canvas.drawRect(const ui.Rect.fromLTWH(18, 12, 72, 276), ink);
+  canvas.drawRect(const ui.Rect.fromLTWH(114, 12, 72, 276), ink);
+  canvas.drawRect(const ui.Rect.fromLTWH(210, 12, 72, 276), ink);
+  final picture = recorder.endRecording();
+  return picture.toImage(300, 300);
 }
