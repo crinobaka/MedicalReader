@@ -7,21 +7,32 @@ class EpubPaginationInteraction {
   const body = document.body;
   if (!reader || !body || window.medicalReaderPaginationInteractionReady) return;
   window.medicalReaderPaginationInteractionReady = true;
-  let focusMode = false, lastPagingAt = 0, progressTimer = null, progressDirty = false, tapX = 0, tapY = 0, tapMoved = false;
+  let focusMode = false, lastPagingAt = 0, progressTimer = null, progressDirty = false;
+  let tapX = 0, tapY = 0, tapMoved = false, pointerType = '';
   const bridge = function(payload) { if (window.chrome && window.chrome.webview) window.chrome.webview.postMessage(payload); else if (window.MedicalReader) window.MedicalReader.postMessage(JSON.stringify(payload)); };
   const isPaginated = function() { return !!reader && reader.pageSize && reader.maxScroll && getComputedStyle(body).columnWidth !== 'auto'; };
-  const page = function(direction) { const now = Date.now(); if (now - lastPagingAt < 120) return; lastPagingAt = now; if (reader && reader.paginate) reader.paginate(direction); };
+  const page = function(direction) { const now = Date.now(); if (now - lastPagingAt < 160) return; lastPagingAt = now; if (reader && reader.paginate) reader.paginate(direction); };
   window.medicalReaderPage = function(direction) { if (!isPaginated()) return 'ignored'; page(direction === 'backward' ? 'backward' : 'forward'); return 'ok'; };
   const setFocusMode = function(enabled) { focusMode = !!enabled; body.classList.toggle('medicalreader-focus', focusMode); document.documentElement.classList.toggle('medicalreader-focus', focusMode); bridge({type: 'focus', value: focusMode ? '1' : '0'}); return focusMode; };
   window.medicalReaderSetFocusMode = setFocusMode;
   window.medicalReaderToggleFocusMode = function() { return setFocusMode(!focusMode); };
   window.medicalReaderIsFocusMode = function() { return focusMode; };
   const focusStyle = document.createElement('style'); focusStyle.textContent = '.medicalreader-focus { cursor: none; }.medicalreader-focus ::selection { background: rgba(120,120,120,.35); }'; document.head.appendChild(focusStyle);
-  body.addEventListener('pointerdown', function(event) { tapX = event.clientX; tapY = event.clientY; tapMoved = false; }, {passive: true});
+  body.addEventListener('pointerdown', function(event) { tapX = event.clientX; tapY = event.clientY; tapMoved = false; pointerType = event.pointerType || ''; }, {passive: true});
   body.addEventListener('pointermove', function(event) { if (Math.abs(event.clientX - tapX) > 12 || Math.abs(event.clientY - tapY) > 12) tapMoved = true; }, {passive: true});
   body.addEventListener('pointerup', function(event) {
-    if (!isPaginated() || tapMoved) return;
+    if (!isPaginated()) return;
     if (event.pointerType === 'mouse' && event.button !== 0) return;
+    const dx = event.clientX - tapX, dy = event.clientY - tapY;
+    const distance = Math.hypot(dx, dy);
+    if (distance >= 48 && pointerType !== 'mouse') {
+      const vertical = getComputedStyle(body).writingMode.indexOf('vertical') === 0;
+      const primary = vertical ? -dx : dx;
+      const forward = getComputedStyle(body).direction === 'rtl' ? primary < 0 : primary > 0;
+      page(forward ? 'forward' : 'backward');
+      return;
+    }
+    if (tapMoved) return;
     const target = event.target && event.target.closest ? event.target.closest('a, input, button, textarea, select, video, audio, img, svg') : null;
     if (target) return;
     const width = window.innerWidth, height = window.innerHeight, x = event.clientX;
