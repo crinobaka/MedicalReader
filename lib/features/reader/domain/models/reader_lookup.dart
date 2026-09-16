@@ -6,6 +6,9 @@ class ReaderLookupContext {
   final String? href;
   final int? startOffset;
   final int? endOffset;
+  final String? textQuote;
+  final String? prefix;
+  final String? suffix;
   final List<DictionaryEntry> entries;
 
   const ReaderLookupContext({
@@ -14,6 +17,9 @@ class ReaderLookupContext {
     this.href,
     this.startOffset,
     this.endOffset,
+    this.textQuote,
+    this.prefix,
+    this.suffix,
     this.entries = const [],
   });
 
