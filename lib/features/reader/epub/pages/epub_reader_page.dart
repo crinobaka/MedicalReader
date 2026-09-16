@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../library/models/library_document.dart';
 import '../../domain/models/reader_lookup.dart';
+import '../../domain/models/reader_locator.dart';
 import '../../domain/models/reader_mining.dart';
 import '../../domain/models/reader_position.dart';
 import '../../domain/models/reader_settings.dart';
