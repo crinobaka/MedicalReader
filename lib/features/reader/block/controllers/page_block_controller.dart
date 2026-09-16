@@ -21,6 +21,7 @@ class PageBlockController extends ChangeNotifier {
 
   bool enabled = false;
   bool loading = false;
+  bool adapting = false;
   bool editing = false;
   int currentPageIndex = 0;
   int currentBlockIndex = 0;
@@ -28,10 +29,7 @@ class PageBlockController extends ChangeNotifier {
   Object? error;
 
   String get uiPageLabel => '${currentPageIndex + 1}';
-  String get internalBlockLabel => currentBlock == null
-      ? uiPageLabel
-      : '${currentPageIndex + 1}(${currentBlockIndex + 1})';
-
+  String get internalBlockLabel => currentBlock == null ? uiPageLabel : '${currentPageIndex + 1}(${currentBlockIndex + 1})';
   bool get canPrevious => enabled && currentBlock != null && (currentPageIndex > 0 || currentBlockIndex > 0);
 
   Future<bool> get canNext async {
@@ -66,41 +64,34 @@ class PageBlockController extends ChangeNotifier {
     }
   }
 
-  /// Rebuilds only automatic blocks using the real page raster and viewport.
-  /// Persisted manual blocks always remain the source of truth.
-  Future<void> adaptCurrentPage({
-    required ui.Image image,
-    required double viewportWidth,
-    required double viewportHeight,
-  }) async {
+  Future<void> adaptCurrentPage({required ui.Image image, required double viewportWidth, required double viewportHeight}) async {
     if (!enabled || viewportWidth <= 0 || viewportHeight <= 0) return;
     final page = currentPageIndex;
     final oldBlock = currentBlock;
-    manager.configureLayout(
-      image: image,
-      viewportWidth: viewportWidth,
-      viewportHeight: viewportHeight,
-    );
-    final blocks = await manager.resolve(docId, page);
-    if (!enabled || currentPageIndex != page || blocks.isEmpty) return;
-
-    if (oldBlock != null && oldBlock.source == PageBlockSource.manual) {
-      final index = blocks.indexWhere((b) => b.blockIndex == oldBlock.blockIndex);
-      if (index >= 0) {
-        currentBlockIndex = index;
-        currentBlock = blocks[index];
-      }
-    } else {
-      final safeIndex = currentBlockIndex.clamp(0, blocks.length - 1).toInt();
-      currentBlockIndex = safeIndex;
-      currentBlock = blocks[safeIndex];
-    }
+    adapting = true;
     notifyListeners();
+    try {
+      manager.configureLayout(image: image, viewportWidth: viewportWidth, viewportHeight: viewportHeight);
+      final blocks = await manager.resolve(docId, page);
+      if (!enabled || currentPageIndex != page || blocks.isEmpty) return;
+      if (oldBlock != null && oldBlock.source == PageBlockSource.manual) {
+        final index = blocks.indexWhere((b) => b.blockIndex == oldBlock.blockIndex);
+        if (index >= 0) { currentBlockIndex = index; currentBlock = blocks[index]; }
+      } else {
+        final safeIndex = currentBlockIndex.clamp(0, blocks.length - 1).toInt();
+        currentBlockIndex = safeIndex;
+        currentBlock = blocks[safeIndex];
+      }
+    } finally {
+      adapting = false;
+      notifyListeners();
+    }
   }
 
   Future<void> disable() async {
     enabled = false;
     loading = false;
+    adapting = false;
     editing = false;
     currentBlock = null;
     manager.clear();
@@ -128,7 +119,7 @@ class PageBlockController extends ChangeNotifier {
   }
 
   Future<bool> next() async {
-    if (!enabled || loading || currentBlock == null) return false;
+    if (!enabled || loading || adapting || currentBlock == null) return false;
     loading = true;
     notifyListeners();
     try {
@@ -147,7 +138,7 @@ class PageBlockController extends ChangeNotifier {
   }
 
   Future<bool> previous() async {
-    if (!enabled || loading || currentBlock == null) return false;
+    if (!enabled || loading || adapting || currentBlock == null) return false;
     loading = true;
     notifyListeners();
     try {
@@ -175,10 +166,8 @@ class PageBlockController extends ChangeNotifier {
     final previousRect = currentBlock?.rect;
     await manager.saveManualBlocks(docId, currentPageIndex, blocks);
     final refreshed = await manager.resolve(docId, currentPageIndex);
-    if (refreshed.isEmpty) {
-      currentBlock = null;
-      currentBlockIndex = 0;
-    } else {
+    if (refreshed.isEmpty) { currentBlock = null; currentBlockIndex = 0; }
+    else {
       var targetIndex = currentBlockIndex;
       if (previousRect != null) {
         targetIndex = refreshed.indexWhere((b) {
@@ -204,18 +193,7 @@ class PageBlockController extends ChangeNotifier {
   }
 
   void clearSessionCache() => manager.clear();
-
-  void setEditing(bool value) {
-    editing = value;
-    notifyListeners();
-  }
-
-  void _setPosition(PageBlockPosition position) {
-    currentPageIndex = position.pageIndex;
-    currentBlockIndex = position.blockIndex;
-    currentBlock = position.block;
-    error = null;
-  }
-
+  void setEditing(bool value) { editing = value; notifyListeners(); }
+  void _setPosition(PageBlockPosition position) { currentPageIndex = position.pageIndex; currentBlockIndex = position.blockIndex; currentBlock = position.block; error = null; }
   Future<void> _prefetch() => manager.prefetchDefaults(docId, currentPageIndex, pageCount);
 }
