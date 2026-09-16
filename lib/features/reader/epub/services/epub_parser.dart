@@ -64,7 +64,6 @@ class EpubParser {
   }
 
   List<EpubNavItem> _parseNavigation(List<EpubManifestItem> manifest, Map<String, ArchiveFile> entries, String? tocId) {
-    // EPUB 3: prefer the document marked properties="nav".
     for (final item in manifest.where((i) => i.properties?.split(RegExp(r'\s+')).contains('nav') ?? false)) {
       final raw = entries[item.href];
       if (raw == null) continue;
@@ -78,17 +77,12 @@ class EpubParser {
       } catch (_) {}
     }
 
-    // EPUB 2: spine toc="..." points at an NCX document. A large number of
-    // real books still use this format, so the reader must not fall back to
-    // an empty directory just because the EPUB has no EPUB 3 nav document.
     final ncxItem = tocId == null ? null : manifest.where((item) => item.id == tocId).firstOrNull;
     if (ncxItem != null) {
       final result = _parseNcx(entries[ncxItem.href], _parent(ncxItem.href));
       if (result.isNotEmpty) return result;
     }
 
-    // Some EPUBs omit the spine toc attribute but still expose a conventional
-    // NCX manifest item. Use it as a compatibility fallback.
     for (final item in manifest.where((i) => i.mediaType == 'application/x-dtbncx+xml')) {
       final result = _parseNcx(entries[item.href], _parent(item.href));
       if (result.isNotEmpty) return result;
@@ -117,12 +111,7 @@ class EpubParser {
       final target = src == null ? null : _resolveTarget(base, src);
       if (target == null) continue;
       final nested = _parseNcxChildren(point, base);
-      result.add(EpubNavItem(
-        title: label == null ? 'Untitled' : _text(label).trim(),
-        href: target.path,
-        fragment: target.fragment,
-        children: nested,
-      ));
+      result.add(EpubNavItem(title: label == null ? 'Untitled' : _text(label).trim(), href: target.path, fragment: target.fragment, children: nested));
     }
     return result;
   }
@@ -149,12 +138,7 @@ class EpubParser {
           break;
         }
       }
-      result.add(EpubNavItem(
-        title: _text(link).trim(),
-        href: target.path,
-        fragment: target.fragment,
-        children: nested == null ? const [] : _parseNavChildren(nested, base),
-      ));
+      result.add(EpubNavItem(title: _text(link).trim(), href: target.path, fragment: target.fragment, children: nested == null ? const [] : _parseNavChildren(nested, base)));
     }
     return result;
   }
@@ -191,7 +175,19 @@ class EpubParser {
   }
 
   String _parent(String path) => path.contains('/') ? path.substring(0, path.lastIndexOf('/')) : '';
-  String? _resolve(String base, String href) => _safePath(base.isEmpty ? href : '$base/$href');
+  String? _resolve(String base, String href) {
+    final parts = <String>[];
+    for (final part in ('$base/$href').replaceAll('\\', '/').split('/')) {
+      if (part.isEmpty || part == '.') continue;
+      if (part == '..') {
+        if (parts.isEmpty) return null;
+        parts.removeLast();
+        continue;
+      }
+      parts.add(part);
+    }
+    return parts.isEmpty ? null : parts.join('/');
+  }
   String _decodeHref(String href) => Uri.decodeFull(href);
   XmlElement? _firstElement(XmlNode node, String name) {
     for (final element in node.descendants.whereType<XmlElement>()) {
