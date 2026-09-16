@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import '../models/page_block.dart';
@@ -16,9 +15,7 @@ class PageBlockAdaptiveLayout {
     required double viewportWidth,
     required double viewportHeight,
   }) async {
-    if (image.width <= 0 || image.height <= 0 || viewportWidth <= 0 || viewportHeight <= 0) {
-      return _singlePage(docId, pageIndex);
-    }
+    if (image.width <= 0 || image.height <= 0 || viewportWidth <= 0 || viewportHeight <= 0) return _singlePage(docId, pageIndex);
     final gutter = await _findVerticalReadingGutter(image);
     final pageAspect = image.width / image.height;
     final viewportAspect = viewportWidth / viewportHeight;
@@ -26,8 +23,7 @@ class PageBlockAdaptiveLayout {
       final rows = rowCountForRegion(regionWidth: 1, pageAspect: pageAspect, viewportAspect: viewportAspect);
       return _verticalBlocks(docId: docId, pageIndex: pageIndex, x: 0, width: 1, rowCount: rows, orderStart: 1, blockIndexStart: 0);
     }
-    final leftWidth = gutter;
-    final rightWidth = 1 - gutter;
+    final leftWidth = gutter, rightWidth = 1 - gutter;
     final leftRows = rowCountForRegion(regionWidth: leftWidth, pageAspect: pageAspect, viewportAspect: viewportAspect);
     final rightRows = rowCountForRegion(regionWidth: rightWidth, pageAspect: pageAspect, viewportAspect: viewportAspect);
     final blocks = <PageBlock>[];
@@ -44,27 +40,11 @@ class PageBlockAdaptiveLayout {
     return (1 / idealHeight).ceil().clamp(1, 8).toInt();
   }
 
-  List<PageBlock> _verticalBlocks({
-    required String docId,
-    required int pageIndex,
-    required double x,
-    required double width,
-    required int rowCount,
-    required int orderStart,
-    required int blockIndexStart,
-  }) {
+  List<PageBlock> _verticalBlocks({required String docId, required int pageIndex, required double x, required double width, required int rowCount, required int orderStart, required int blockIndexStart}) {
     final blocks = <PageBlock>[];
     for (var row = 0; row < rowCount; row++) {
-      final top = row / rowCount;
-      final bottom = (row + 1) / rowCount;
-      blocks.add(PageBlock(
-        docId: docId,
-        pageIndex: pageIndex,
-        blockIndex: blockIndexStart + row,
-        rect: NormalizedRect(x: x, y: top, width: width, height: bottom - top),
-        order: orderStart + row,
-        source: PageBlockSource.defaultBlock,
-      ));
+      final top = row / rowCount, bottom = (row + 1) / rowCount;
+      blocks.add(PageBlock(docId: docId, pageIndex: pageIndex, blockIndex: blockIndexStart + row, rect: NormalizedRect(x: x, y: top, width: width, height: bottom - top), order: orderStart + row, source: PageBlockSource.defaultBlock));
     }
     return blocks;
   }
@@ -75,12 +55,9 @@ class PageBlockAdaptiveLayout {
     final data = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
     if (data == null) return null;
     final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
-    final width = image.width;
-    final height = image.height;
-    final stride = width * 4;
+    final width = image.width, height = image.height, stride = width * 4;
     const samplesY = 24;
-    final startX = (width * .28).round();
-    final endX = (width * .72).round();
+    final startX = (width * .28).round(), endX = (width * .72).round();
     if (endX - startX < 16) return null;
     final step = (width / 180).ceil();
     final positions = <int>[];
@@ -99,30 +76,25 @@ class PageBlockAdaptiveLayout {
     }
     if (profiles.length < 12 || positions.length < 8) return null;
     final center = profiles.first.length / 2;
-    var bestIndex = -1;
-    var bestScore = double.infinity;
+    var bestIndex = -1, bestScore = double.infinity;
     for (var i = 2; i < positions.length - 2; i++) {
       final distanceFromCenter = ((i - center).abs() / center);
       if (distanceFromCenter > .35) continue;
       var validRows = 0;
-      var valleyTotal = 0.0;
-      var sideTotal = 0.0;
+      var valleyTotal = 0.0, sideTotal = 0.0;
       for (final profile in profiles) {
         final valley = (profile[i - 1] + profile[i] + profile[i + 1]) / 3;
-        final left = profile.sublist(0, i);
-        final right = profile.sublist(i + 1);
+        final left = profile.sublist(0, i), right = profile.sublist(i + 1);
         final leftInk = left.fold<double>(0, (a, b) => a + b) / left.length;
         final rightInk = right.fold<double>(0, (a, b) => a + b) / right.length;
         final sideInk = (leftInk + rightInk) / 2;
         if (sideInk < .08) continue;
         if (valley < .20 && valley < sideInk * .52) validRows++;
-        valleyTotal += valley;
-        sideTotal += sideInk;
+        valleyTotal += valley; sideTotal += sideInk;
       }
       final consistency = validRows / profiles.length;
       if (consistency < .58 || sideTotal <= 0) continue;
-      final averageValley = valleyTotal / profiles.length;
-      final averageSideInk = sideTotal / profiles.length;
+      final averageValley = valleyTotal / profiles.length, averageSideInk = sideTotal / profiles.length;
       final score = averageValley / averageSideInk + distanceFromCenter * .25 - consistency * .35;
       if (score < bestScore) { bestScore = score; bestIndex = i; }
     }
