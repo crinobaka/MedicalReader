@@ -64,7 +64,7 @@ class EpubPaginationEngine {
     isFurigana: function(node) { const parent = node.nodeType === Node.TEXT_NODE ? node.parentElement : node; return !!(parent && parent.closest('rt, rp')); },
     countChars: function(text) {
       let count = 0, offset = 0;
-      while (offset < text.length) { const code = text.codePointAt(offset); if (code == null) break; const ch = String.fromCodePoint(code); if (!/^\\s$/.test(ch)) count++; offset += ch.length; }
+      while (offset < text.length) { const code = text.codePointAt(offset); if (code == null) break; const ch = String.fromCodePoint(code); if (!/^\\s\$/.test(ch)) count++; offset += ch.length; }
       return count;
     },
     createWalker: function() { const self = this; return document.createTreeWalker(body, NodeFilter.SHOW_TEXT, {acceptNode: function(node) { return self.isFurigana(node) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT; }}); },

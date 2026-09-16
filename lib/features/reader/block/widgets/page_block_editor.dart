@@ -95,7 +95,9 @@ class _PageBlockEditorState extends State<PageBlockEditor> {
         IconButton(tooltip: '保存', onPressed: _blocks.isEmpty ? null : _save, icon: const Icon(Icons.check)),
       ]),
       body: Column(children: [
-        Expanded(flex: 4, child: Padding(padding: const EdgeInsets.all(12), child: AspectRatio(aspectRatio: widget.image.width / widget.image.height, child: LayoutBuilder(builder: (context, constraints) {
+        Expanded(
+          flex: 4, 
+          child: Padding(padding: const EdgeInsets.all(12), child: AspectRatio(aspectRatio: widget.image.width / widget.image.height, child: LayoutBuilder(builder: (context, constraints) {
           final size = constraints.biggest;
           return GestureDetector(
             behavior: HitTestBehavior.opaque,
@@ -105,8 +107,11 @@ class _PageBlockEditorState extends State<PageBlockEditor> {
             onPanEnd: (_) => _end(size),
             child: CustomPaint(painter: _BlockEditorPainter(image: widget.image, blocks: _blocks, selectedIndex: _selectedIndex, mode: _mode)),
           );
-        }))),
-        const Padding(padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4), child: Text('点按选择；拖动块移动；拖四角或四边缩放；空白处拖动新建；列表可长按拖动排序。')),
+        })))),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4), 
+          child: Text('点按选择；拖动块移动；拖四角或四边缩放；空白处拖动新建；列表可长按拖动排序。')
+        ),
         Expanded(flex: 2, child: ReorderableListView.builder(
           itemCount: _blocks.length,
           onReorder: (oldIndex, newIndex) => setState(() { if (newIndex > oldIndex) newIndex--; final item = _blocks.removeAt(oldIndex); _blocks.insert(newIndex, item); _reindex(); _selectedIndex = newIndex; }),
