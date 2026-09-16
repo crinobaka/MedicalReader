@@ -39,7 +39,23 @@ class _EpubReaderPageState extends ConsumerState<EpubReaderPage> {
   Future<void> _savePosition(ReaderPosition position) => ref.read(readerPositionStoreProvider).save(widget.document, position);
   List<ReaderAnnotation> get _annotations => ref.watch(readerAnnotationsProvider(widget.document));
   bool get _bookmarked => _annotations.any((x) => x.type == ReaderAnnotationType.bookmark && x.pageIndex == _controller.chapterIndex);
-  List<EpubNavItem> get _navigation { final result = <EpubNavItem>[]; void visit(List<EpubNavItem> items, int depth) { for (final item in items) { result.add(EpubNavItem(title: '${List.filled(depth, '  ').join()}${item.title}', href: item.href, fragment: item.fragment, children: item.children)); visit(item.children, depth + 1); } } visit(_controller.book?.navigation ?? const [], 0); return result; }
+  List<EpubNavItem> get _navigation {
+    final source = _controller.book?.navigation ?? const <EpubNavItem>[];
+    if (source.isNotEmpty) return _flattenNavigation(source);
+    final spine = _controller.book?.spine ?? const <EpubSpineItem>[];
+    final book = _controller.book;
+    if (book == null) return const [];
+    return [
+      for (var index = 0; index < spine.length; index++)
+        if (book.manifestById(spine[index].idref)?.isDocument == true)
+          EpubNavItem(
+            title: _fallbackChapterTitle(book, index),
+            href: book.manifestById(spine[index].idref)!.href,
+          ),
+    ];
+  }
+  List<EpubNavItem> _flattenNavigation(List<EpubNavItem> source) { final result = <EpubNavItem>[]; void visit(List<EpubNavItem> items, int depth) { for (final item in items) { result.add(EpubNavItem(title: '${List.filled(depth, '  ').join()}${item.title}', href: item.href, fragment: item.fragment, children: item.children)); visit(item.children, depth + 1); } } visit(source, 0); return result; }
+  String _fallbackChapterTitle(EpubBook book, int index) { final item = book.manifestById(book.spine[index].idref); final href = item?.href.split('/').last ?? ''; final dot = href.lastIndexOf('.'); final stem = dot > 0 ? href.substring(0, dot) : href; return stem.isEmpty ? '第 ${index + 1} 章' : stem; }
   void _openSettings() => showModalBottomSheet<void>(context: context, isScrollControlled: true, useSafeArea: true, builder: (_) => EpubReaderSettingsSheet(settings: _settings, onChanged: _saveSettings, navigation: _navigation, currentChapter: _controller.chapterIndex, onNavigationSelected: (item) async { Navigator.of(context).pop(); await _controller.goToNavigation(item); if (mounted) setState(() {}); }, onBookmark: _toggleBookmark, onNote: _saveNote, onAnnotations: _openAnnotations));
   Future<void> _toggleBookmark() async { final notifier = ref.read(readerAnnotationsProvider(widget.document).notifier); final existing = _annotations.where((x) => x.type == ReaderAnnotationType.bookmark && x.pageIndex == _controller.chapterIndex).toList(growable: false); if (existing.isNotEmpty) { for (final item in existing) await notifier.remove(item.id); return; } final now = DateTime.now(); await notifier.add(ReaderAnnotation(id: 'epub_bookmark_${widget.document.id}_${_controller.chapterIndex}', bookId: widget.document.id, pageIndex: _controller.chapterIndex, type: ReaderAnnotationType.bookmark, title: _chapterTitle(_controller.chapterIndex), createdAt: now, updatedAt: now)); }
   Future<void> _saveNote() async { final notifier = ref.read(readerAnnotationsProvider(widget.document).notifier); final existing = _annotations.where((x) => x.type == ReaderAnnotationType.note && x.pageIndex == _controller.chapterIndex).firstOrNull; final editor = TextEditingController(text: existing?.content ?? ''); final text = await showDialog<String>(context: context, builder: (context) => AlertDialog(title: Text(existing == null ? '添加笔记' : '编辑笔记'), content: TextField(controller: editor, autofocus: true, minLines: 4, maxLines: 10, decoration: const InputDecoration(hintText: '写下这一章的阅读笔记…')), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')), FilledButton(onPressed: () => Navigator.pop(context, editor.text.trim()), child: const Text('保存'))])); editor.dispose(); if (text == null || text.isEmpty) return; final now = DateTime.now(); await notifier.add(ReaderAnnotation(id: existing?.id ?? 'epub_note_${widget.document.id}_${_controller.chapterIndex}', bookId: widget.document.id, pageIndex: _controller.chapterIndex, type: ReaderAnnotationType.note, title: _chapterTitle(_controller.chapterIndex), content: text, createdAt: existing?.createdAt ?? now, updatedAt: now)); }
