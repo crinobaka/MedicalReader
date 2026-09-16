@@ -16,26 +16,47 @@ class EpubPaginationHoshiCompat {
   head.appendChild(viewport);
 
   const vertical = getComputedStyle(document.body).writingMode.indexOf('vertical') === 0;
-  // Hoshi's vertical EPUB pagination is a horizontal CSS-column flow.
-  // Keep the metric on the physical horizontal axis; otherwise the viewport
-  // can drift into the next column and expose the following page.
+  // Vertical EPUB is still a horizontal CSS-column flow: each screen is one
+  // column, so page movement must be measured on scrollLeft rather than scrollTop.
   if (vertical) {
-    reader.pageSize = function() { return Math.max(1, this.pageWidth + 22); };
-    reader.position = function() {
-      var raw = document.body.scrollLeft;
-      var max = Math.max(0, document.body.scrollWidth - this.pageWidth);
-      return Math.max(0, Math.min(max, max - raw));
+    const pageWidth = function() { return Math.max(1, window.innerWidth); };
+    const max = function() { return Math.max(0, document.body.scrollWidth - window.innerWidth); };
+    const logicalPosition = function() {
+      const maximum = max();
+      return Math.max(0, Math.min(maximum, maximum - document.body.scrollLeft));
     };
-    reader.maxScroll = function() {
-      return Math.max(0, document.body.scrollWidth - this.pageWidth);
+    reader.pageSize = pageWidth;
+    reader.position = logicalPosition;
+    reader.maxScroll = max;
+    reader.alignToPage = function(offset) { return Math.floor(Math.max(0, offset) / pageWidth()) * pageWidth(); };
+    reader.assignPagePosition = function(value) {
+      const maximum = max();
+      const logical = Math.min(Math.max(0, value), maximum);
+      document.body.scrollLeft = maximum - logical;
+      this.lockRootViewport();
+      this.lastPageScroll = logical;
+      return logical;
     };
     reader.contentStart = function(rect) {
-      var position = this.position();
-      return (document.body.scrollWidth - rect.right) + position;
+      return (document.body.scrollWidth - rect.right) + this.position();
     };
     reader.contentEnd = function(rect) {
-      var position = this.position();
-      return (document.body.scrollWidth - rect.left) + position;
+      return (document.body.scrollWidth - rect.left) + this.position();
+    };
+    reader.paginate = function(direction) {
+      const metrics = this.metrics || this.buildPaginationMetrics();
+      const current = this.position();
+      const size = this.pageSize();
+      if (direction === 'forward') {
+        if (current >= metrics.maxScroll - 1) { bridge({type:'boundary', direction:'forward'}); return 'limit'; }
+        const next = Math.min(metrics.maxScroll, this.alignToPage(current + size));
+        if (next <= current + 1) { bridge({type:'boundary', direction:'forward'}); return 'limit'; }
+        this.setPagePosition(next); return 'scrolled';
+      }
+      if (current <= metrics.minScroll + 1) { bridge({type:'boundary', direction:'backward'}); return 'limit'; }
+      const next = Math.max(metrics.minScroll, this.alignToPage(Math.max(metrics.minScroll, current - size)));
+      if (next >= current - 1) { bridge({type:'boundary', direction:'backward'}); return 'limit'; }
+      this.setPagePosition(next); return 'scrolled';
     };
   }
 
