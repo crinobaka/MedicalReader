@@ -7,7 +7,7 @@ class EpubPaginationHoshiCompat {
   const reader = window.medicalReaderPagination || window.MedicalReaderPagination;
   if (!reader || window.medicalReaderPaginationHoshiCompatReady) return;
   window.medicalReaderPaginationHoshiCompatReady = true;
-
+  const body = document.body;
   const head = document.head || document.documentElement;
   document.querySelectorAll('meta[name="viewport"]').forEach(function(meta) { meta.remove(); });
   const viewport = document.createElement('meta');
@@ -15,126 +15,162 @@ class EpubPaginationHoshiCompat {
   viewport.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
   head.appendChild(viewport);
 
-  const vertical = getComputedStyle(document.body).writingMode.indexOf('vertical') === 0;
-  // Vertical EPUB is still a horizontal CSS-column flow: each screen is one
-  // column, so page movement must be measured on scrollLeft rather than scrollTop.
+  const bridge = function(payload) {
+    if (window.chrome && window.chrome.webview) { window.chrome.webview.postMessage(payload); return; }
+    if (window.MedicalReader) window.MedicalReader.postMessage(JSON.stringify(payload));
+  };
+  const vertical = getComputedStyle(body).writingMode.indexOf('vertical') === 0;
+  const axis = function() { return 'x'; };
+  reader.axis = axis;
+  reader.getScrollContext = function() { return {vertical: false, pageSize: this.pageSize(), maxScroll: this.maxScroll()}; };
+
   if (vertical) {
     const pageWidth = function() { return Math.max(1, window.innerWidth); };
-    const max = function() { return Math.max(0, document.body.scrollWidth - window.innerWidth); };
-    const logicalPosition = function() {
-      const maximum = max();
-      return Math.max(0, Math.min(maximum, maximum - document.body.scrollLeft));
-    };
+    const max = function() { return Math.max(0, body.scrollWidth - window.innerWidth); };
     reader.pageSize = pageWidth;
-    reader.position = logicalPosition;
+    reader.position = function() { const maximum = max(); return Math.max(0, Math.min(maximum, maximum - body.scrollLeft)); };
     reader.maxScroll = max;
     reader.alignToPage = function(offset) { return Math.floor(Math.max(0, offset) / pageWidth()) * pageWidth(); };
     reader.assignPagePosition = function(value) {
       const maximum = max();
       const logical = Math.min(Math.max(0, value), maximum);
-      document.body.scrollLeft = maximum - logical;
+      body.scrollLeft = maximum - logical;
       this.lockRootViewport();
       this.lastPageScroll = logical;
       return logical;
     };
-    reader.contentStart = function(rect) {
-      return (document.body.scrollWidth - rect.right) + this.position();
-    };
-    reader.contentEnd = function(rect) {
-      return (document.body.scrollWidth - rect.left) + this.position();
-    };
-    reader.paginate = function(direction) {
-      const metrics = this.metrics || this.buildPaginationMetrics();
-      const current = this.position();
-      const size = this.pageSize();
-      if (direction === 'forward') {
-        if (current >= metrics.maxScroll - 1) { bridge({type:'boundary', direction:'forward'}); return 'limit'; }
-        const next = Math.min(metrics.maxScroll, this.alignToPage(current + size));
-        if (next <= current + 1) { bridge({type:'boundary', direction:'forward'}); return 'limit'; }
-        this.setPagePosition(next); return 'scrolled';
-      }
-      if (current <= metrics.minScroll + 1) { bridge({type:'boundary', direction:'backward'}); return 'limit'; }
-      const next = Math.max(metrics.minScroll, this.alignToPage(Math.max(metrics.minScroll, current - size)));
-      if (next >= current - 1) { bridge({type:'boundary', direction:'backward'}); return 'limit'; }
-      this.setPagePosition(next); return 'scrolled';
-    };
+    reader.contentStart = function(rect) { return (body.scrollWidth - rect.right) + this.position(); };
+    reader.contentEnd = function(rect) { return (body.scrollWidth - rect.left) + this.position(); };
   }
 
-  const bridge = function(payload) {
-    if (window.chrome && window.chrome.webview) {
-      window.chrome.webview.postMessage(payload);
-      return;
+  const prohibitedLineStart = '、。，．・：；？！』」）］〕〉》】〕〙〗〟”’』」』〉》」』」ー〜～…‥-)]}〉》』」』';
+  const prohibitedLineEnd = '（［｛〈《【〔〖〘〙“‘『「〈《【〔';
+  const isProhibitedStart = function(ch) { return !!ch && prohibitedLineStart.indexOf(ch) >= 0; };
+  const isProhibitedEnd = function(ch) { return !!ch && prohibitedLineEnd.indexOf(ch) >= 0; };
+  reader.isProhibitedLineStart = isProhibitedStart;
+  reader.isProhibitedLineEnd = isProhibitedEnd;
+
+  const normalizeRuby = function() {
+    body.querySelectorAll('ruby').forEach(function(ruby) {
+      ruby.style.breakInside = 'avoid';
+      ruby.style.pageBreakInside = 'avoid';
+      ruby.style.lineBreak = 'strict';
+      ruby.style.rubyPosition = vertical ? 'over' : 'over';
+      ruby.querySelectorAll('rt, rp').forEach(function(node) {
+        node.style.breakInside = 'avoid';
+        node.style.whiteSpace = 'nowrap';
+      });
+    });
+  };
+  const normalizeBlocks = function() {
+    body.querySelectorAll('p, li, blockquote, figure, table, pre, img, svg, video, canvas').forEach(function(el) {
+      el.style.breakInside = 'avoid';
+      el.style.pageBreakInside = 'avoid';
+    });
+    body.querySelectorAll('h1,h2,h3,h4,h5,h6').forEach(function(el) {
+      el.style.breakAfter = 'avoid';
+      el.style.pageBreakAfter = 'avoid';
+    });
+  };
+  const fixBoundary = function(direction) {
+    const metrics = reader.metrics || reader.buildPaginationMetrics();
+    const current = reader.position();
+    const size = reader.pageSize();
+    if (!metrics || size <= 0) return current;
+    const walker = reader.createWalker ? reader.createWalker() : document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+    let node;
+    let candidate = null;
+    while ((node = walker.nextNode())) {
+      const text = node.textContent || '';
+      if (!text.trim()) continue;
+      const range = document.createRange(); range.selectNodeContents(node);
+      const rect = reader.getRect(range); if (!rect || rect.width <= 0 || rect.height <= 0) continue;
+      const logical = reader.contentStart(rect);
+      const page = reader.alignToPage(logical);
+      if (page !== current) continue;
+      const first = text.trim().charAt(0), last = text.trim().charAt(text.trim().length - 1);
+      if (direction === 'forward' && isProhibitedStart(first)) candidate = Math.max(metrics.minScroll, current - size);
+      if (direction === 'backward' && isProhibitedEnd(last)) candidate = Math.min(metrics.maxScroll, current + size);
+      if (candidate != null) break;
     }
-    if (window.MedicalReader) window.MedicalReader.postMessage(JSON.stringify(payload));
+    if (candidate == null) return current;
+    reader.setPagePosition(candidate);
+    return candidate;
+  };
+  const originalPaginate = reader.paginate.bind(reader);
+  reader.paginate = function(direction) {
+    const result = originalPaginate(direction);
+    if (result !== 'limit' && direction === 'forward') fixBoundary('forward');
+    if (result !== 'limit' && direction === 'backward') fixBoundary('backward');
+    return result;
   };
 
   reader.nativeSelectionActive = false;
   reader.nativeSelectionScrollPosition = null;
   reader.setNativeSelectionActive = function(active) {
-    const context = {maxScroll: this.maxScroll()};
     if (active) {
       this.nativeSelectionActive = true;
       this.nativeSelectionScrollPosition = this.position();
       this.lastPageScroll = this.nativeSelectionScrollPosition;
       return;
     }
-    if (this.nativeSelectionActive && this.nativeSelectionScrollPosition != null) {
-      const locked = Math.min(Math.max(0, this.nativeSelectionScrollPosition), context.maxScroll);
-      this.assignPagePosition(locked);
-      this.lastPageScroll = locked;
-    }
+    if (this.nativeSelectionActive && this.nativeSelectionScrollPosition != null) this.assignPagePosition(this.nativeSelectionScrollPosition);
     this.nativeSelectionActive = false;
     this.nativeSelectionScrollPosition = null;
   };
 
-  const textOffset = function(root, node, offset) {
+  const walkerTextOffset = function(root, node, offset) {
     let total = 0;
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {acceptNode: function(current) {
+      const parent = current.parentElement;
+      return parent && parent.closest && parent.closest('rt, rp') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
+    }});
     let current;
     while ((current = walker.nextNode())) {
       if (current === node) return total + offset;
-      total += current.textContent ? current.textContent.length : 0;
+      total += (current.textContent || '').length;
     }
     return null;
   };
-
+  const quoteContext = function(range, selectedText) {
+    const full = (body.innerText || body.textContent || '').replace(/\s+/g, ' ');
+    const normalized = selectedText.replace(/\s+/g, ' ');
+    const index = full.indexOf(normalized);
+    if (index < 0) return {textQuote: normalized, prefix: '', suffix: ''};
+    return {textQuote: normalized, prefix: full.substring(Math.max(0, index - 64), index), suffix: full.substring(index + normalized.length, index + normalized.length + 64)};
+  };
   const sentenceFor = function(range) {
     let element = range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement;
     element = element && element.closest ? element.closest('p, li, blockquote, section, article, div') : null;
     const text = element ? (element.textContent || '').replace(/\s+/g, ' ').trim() : '';
     return text.length > 800 ? text.substring(0, 800) : text;
   };
-
   const emitSelection = function() {
     const selection = window.getSelection();
-    if (!selection || selection.isCollapsed || selection.rangeCount === 0) return;
+    if (!selection || selection.isCollapsed || !selection.rangeCount) return;
     const range = selection.getRangeAt(0);
     const selectedText = selection.toString().replace(/\s+/g, ' ').trim();
     if (!selectedText || selectedText.length > 2000) return;
-    bridge({
-      type: 'selection',
-      selectedText: selectedText,
-      sentence: sentenceFor(range),
-      href: window.location.pathname || '',
-      startOffset: textOffset(document.body, range.startContainer, range.startOffset),
-      endOffset: textOffset(document.body, range.endContainer, range.endOffset)
-    });
+    const quote = quoteContext(range, selectedText);
+    bridge({type:'selection', selectedText:selectedText, sentence:sentenceFor(range), href:window.location.pathname || '', startOffset:walkerTextOffset(body, range.startContainer, range.startOffset), endOffset:walkerTextOffset(body, range.endContainer, range.endOffset), textQuote:quote.textQuote, prefix:quote.prefix, suffix:quote.suffix});
   };
-
   let selectionTimer = null;
   document.addEventListener('selectionchange', function() {
     const selection = window.getSelection();
-    const active = !!(selection && !selection.isCollapsed && selection.rangeCount);
-    if (active) {
+    if (selection && !selection.isCollapsed && selection.rangeCount) {
       if (selectionTimer) clearTimeout(selectionTimer);
       reader.setNativeSelectionActive(true);
-      selectionTimer = setTimeout(emitSelection, 120);
-      return;
+      selectionTimer = setTimeout(emitSelection, 100);
+    } else {
+      if (selectionTimer) clearTimeout(selectionTimer);
+      selectionTimer = setTimeout(function() { reader.setNativeSelectionActive(false); }, 80);
     }
-    if (selectionTimer) clearTimeout(selectionTimer);
-    selectionTimer = setTimeout(function() { reader.setNativeSelectionActive(false); }, 80);
   });
   window.medicalReaderSetNativeSelectionActive = function(active) { reader.setNativeSelectionActive(!!active); };
+
+  normalizeRuby();
+  normalizeBlocks();
+  reader.metrics = null;
 })();
 ''';
 }
