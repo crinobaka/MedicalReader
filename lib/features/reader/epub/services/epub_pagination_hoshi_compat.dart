@@ -19,29 +19,45 @@ class EpubPaginationHoshiCompat {
     if (window.chrome && window.chrome.webview) { window.chrome.webview.postMessage(payload); return; }
     if (window.MedicalReader) window.MedicalReader.postMessage(JSON.stringify(payload));
   };
-  const vertical = getComputedStyle(body).writingMode.indexOf('vertical') === 0;
-  const axis = function() { return 'x'; };
-  reader.axis = axis;
-  reader.getScrollContext = function() { return {vertical: false, pageSize: this.pageSize(), maxScroll: this.maxScroll()}; };
+  const vertical = getComputedStyle(body).writingMode === 'vertical-rl';
 
-  if (vertical) {
-    const pageWidth = function() { return Math.max(1, window.innerWidth); };
-    const max = function() { return Math.max(0, body.scrollWidth - window.innerWidth); };
-    reader.pageSize = pageWidth;
-    reader.position = function() { const maximum = max(); return Math.max(0, Math.min(maximum, maximum - body.scrollLeft)); };
-    reader.maxScroll = max;
-    reader.alignToPage = function(offset) { return Math.floor(Math.max(0, offset) / pageWidth()) * pageWidth(); };
-    reader.assignPagePosition = function(value) {
-      const maximum = max();
-      const logical = Math.min(Math.max(0, value), maximum);
-      body.scrollLeft = maximum - logical;
-      this.lockRootViewport();
-      this.lastPageScroll = logical;
-      return logical;
-    };
-    reader.contentStart = function(rect) { return (body.scrollWidth - rect.right) + this.position(); };
-    reader.contentEnd = function(rect) { return (body.scrollWidth - rect.left) + this.position(); };
-  }
+  // Hoshi's paginated WebView uses the body's physical scroll axis:
+  // vertical writing -> scrollTop/scrollHeight, horizontal writing -> scrollLeft/scrollWidth.
+  // Do not replace this with a writing-mode-derived x-axis; WebView column layout
+  // exposes vertical writing pagination through scrollTop in the actual reader.
+  reader.getScrollContext = function() {
+    const isVertical = this.isVertical ? this.isVertical() : vertical;
+    const scrollEl = document.body;
+    const pageSize = Math.max(1, isVertical ? (this.pageHeight || window.innerHeight) : (this.pageWidth || window.innerWidth));
+    const totalSize = isVertical ? scrollEl.scrollHeight : scrollEl.scrollWidth;
+    const maxScroll = Math.max(0, totalSize - pageSize);
+    return {vertical: isVertical, scrollEl: scrollEl, pageSize: pageSize, maxScroll: maxScroll};
+  };
+  reader.position = function() {
+    const context = this.getScrollContext();
+    return context.vertical ? context.scrollEl.scrollTop : context.scrollEl.scrollLeft;
+  };
+  reader.maxScroll = function() { return this.getScrollContext().maxScroll; };
+  reader.pageSize = function() { return this.getScrollContext().pageSize; };
+  reader.assignPagePosition = function(value) {
+    const context = this.getScrollContext();
+    const logical = Math.min(Math.max(0, value), context.maxScroll);
+    if (context.vertical) context.scrollEl.scrollTop = logical;
+    else context.scrollEl.scrollLeft = logical;
+    this.lockRootViewport();
+    this.lastPageScroll = logical;
+    return logical;
+  };
+  reader.contentStart = function(rect) {
+    const position = this.position();
+    const context = this.getScrollContext();
+    return context.vertical ? rect.top + position : rect.left + position;
+  };
+  reader.contentEnd = function(rect) {
+    const position = this.position();
+    const context = this.getScrollContext();
+    return context.vertical ? rect.bottom + position : rect.right + position;
+  };
 
   const prohibitedLineStart = '、。，．・：；？！』」）］〕〉》】〕〙〗〟”’』」』〉》」』」ー〜～…‥-)]}〉》』」』';
   const prohibitedLineEnd = '（［｛〈《【〔〖〘〙“‘『「〈《【〔';
