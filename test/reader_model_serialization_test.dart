@@ -6,6 +6,7 @@ import 'package:medicalreader/features/reader/domain/models/reader_position.dart
 import 'package:medicalreader/features/reader/domain/models/reader_sync.dart';
 import 'package:medicalreader/features/reader/epub/services/epub_pagination_engine.dart';
 import 'package:medicalreader/features/reader/epub/services/epub_pagination_hoshi_compat.dart';
+import 'package:medicalreader/features/reader/epub/services/epub_pagination_interaction.dart';
 
 void main() {
   test('EPUB locator preserves semantic text quote context', () {
@@ -28,6 +29,21 @@ void main() {
     expect(script, contains(r'/^\s$/.test(ch)'));
     expect(script, contains('columnWidth'));
     expect(script, contains('setTimeout(function() { reader.start(); }, 0)'));
+  });
+
+  test('pagination engine uses scrollTop for vertical writing and scrollLeft for horizontal writing', () {
+    final script = EpubPaginationEngine.build(vertical: true, rtl: false, paginated: true, background: 'ffffff', foreground: 'inherit', font: 'sans-serif', fontSize: 16, lineHeight: 1.5, verticalPadding: 12, horizontalPadding: 16, paragraphSpacing: 8, initialProgress: 0);
+    expect(script, contains("const totalSize = vertical ? body.scrollHeight : body.scrollWidth"));
+    expect(script, contains("if (context.vertical) context.scrollEl.scrollTop = logical;"));
+    expect(script, contains("else context.scrollEl.scrollLeft = (rtl ? context.maxScroll - logical : logical);"));
+    expect(script, contains("const currentScroll = vertical ? body.scrollTop : body.scrollLeft"));
+  });
+
+  test('interaction routes space through the current pagination page before chapter boundary', () {
+    final script = EpubPaginationInteraction.build();
+    expect(script, contains("key === 'PageDown' || key === 'ArrowDown' || key === ' '"));
+    expect(script, contains("page('forward')"));
+    expect(script, contains("if (!isPaginated()) return;"));
   });
 
   test('Hoshi compatibility exposes vertical column axis and Japanese line-break guards', () {
