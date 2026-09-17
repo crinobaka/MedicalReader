@@ -20,19 +20,21 @@ class EpubPaginationMetrics {
   reader.buildPaginationMetrics = function() {
     const size = Math.max(1, this.pageSize()), physicalMax = Math.max(0, this.maxScroll());
     if (!size) return {minScroll: 0, maxScroll: 0, totalChars: 0, progressStops: []};
-    let totalChars = 0, firstContent = null;
+    let totalChars = 0, firstContent = null, lastContent = 0;
     const progressStops = [], walker = this.createWalker(); let node;
     while ((node = walker.nextNode())) {
       const text = node.textContent || '', chars = countChars(text); if (!chars) continue;
       const range = document.createRange(); range.selectNodeContents(node);
-      let start = null;
+      let start = null, end = null;
       for (const rect of range.getClientRects()) {
         if (rect.width <= 0 || rect.height <= 0) continue;
-        const a = this.contentStart(rect);
+        const a = this.contentStart(rect), b = this.contentEnd(rect);
         start = start === null ? a : Math.min(start, a);
+        end = end === null ? b : Math.max(end, b);
       }
       if (start !== null) {
         firstContent = firstContent === null ? start : Math.min(firstContent, start);
+        lastContent = Math.max(lastContent, end || start);
         progressStops.push({scroll: Math.max(0, start), chars: totalChars});
       }
       totalChars += chars;
@@ -41,15 +43,14 @@ class EpubPaginationMetrics {
       const rect = element.getBoundingClientRect();
       if (!rect.width || !rect.height) continue;
       firstContent = firstContent === null ? this.contentStart(rect) : Math.min(firstContent, this.contentStart(rect));
+      lastContent = Math.max(lastContent, this.contentEnd(rect));
     }
-    // The physical scroll extent is authoritative. Using the last visible
-    // Range here can under-report columns when WebView does not expose every
-    // off-screen client rect consistently. HOSHI pages against scrollHeight /
-    // scrollWidth, so do the same and only use content geometry for the start.
-    const minScroll = firstContent === null ? 0 : Math.min(physicalMax, this.alignToPage(firstContent));
+    const geometryMax = lastContent <= 0 ? 0 : this.alignToPage(lastContent - 1);
+    const effectiveMax = Math.max(physicalMax, geometryMax);
+    const minScroll = firstContent === null ? 0 : Math.min(effectiveMax, this.alignToPage(firstContent));
     const metrics = {
       minScroll: minScroll,
-      maxScroll: physicalMax,
+      maxScroll: effectiveMax,
       totalChars: Math.max(1, totalChars),
       progressStops: progressStops.sort((a, b) => a.scroll - b.scroll),
     };
