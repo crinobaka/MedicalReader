@@ -52,12 +52,17 @@ void main() {
     expect(script, contains("if (!isPaginated()) return;"));
   });
 
-  test('Hoshi compatibility does not replace the real WebView scroll axis', () {
+  test('Hoshi compatibility owns page stepping and only emits a boundary at physical scroll edges', () {
     final script = EpubPaginationHoshiCompat.build();
     expect(script, contains('body.scrollHeight'));
     expect(script, contains('body.scrollWidth'));
     expect(script, contains('context.scrollEl.scrollTop'));
     expect(script, contains('context.scrollEl.scrollLeft'));
+    expect(script, contains('reader.paginate = function(direction)'));
+    expect(script, contains('const max = context.maxScroll'));
+    expect(script, contains("if (current >= max - epsilon)"));
+    expect(script, contains("bridge({type:'boundary', direction:'forward'})"));
+    expect(script, contains("bridge({type:'boundary', direction:'backward'})"));
     expect(script, isNot(contains('reader.axis = axis')));
     expect(script, contains('isProhibitedLineStart'));
     expect(script, contains('isProhibitedLineEnd'));
