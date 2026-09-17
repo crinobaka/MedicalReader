@@ -19,108 +19,10 @@ class EpubPaginationHoshiCompat {
     if (window.chrome && window.chrome.webview) { window.chrome.webview.postMessage(payload); return; }
     if (window.MedicalReader) window.MedicalReader.postMessage(JSON.stringify(payload));
   };
-  const vertical = getComputedStyle(body).writingMode === 'vertical-rl';
 
-  // Hoshi's paginated WebView uses the body's physical scroll axis:
-  // vertical writing -> scrollTop/scrollHeight, horizontal writing -> scrollLeft/scrollWidth.
-  reader.getScrollContext = function() {
-    const isVertical = this.isVertical ? this.isVertical() : vertical;
-    const scrollEl = document.body;
-    const pageSize = Math.max(1, isVertical ? (this.pageHeight || window.innerHeight) : (this.pageWidth || window.innerWidth));
-    const totalSize = isVertical ? scrollEl.scrollHeight : scrollEl.scrollWidth;
-    const maxScroll = Math.max(0, totalSize - pageSize);
-    return {vertical: isVertical, scrollEl: scrollEl, pageSize: pageSize, maxScroll: maxScroll};
-  };
-  reader.position = function() {
-    const context = this.getScrollContext();
-    return context.vertical ? context.scrollEl.scrollTop : context.scrollEl.scrollLeft;
-  };
-  reader.maxScroll = function() { return this.getScrollContext().maxScroll; };
-  reader.pageSize = function() { return this.getScrollContext().pageSize; };
-  reader.assignPagePosition = function(value) {
-    const context = this.getScrollContext();
-    const logical = Math.min(Math.max(0, value), context.maxScroll);
-    if (context.vertical) context.scrollEl.scrollTop = logical;
-    else context.scrollEl.scrollLeft = logical;
-    this.lockRootViewport();
-    this.lastPageScroll = logical;
-    return logical;
-  };
-  reader.contentStart = function(rect) {
-    const position = this.position();
-    const context = this.getScrollContext();
-    return context.vertical ? rect.top + position : rect.left + position;
-  };
-  reader.contentEnd = function(rect) {
-    const position = this.position();
-    const context = this.getScrollContext();
-    return context.vertical ? rect.bottom + position : rect.right + position;
-  };
-
-  // Page stepping is deliberately defined once, at the final Hoshi-compat layer.
-  // Earlier helpers may calculate metrics, but they must not decide when a chapter
-  // boundary is reached. A boundary exists only at the body's physical scroll end.
-  reader.paginate = function(direction) {
-    if (this.nativeSelectionActive) return 'limit';
-    const context = this.getScrollContext();
-    const current = this.position();
-    const metrics = this.metrics || this.buildPaginationMetrics();
-    const size = context.pageSize;
-    const max = context.maxScroll;
-    const min = Math.min(metrics && Number.isFinite(metrics.minScroll) ? metrics.minScroll : 0, max);
-    const epsilon = 1;
-    if (direction === 'forward') {
-      if (current >= max - epsilon) {
-        bridge({type:'boundary', direction:'forward'});
-        return 'limit';
-      }
-      const page = Math.floor((current + epsilon) / size);
-      const target = Math.min(max, (page + 1) * size);
-      if (target <= current + epsilon) return 'limit';
-      this.setPagePosition(target);
-      return 'scrolled';
-    }
-    if (current <= min + epsilon) {
-      bridge({type:'boundary', direction:'backward'});
-      return 'limit';
-    }
-    const page = Math.ceil((current - epsilon) / size);
-    const target = Math.max(min, (page - 1) * size);
-    if (target >= current - epsilon) return 'limit';
-    this.setPagePosition(target);
-    return 'scrolled';
-  };
-
-  const prohibitedLineStart = '、。，．・：；？！』」）］〕〉》】〕〙〗〟”’』」』〉》」』」ー〜～…‥-)]}〉》』」』';
-  const prohibitedLineEnd = '（［｛〈《【〔〖〘〙“‘『「〈《【〔';
-  const isProhibitedStart = function(ch) { return !!ch && prohibitedLineStart.indexOf(ch) >= 0; };
-  const isProhibitedEnd = function(ch) { return !!ch && prohibitedLineEnd.indexOf(ch) >= 0; };
-  reader.isProhibitedLineStart = isProhibitedStart;
-  reader.isProhibitedLineEnd = isProhibitedLineEnd;
-
-  const normalizeRuby = function() {
-    body.querySelectorAll('ruby').forEach(function(ruby) {
-      ruby.style.breakInside = 'avoid';
-      ruby.style.pageBreakInside = 'avoid';
-      ruby.style.lineBreak = 'strict';
-      ruby.style.rubyPosition = vertical ? 'over' : 'over';
-      ruby.querySelectorAll('rt, rp').forEach(function(node) {
-        node.style.breakInside = 'avoid';
-        node.style.whiteSpace = 'nowrap';
-      });
-    });
-  };
-  const normalizeBlocks = function() {
-    body.querySelectorAll('p, li, blockquote, figure, table, pre, img, svg, video, canvas').forEach(function(el) {
-      el.style.breakInside = 'avoid';
-      el.style.pageBreakInside = 'avoid';
-    });
-    body.querySelectorAll('h1,h2,h3,h4,h5,h6').forEach(function(el) {
-      el.style.breakAfter = 'avoid';
-      el.style.pageBreakAfter = 'avoid';
-    });
-  };
-
+  // Hoshi compatibility owns selection behavior only. Pagination remains owned
+  // exclusively by EpubPaginationEngine so a later compatibility script cannot
+  // change page stepping or turn a non-final page into a chapter boundary.
   reader.nativeSelectionActive = false;
   reader.nativeSelectionScrollPosition = null;
   reader.setNativeSelectionActive = function(active) {
@@ -148,7 +50,7 @@ class EpubPaginationHoshiCompat {
     }
     return null;
   };
-  const quoteContext = function(range, selectedText) {
+  const quoteContext = function(selectedText) {
     const full = (body.innerText || body.textContent || '').replace(/\s+/g, ' ');
     const normalized = selectedText.replace(/\s+/g, ' ');
     const index = full.indexOf(normalized);
@@ -167,7 +69,7 @@ class EpubPaginationHoshiCompat {
     const range = selection.getRangeAt(0);
     const selectedText = selection.toString().replace(/\s+/g, ' ').trim();
     if (!selectedText || selectedText.length > 2000) return;
-    const quote = quoteContext(range, selectedText);
+    const quote = quoteContext(selectedText);
     bridge({type:'selection', selectedText:selectedText, sentence:sentenceFor(range), href:window.location.pathname || '', startOffset:walkerTextOffset(body, range.startContainer, range.startOffset), endOffset:walkerTextOffset(body, range.endContainer, range.endOffset), textQuote:quote.textQuote, prefix:quote.prefix, suffix:quote.suffix});
   };
   let selectionTimer = null;
@@ -184,9 +86,32 @@ class EpubPaginationHoshiCompat {
   });
   window.medicalReaderSetNativeSelectionActive = function(active) { reader.setNativeSelectionActive(!!active); };
 
+  const vertical = reader.isVertical ? reader.isVertical() : getComputedStyle(body).writingMode === 'vertical-rl';
+  const normalizeRuby = function() {
+    body.querySelectorAll('ruby').forEach(function(ruby) {
+      ruby.style.breakInside = 'avoid';
+      ruby.style.pageBreakInside = 'avoid';
+      ruby.style.lineBreak = 'strict';
+      ruby.style.rubyPosition = 'over';
+      ruby.querySelectorAll('rt, rp').forEach(function(node) {
+        node.style.breakInside = 'avoid';
+        node.style.whiteSpace = 'nowrap';
+      });
+    });
+  };
+  const normalizeBlocks = function() {
+    body.querySelectorAll('p, li, blockquote, figure, table, pre, img, svg, video, canvas').forEach(function(el) {
+      el.style.breakInside = 'avoid';
+      el.style.pageBreakInside = 'avoid';
+    });
+    body.querySelectorAll('h1,h2,h3,h4,h5,h6').forEach(function(el) {
+      el.style.breakAfter = 'avoid';
+      el.style.pageBreakAfter = 'avoid';
+    });
+  };
   normalizeRuby();
   normalizeBlocks();
-  reader.metrics = null;
 })();
 ''';
+  }
 }
