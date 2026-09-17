@@ -7,6 +7,7 @@ import 'package:medicalreader/features/reader/domain/models/reader_sync.dart';
 import 'package:medicalreader/features/reader/epub/services/epub_pagination_engine.dart';
 import 'package:medicalreader/features/reader/epub/services/epub_pagination_hoshi_compat.dart';
 import 'package:medicalreader/features/reader/epub/services/epub_pagination_interaction.dart';
+import 'package:medicalreader/features/reader/epub/services/epub_pagination_refinements.dart';
 
 void main() {
   test('EPUB locator preserves semantic text quote context', () {
@@ -45,6 +46,16 @@ void main() {
     expect(script, contains('maxScroll: max'));
   });
 
+  test('pagination has exactly one page-turn owner and compatibility layers cannot replace it', () {
+    final engine = EpubPaginationEngine.build(vertical: false, rtl: false, paginated: true, background: 'ffffff', foreground: 'inherit', font: 'sans-serif', fontSize: 16, lineHeight: 1.5, verticalPadding: 12, horizontalPadding: 16, paragraphSpacing: 8, initialProgress: 0);
+    final refinements = EpubPaginationRefinements.build();
+    final hoshi = EpubPaginationHoshiCompat.build();
+    expect(RegExp(r'paginate\\s*:\\s*function').allMatches(engine).length, 1);
+    expect(refinements, isNot(contains('reader.paginate = function')));
+    expect(hoshi, isNot(contains('reader.paginate = function')));
+    expect(hoshi, contains('reader.setNativeSelectionActive = function(active)'));
+  });
+
   test('interaction routes space through the current pagination page before chapter boundary', () {
     final script = EpubPaginationInteraction.build();
     expect(script, contains("key === 'PageDown' || key === 'ArrowDown' || key === ' '"));
@@ -52,21 +63,13 @@ void main() {
     expect(script, contains("if (!isPaginated()) return;"));
   });
 
-  test('Hoshi compatibility owns page stepping and only emits a boundary at physical scroll edges', () {
+  test('Hoshi compatibility keeps selection and ruby behavior without owning pagination', () {
     final script = EpubPaginationHoshiCompat.build();
-    expect(script, contains('body.scrollHeight'));
-    expect(script, contains('body.scrollWidth'));
-    expect(script, contains('context.scrollEl.scrollTop'));
-    expect(script, contains('context.scrollEl.scrollLeft'));
-    expect(script, contains('reader.paginate = function(direction)'));
-    expect(script, contains('const max = context.maxScroll'));
-    expect(script, contains("if (current >= max - epsilon)"));
-    expect(script, contains("bridge({type:'boundary', direction:'forward'})"));
-    expect(script, contains("bridge({type:'boundary', direction:'backward'})"));
-    expect(script, isNot(contains('reader.axis = axis')));
-    expect(script, contains('isProhibitedLineStart'));
-    expect(script, contains('isProhibitedLineEnd'));
+    expect(script, contains('reader.setNativeSelectionActive = function(active)'));
+    expect(script, contains('selectionchange'));
     expect(script, contains('ruby.style.breakInside'));
+    expect(script, isNot(contains('reader.paginate = function(direction)')));
+    expect(script, isNot(contains('bridge({type:\'boundary\'')));
   });
 
   test('lookup history preserves dictionary entries', () {
