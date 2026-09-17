@@ -19,14 +19,13 @@ class EpubPaginationEngine {
     String? fragment,
   }) {
     final fragmentLiteral = fragment == null ? 'null' : jsonEncode(fragment);
-    final gap = vertical ? 22 : horizontalPadding.clamp(0, 48);
     return '''
 (function() {
   const root = document.documentElement, body = document.body;
   if (!body) return;
   const vertical = $vertical, rtl = $rtl, paginated = $paginated;
   const initialProgress = ${initialProgress.clamp(0, 1)};
-  const initialFragment = $fragmentLiteral, columnGap = $gap;
+  const initialFragment = $fragmentLiteral, columnGap = 0;
   const bridge = function(payload) {
     if (window.chrome && window.chrome.webview) window.chrome.webview.postMessage(payload);
     else if (window.MedicalReader) window.MedicalReader.postMessage(JSON.stringify(payload));
@@ -88,7 +87,7 @@ class EpubPaginationEngine {
     },
     createWalker: function() { const self = this; return document.createTreeWalker(body, NodeFilter.SHOW_TEXT, {acceptNode: function(node) { return self.isFurigana(node) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT; }}); },
     buildPaginationMetrics: function() {
-      const context = this.scrollContext(), size = context.pageSize, max = context.maxScroll; let total = 0, first = null, last = 0;
+      const context = this.scrollContext(), size = context.pageSize, physicalMax = context.maxScroll; let total = 0, first = null, last = 0;
       const stops = [], walker = this.createWalker(); let node;
       while ((node = walker.nextNode())) {
         const text = node.textContent || '', chars = this.countChars(text); if (!chars) continue;
@@ -100,9 +99,10 @@ class EpubPaginationEngine {
       }
       const media = body.querySelectorAll('img, svg, image, video, canvas');
       for (let i = 0; i < media.length; i++) { const rect = media[i].getBoundingClientRect(); if (!rect.width || !rect.height) continue; first = first === null ? this.contentStart(rect) : Math.min(first, this.contentStart(rect)); last = Math.max(last, this.contentEnd(rect)); }
-      const min = first === null ? 0 : Math.min(max, Math.floor(Math.max(0, first) / size) * size);
-      const end = last <= 0 ? 0 : Math.floor(Math.max(0, last - 1) / size) * size;
-      this.metrics = {minScroll: min, maxScroll: Math.min(max, Math.max(min, end)), totalChars: Math.max(1, total), progressStops: stops.sort((a,b) => a.scroll - b.scroll)};
+      const min = first === null ? 0 : Math.min(physicalMax, Math.floor(Math.max(0, first) / size) * size);
+      const geometryEnd = last <= 0 ? 0 : Math.floor(Math.max(0, last - 1) / size) * size;
+      const max = Math.max(0, physicalMax, geometryEnd);
+      this.metrics = {minScroll: Math.min(min, max), maxScroll: max, totalChars: Math.max(1, total), progressStops: stops.sort((a,b) => a.scroll - b.scroll)};
       return this.metrics;
     },
     calculateProgress: function() { const max = this.maxScroll(); return max <= 0 ? 0 : Math.min(1, Math.max(0, this.position() / max)); },
@@ -116,7 +116,7 @@ class EpubPaginationEngine {
     },
     paginate: function(direction) {
       if (this.nativeSelectionActive) return 'limit';
-      const context = this.scrollContext(), metrics = this.metrics || this.buildPaginationMetrics(), current = this.position(), size = context.pageSize, maxPageScroll = metrics.maxScroll;
+      const context = this.scrollContext(), metrics = this.metrics || this.buildPaginationMetrics(), current = this.position(), size = context.pageSize, maxPageScroll = context.maxScroll;
       if (direction === 'forward') {
         if (current < maxPageScroll - 1) {
           const targetForward = Math.round((current + size) / size) * size;
