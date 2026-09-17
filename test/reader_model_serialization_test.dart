@@ -7,6 +7,7 @@ import 'package:medicalreader/features/reader/domain/models/reader_sync.dart';
 import 'package:medicalreader/features/reader/epub/services/epub_pagination_engine.dart';
 import 'package:medicalreader/features/reader/epub/services/epub_pagination_hoshi_compat.dart';
 import 'package:medicalreader/features/reader/epub/services/epub_pagination_interaction.dart';
+import 'package:medicalreader/features/reader/epub/services/epub_pagination_layout.dart';
 import 'package:medicalreader/features/reader/epub/services/epub_pagination_refinements.dart';
 
 void main() {
@@ -25,7 +26,7 @@ void main() {
     expect(context.textQuote, '読む'); expect(context.prefix, '本を'); expect(context.suffix, 'ことが好き');
   });
 
-  test('pagination engine preserves the embedded JavaScript whitespace regex and Hoshi page primitives', () {
+  test('pagination engine preserves the embedded JavaScript whitespace regex and page primitives', () {
     final script = EpubPaginationEngine.build(vertical: false, rtl: false, paginated: true, background: 'ffffff', foreground: 'inherit', font: 'sans-serif', fontSize: 16, lineHeight: 1.5, verticalPadding: 12, horizontalPadding: 16, paragraphSpacing: 8, initialProgress: 0);
     expect(script, contains(r'/^\s$/.test(ch)'));
     expect(script, contains('columnWidth'));
@@ -33,19 +34,31 @@ void main() {
     expect(script, contains('nativeSelectionActive'));
     expect(script, contains('const next = Math.min(physicalMax, current + size)'));
     expect(script, contains('alignToPage: function(offset) { const size = this.pageSize(); return Math.floor'));
-    expect(script, contains('const last = this.lastPageScroll'));
     expect(script, contains('setTimeout(function() { reader.start(); }, 0)'));
   });
 
-  test('pagination engine uses the physical WebView extent as the final page range', () {
+  test('pagination uses the physical horizontal column extent for both writing modes', () {
     final script = EpubPaginationEngine.build(vertical: true, rtl: false, paginated: true, background: 'ffffff', foreground: 'inherit', font: 'sans-serif', fontSize: 16, lineHeight: 1.5, verticalPadding: 12, horizontalPadding: 16, paragraphSpacing: 8, initialProgress: 0);
-    expect(script, contains("const totalSize = isVertical ? body.scrollHeight : body.scrollWidth"));
-    expect(script, contains("return context.vertical ? Math.max(0, context.scrollEl.scrollTop) : Math.max(0, context.scrollEl.scrollLeft)"));
-    expect(script, contains("if (context.vertical) context.scrollEl.scrollTop = logical;"));
-    expect(script, contains("else context.scrollEl.scrollLeft = logical;"));
-    expect(script, contains('const context = this.scrollContext(), size = context.pageSize, physicalMax = context.maxScroll'));
+    expect(script, contains("const pageSize = Math.max(1, this.pageWidth || window.innerWidth)"));
+    expect(script, contains("const physicalMax = this._maxPhysicalScroll()"));
+    expect(script, contains("return rect.left + this.position()"));
+    expect(script, contains("context.scrollEl.scrollLeft = this._physicalFromLogical(logical, context.maxScroll)"));
+    expect(script, isNot(contains('body.scrollHeight')));
+    expect(script, isNot(contains('context.scrollEl.scrollTop = logical')));
+  });
+
+  test('pagination keeps a real physical end separate from geometry metrics', () {
+    final script = EpubPaginationEngine.build(vertical: false, rtl: false, paginated: true, background: 'ffffff', foreground: 'inherit', font: 'sans-serif', fontSize: 16, lineHeight: 1.5, verticalPadding: 12, horizontalPadding: 16, paragraphSpacing: 8, initialProgress: 0);
     expect(script, contains('const max = Math.max(0, physicalMax, geometryEnd);'));
     expect(script, contains('maxScroll: max'));
+    expect(script, contains("if (current < physicalMax - 1)"));
+    expect(script, contains("bridge({type:'boundary', direction:'forward'})"));
+  });
+
+  test('layout does not replace a vertical page with viewport height', () {
+    final script = EpubPaginationLayout.build();
+    expect(script, contains("body.style.columnWidth = 'var(--page-width, 100vw)'"));
+    expect(script, isNot(contains("body.style.columnWidth = 'var(--page-height, 100vh)'")));
   });
 
   test('pagination has exactly one page-turn owner and compatibility layers cannot replace it', () {
