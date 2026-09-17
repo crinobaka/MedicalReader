@@ -33,28 +33,49 @@ class _EpubReaderPageState extends ConsumerState<EpubReaderPage> {
   final ReaderDictionaryRegistry _dictionary = const ReaderDictionaryRegistry();
   final ReaderAnkiService _anki = const DisabledReaderAnkiService();
 
-  @override void initState() { super.initState(); _loadSettings(); _controller = EpubReaderController(document: widget.document, initialPosition: ref.read(readerPositionStoreProvider).read(widget.document), onPositionSaved: _savePosition)..open().then((_) { if (mounted) setState(() {}); }); }
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+    _controller = EpubReaderController(document: widget.document, initialPosition: ref.read(readerPositionStoreProvider).read(widget.document), onPositionSaved: _savePosition)
+      ..open().then((_) { if (mounted) setState(() {}); });
+  }
+
   Future<void> _loadSettings() async { final settings = await ref.read(readerSettingsStoreProvider).load(widget.document); if (!mounted) return; setState(() { _settings = settings; _settingsLoading = false; }); }
   Future<void> _saveSettings(ReaderSettings settings) async { setState(() => _settings = settings); await ref.read(readerSettingsStoreProvider).save(widget.document, settings); }
   Future<void> _savePosition(ReaderPosition position) => ref.read(readerPositionStoreProvider).save(widget.document, position);
   List<ReaderAnnotation> get _annotations => ref.watch(readerAnnotationsProvider(widget.document));
   bool get _bookmarked => _annotations.any((x) => x.type == ReaderAnnotationType.bookmark && x.pageIndex == _controller.chapterIndex);
+
   List<EpubNavItem> get _navigation {
     final source = _controller.book?.navigation ?? const <EpubNavItem>[];
-    if (source.isNotEmpty) return _flattenNavigation(source);
+    if (source.isNotEmpty) {
+      final flattened = _flattenNavigation(source);
+      final bound = flattened.where((item) => _controller.chapterIndexForHref(item.href) >= 0).toList(growable: false);
+      if (bound.isNotEmpty) return bound;
+    }
     final spine = _controller.book?.spine ?? const <EpubSpineItem>[];
     final book = _controller.book;
     if (book == null) return const [];
     return [
       for (var index = 0; index < spine.length; index++)
         if (book.manifestById(spine[index].idref)?.isDocument == true)
-          EpubNavItem(
-            title: _fallbackChapterTitle(book, index),
-            href: book.manifestById(spine[index].idref)!.href,
-          ),
+          EpubNavItem(title: _fallbackChapterTitle(book, index), href: book.manifestById(spine[index].idref)!.href),
     ];
   }
-  List<EpubNavItem> _flattenNavigation(List<EpubNavItem> source) { final result = <EpubNavItem>[]; void visit(List<EpubNavItem> items, int depth) { for (final item in items) { result.add(EpubNavItem(title: '${List.filled(depth, '  ').join()}${item.title}', href: item.href, fragment: item.fragment, children: item.children)); visit(item.children, depth + 1); } } visit(source, 0); return result; }
+
+  List<EpubNavItem> _flattenNavigation(List<EpubNavItem> source) {
+    final result = <EpubNavItem>[];
+    void visit(List<EpubNavItem> items, int depth) {
+      for (final item in items) {
+        result.add(EpubNavItem(title: '${List.filled(depth, '  ').join()}${item.title}', href: item.href, fragment: item.fragment, children: item.children));
+        visit(item.children, depth + 1);
+      }
+    }
+    visit(source, 0);
+    return result;
+  }
+
   String _fallbackChapterTitle(EpubBook book, int index) { final item = book.manifestById(book.spine[index].idref); final href = item?.href.split('/').last ?? ''; final dot = href.lastIndexOf('.'); final stem = dot > 0 ? href.substring(0, dot) : href; return stem.isEmpty ? '第 ${index + 1} 章' : stem; }
   void _openSettings() => showModalBottomSheet<void>(context: context, isScrollControlled: true, useSafeArea: true, builder: (_) => EpubReaderSettingsSheet(settings: _settings, onChanged: _saveSettings, navigation: _navigation, currentChapter: _controller.chapterIndex, onNavigationSelected: (item) async { Navigator.of(context).pop(); await _controller.goToNavigation(item); if (mounted) setState(() {}); }, onBookmark: _toggleBookmark, onNote: _saveNote, onAnnotations: _openAnnotations));
   Future<void> _toggleBookmark() async { final notifier = ref.read(readerAnnotationsProvider(widget.document).notifier); final existing = _annotations.where((x) => x.type == ReaderAnnotationType.bookmark && x.pageIndex == _controller.chapterIndex).toList(growable: false); if (existing.isNotEmpty) { for (final item in existing) await notifier.remove(item.id); return; } final now = DateTime.now(); await notifier.add(ReaderAnnotation(id: 'epub_bookmark_${widget.document.id}_${_controller.chapterIndex}', bookId: widget.document.id, pageIndex: _controller.chapterIndex, type: ReaderAnnotationType.bookmark, title: _chapterTitle(_controller.chapterIndex), createdAt: now, updatedAt: now)); }
@@ -65,7 +86,15 @@ class _EpubReaderPageState extends ConsumerState<EpubReaderPage> {
   Future<void> _openLookup(ReaderLookupContext lookup) async { final result = await showModalBottomSheet<Object?>(context: context, isScrollControlled: true, builder: (_) => ReaderLookupSheet(contextData: lookup, dictionary: _dictionary, onHighlight: () async { Navigator.of(context).pop(true); await _saveHighlight(lookup); })); if (result == true || result == null || !mounted) return; if (result is! DictionaryEntry) return; final mined = await showModalBottomSheet<bool>(context: context, isScrollControlled: true, builder: (_) => ReaderMiningSheet(entry: result, onMine: _mineToAnki)); if (mined == true && mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已提交 Anki 卡片'))); }
   Future<bool> _mineToAnki(AnkiCardDraft draft) => _anki.createCard(draft);
   Future<void> _handleBoundary(String direction) async { await _controller.navigatePageBoundary(direction); if (mounted) setState(() {}); }
-  @override Widget build(BuildContext context) { if (_controller.loading || _settingsLoading) return const Scaffold(body: Center(child: CircularProgressIndicator())); if (_controller.error != null || _controller.archive == null) return Scaffold(appBar: AppBar(title: const Text('EPUB')), body: Center(child: Padding(padding: const EdgeInsets.all(24), child: Text('${_controller.error ?? 'Unable to open EPUB'}')))); final book = _controller.book!; return Scaffold(appBar: AppBar(title: Text(book.title, overflow: TextOverflow.ellipsis), actions: [if (_navigation.isNotEmpty) IconButton(tooltip: '目录', onPressed: _openSettings, icon: const Icon(Icons.menu_book_rounded)), IconButton(tooltip: _bookmarked ? '取消书签' : '书签', onPressed: _toggleBookmark, icon: Icon(_bookmarked ? Icons.bookmark : Icons.bookmark_border)), IconButton(tooltip: '阅读器面板', onPressed: _openSettings, icon: const Icon(Icons.tune_rounded))]), body: EpubReaderView(key: ValueKey('${_controller.chapterIndex}:${_controller.initialProgress}:${_controller.initialFragment}:${_settings.toJson()}'), archive: _controller.archive!, chapterIndex: _controller.chapterIndex, fragment: _controller.initialFragment, initialProgress: _controller.initialProgress, settings: _settings, annotations: _annotations, onPositionChanged: (href, progress) => _controller.updateProgress(href, progress), onPageBoundary: _handleBoundary, onSelectionChanged: _openLookup)); }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_controller.loading || _settingsLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (_controller.error != null || _controller.archive == null) return Scaffold(appBar: AppBar(title: const Text('EPUB')), body: Center(child: Padding(padding: const EdgeInsets.all(24), child: Text('${_controller.error ?? 'Unable to open EPUB'}'))));
+    final book = _controller.book!;
+    return Scaffold(appBar: AppBar(title: Text(book.title, overflow: TextOverflow.ellipsis), actions: [if (_navigation.isNotEmpty) IconButton(tooltip: '目录', onPressed: _openSettings, icon: const Icon(Icons.menu_book_rounded)), IconButton(tooltip: _bookmarked ? '取消书签' : '书签', onPressed: _toggleBookmark, icon: Icon(_bookmarked ? Icons.bookmark : Icons.bookmark_border)), IconButton(tooltip: '阅读器面板', onPressed: _openSettings, icon: const Icon(Icons.tune_rounded))]), body: EpubReaderView(key: ValueKey('${_controller.chapterIndex}:${_controller.initialProgress}:${_controller.initialFragment}:${_settings.toJson()}'), archive: _controller.archive!, chapterIndex: _controller.chapterIndex, fragment: _controller.initialFragment, initialProgress: _controller.initialProgress, settings: _settings, annotations: _annotations, onPositionChanged: (href, progress) => _controller.updateProgress(href, progress), onPageBoundary: _handleBoundary, onSelectionChanged: _openLookup));
+  }
+
   String _chapterTitle(int index) { final spine = _controller.archive!.book.spine[index]; final item = _controller.archive!.book.manifestById(spine.idref); return item?.href.split('/').last ?? 'Chapter ${index + 1}'; }
   @override void dispose() { _controller.dispose(); super.dispose(); }
 }
