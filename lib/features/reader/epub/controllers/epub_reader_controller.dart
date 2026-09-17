@@ -49,9 +49,9 @@ class EpubReaderController {
   void _restoreInitialPosition() {
     final locator = initialPosition?.locator;
     if (locator is! EpubReaderLocator || archive == null) return;
-    final target = locator.href.replaceAll('\\', '/');
+    final target = _canonicalHref(locator.href);
     for (var i = 0; i < chapterCount; i++) {
-      if (archive!.chapterAt(i)?.href == target) {
+      if (_canonicalHref(archive!.chapterAt(i)?.href ?? '') == target) {
         chapterIndex = i;
         initialProgress = (locator.progress ?? initialPosition!.progress).clamp(0, 1).toDouble();
         initialFragment = locator.fragment;
@@ -62,9 +62,11 @@ class EpubReaderController {
   }
 
   int chapterIndexForHref(String href) {
-    final normalized = href.split('#').first.replaceAll('\\', '/');
+    final target = _canonicalHref(href);
+    if (target.isEmpty || archive == null) return -1;
     for (var i = 0; i < chapterCount; i++) {
-      if (archive!.chapterAt(i)?.href == normalized) return i;
+      final chapterHref = archive!.chapterAt(i)?.href;
+      if (chapterHref != null && _canonicalHref(chapterHref) == target) return i;
     }
     return -1;
   }
@@ -117,6 +119,17 @@ class EpubReaderController {
     );
     position = ReaderPosition(locator: locator, progress: locator.progress ?? 0);
     await onPositionSaved?.call(position!);
+  }
+
+  String _canonicalHref(String href) {
+    final raw = href.trim().replaceAll('\\', '/').split('#').first.split('?').first;
+    if (raw.isEmpty) return '';
+    try {
+      final decoded = Uri.decodeFull(raw);
+      return decoded.replaceFirst(RegExp(r'^/+'), '');
+    } catch (_) {
+      return raw.replaceFirst(RegExp(r'^/+'), '');
+    }
   }
 
   void dispose() {
