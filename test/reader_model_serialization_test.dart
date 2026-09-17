@@ -31,7 +31,9 @@ void main() {
     expect(script, contains('columnWidth'));
     expect(script, contains('columnGap = 0'));
     expect(script, contains('nativeSelectionActive'));
-    expect(script, contains('Math.round((current + size) / size) * size'));
+    expect(script, contains('const next = Math.min(physicalMax, current + size)'));
+    expect(script, contains('alignToPage: function(offset) { const size = this.pageSize(); return Math.floor'));
+    expect(script, contains('const last = this.lastPageScroll'));
     expect(script, contains('setTimeout(function() { reader.start(); }, 0)'));
   });
 
@@ -50,7 +52,7 @@ void main() {
     final engine = EpubPaginationEngine.build(vertical: false, rtl: false, paginated: true, background: 'ffffff', foreground: 'inherit', font: 'sans-serif', fontSize: 16, lineHeight: 1.5, verticalPadding: 12, horizontalPadding: 16, paragraphSpacing: 8, initialProgress: 0);
     final refinements = EpubPaginationRefinements.build();
     final hoshi = EpubPaginationHoshiCompat.build();
-    expect(RegExp(r'paginate\\s*:\\s*function').allMatches(engine).length, 1);
+    expect(RegExp(r'paginate\s*:\s*function').allMatches(engine).length, 1);
     expect(refinements, isNot(contains('reader.paginate = function')));
     expect(hoshi, isNot(contains('reader.paginate = function')));
     expect(hoshi, contains('reader.setNativeSelectionActive = function(active)'));
