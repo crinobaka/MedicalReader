@@ -14,34 +14,30 @@ class EpubPaginationLayout {
     const height = window.innerHeight;
     root.style.setProperty('--page-width', width + 'px');
     root.style.setProperty('--page-height', height + 'px');
-    if (reader.pageWidth !== width || reader.pageHeight !== height) {
-      reader.pageWidth = width;
-      reader.pageHeight = height;
-      reader.metrics = null;
-    }
+    reader.pageWidth = width;
+    reader.pageHeight = height;
+    reader.metrics = null;
   };
 
   const apply = function() {
     syncViewport();
-    if (getComputedStyle(body).writingMode === 'vertical-rl') {
-      body.style.width = 'var(--page-width, 100vw)';
-      body.style.minWidth = 'var(--page-width, 100vw)';
-      body.style.height = 'var(--page-height, 100vh)';
-      body.style.minHeight = 'var(--page-height, 100vh)';
-      body.style.columnWidth = 'var(--page-height, 100vh)';
-    } else {
-      body.style.width = 'var(--page-width, 100vw)';
-      body.style.minWidth = 'var(--page-width, 100vw)';
-      body.style.height = 'var(--page-height, 100vh)';
-      body.style.minHeight = 'var(--page-height, 100vh)';
-      body.style.columnWidth = 'var(--page-width, 100vw)';
-    }
+    body.style.width = 'var(--page-width, 100vw)';
+    body.style.minWidth = 'var(--page-width, 100vw)';
+    body.style.height = 'var(--page-height, 100vh)';
+    body.style.minHeight = 'var(--page-height, 100vh)';
+    // Pagination columns are physical viewport-width pages. Vertical writing
+    // changes text flow inside the page, not the page's physical width.
+    body.style.columnWidth = 'var(--page-width, 100vw)';
   };
 
   apply();
   window.addEventListener('resize', function() {
     apply();
-    setTimeout(function() { if (reader.prepare) reader.prepare(); }, 60);
+    setTimeout(function() {
+      reader.metrics = null;
+      if (reader.buildPaginationMetrics) reader.buildPaginationMetrics();
+      if (reader.notifyProgress) reader.notifyProgress();
+    }, 60);
   });
 })();
 ''';
