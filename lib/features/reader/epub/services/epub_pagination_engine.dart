@@ -108,7 +108,7 @@ class EpubPaginationEngine {
     calculateProgress: function() { const max = this.maxScroll(); return max <= 0 ? 0 : Math.min(1, Math.max(0, this.position() / max)); },
     notifyProgress: function() { bridge({type: 'progress', value: this.calculateProgress()}); },
     setPagePosition: function(value) { const metrics = this.metrics || this.buildPaginationMetrics(); const target = Math.min(Math.max(metrics.minScroll, value), metrics.maxScroll); this.assignPagePosition(target); this.notifyProgress(); return target; },
-    alignToPage: function(offset) { const size = this.pageSize(); return Math.round(Math.max(0, offset) / size) * size; },
+    alignToPage: function(offset) { const size = this.pageSize(); return Math.floor(Math.max(0, offset) / size) * size; },
     restoreProgress: function(progress) {
       const metrics = this.metrics || this.buildPaginationMetrics();
       if (initialFragment) { const target = document.getElementById(initialFragment) || document.getElementsByName(initialFragment)[0]; if (target) { this.setPagePosition(this.alignToPage(this.contentStart(target.getBoundingClientRect()))); return; } }
@@ -116,19 +116,17 @@ class EpubPaginationEngine {
     },
     paginate: function(direction) {
       if (this.nativeSelectionActive) return 'limit';
-      const context = this.scrollContext(), metrics = this.metrics || this.buildPaginationMetrics(), current = this.position(), size = context.pageSize, maxPageScroll = context.maxScroll;
+      const context = this.scrollContext(), metrics = this.metrics || this.buildPaginationMetrics(), current = this.position(), size = context.pageSize, physicalMax = context.maxScroll, min = Math.min(metrics.minScroll, physicalMax);
       if (direction === 'forward') {
-        if (current < maxPageScroll - 1) {
-          const targetForward = Math.round((current + size) / size) * size;
-          const next = Math.min(targetForward, maxPageScroll);
+        if (current < physicalMax - 1) {
+          const next = Math.min(physicalMax, current + size);
           if (next <= current + 1) return 'limit';
           this.setPagePosition(next); return next;
         }
         bridge({type:'boundary', direction:'forward'}); return 'limit';
       }
-      if (current > metrics.minScroll + 1) {
-        const targetBackward = Math.round((current - size) / size) * size;
-        const next = Math.max(targetBackward, metrics.minScroll);
+      if (current > min + 1) {
+        const next = Math.max(min, current - size);
         if (next >= current - 1) return 'limit';
         this.setPagePosition(next); return next;
       }
@@ -141,7 +139,14 @@ class EpubPaginationEngine {
       window.addEventListener('resize', () => { this.pageHeight = window.innerHeight; this.pageWidth = window.innerWidth; this.metrics = null; this.buildPaginationMetrics(); });
       document.addEventListener('scroll', () => { this.lockRootViewport(); }, true);
       let lastScroll = this.position();
-      const snap = () => { if (this.snapTimer) clearTimeout(this.snapTimer); this.snapTimer = setTimeout(() => { const current = this.position(); const aligned = this.alignToPage(current); if (Math.abs(current - aligned) > 1) this.setPagePosition(aligned); }, 90); };
+      const snap = () => {
+        if (this.snapTimer) clearTimeout(this.snapTimer);
+        this.snapTimer = setTimeout(() => {
+          const current = this.position();
+          const last = this.lastPageScroll;
+          if (Math.abs(current - last) > 1) this.assignPagePosition(last);
+        }, 90);
+      };
       body.addEventListener('scroll', () => { const currentScroll = this.position(); if (Math.abs(currentScroll - lastScroll) > 1) { lastScroll = currentScroll; snap(); } }, {passive:true});
     }
   };
