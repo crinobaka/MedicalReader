@@ -46,11 +46,7 @@ class EpubPaginationEngine {
   });
   if (paginated) {
     body.style.height = '100vh'; body.style.minHeight = '100vh'; body.style.width = '100vw'; body.style.minWidth = '100vw';
-    // CSS columns advance physically across the viewport for both writing modes.
-    // In vertical-rl the page axis is horizontal; using 100vh here made the
-    // scroll extent stay close to one/two screens and was the source of the
-    // apparent "only two pages" boundary.
-    body.style.columnWidth = '100vw'; body.style.columnGap = columnGap + 'px'; body.style.columnFill = 'auto'; body.style.overflow = 'hidden';
+    body.style.columnWidth = vertical ? '100vh' : '100vw'; body.style.columnGap = columnGap + 'px'; body.style.columnFill = 'auto'; body.style.overflow = 'hidden';
     body.style.breakInside = 'auto';
     body.querySelectorAll('*').forEach(function(el) { el.style.columnCount = 'auto'; el.style.breakInside = el.style.breakInside || 'auto'; });
   } else {
@@ -60,21 +56,21 @@ class EpubPaginationEngine {
     pageHeight: window.innerHeight, pageWidth: window.innerWidth, metrics: null, lastPageScroll: 0,
     nativeSelectionActive: false, nativeSelectionScrollPosition: null, negativeRtlScroll: false,
     isVertical: function() { return vertical; },
-    _physicalScroll: function() { return body.scrollLeft; },
-    _maxPhysicalScroll: function() { return Math.max(0, body.scrollWidth - body.clientWidth); },
+    _physicalScroll: function() { return vertical ? body.scrollTop : body.scrollLeft; },
+    _maxPhysicalScroll: function() { return vertical ? Math.max(0, body.scrollHeight - body.clientHeight) : Math.max(0, body.scrollWidth - body.clientWidth); },
     _logicalFromPhysical: function(value, max) {
-      if (!rtl) return Math.max(0, value);
+      if (vertical || !rtl) return Math.max(0, value);
       if (this.negativeRtlScroll) return Math.max(0, -value);
       return Math.max(0, max - value);
     },
     _physicalFromLogical: function(value, max) {
       const logical = Math.min(Math.max(0, value), max);
-      if (!rtl) return logical;
+      if (vertical || !rtl) return logical;
       if (this.negativeRtlScroll) return -logical;
       return max - logical;
     },
     scrollContext: function() {
-      const pageSize = Math.max(1, this.pageWidth || window.innerWidth);
+      const pageSize = Math.max(1, vertical ? (this.pageHeight || window.innerHeight) : (this.pageWidth || window.innerWidth));
       const physicalMax = this._maxPhysicalScroll();
       return { vertical: vertical, scrollEl: body, pageSize: pageSize, maxScroll: physicalMax };
     },
@@ -88,12 +84,12 @@ class EpubPaginationEngine {
     assignPagePosition: function(value) {
       const context = this.scrollContext();
       const logical = Math.min(Math.max(0, value), context.maxScroll);
-      context.scrollEl.scrollLeft = this._physicalFromLogical(logical, context.maxScroll);
+      if (vertical) body.scrollTop = logical; else body.scrollLeft = this._physicalFromLogical(logical, context.maxScroll);
       this.lockRootViewport(); this.lastPageScroll = logical; return logical;
     },
     getRect: function(range) { return range.getClientRects()[0] || range.getBoundingClientRect(); },
-    contentStart: function(rect) { return rect.left + this.position(); },
-    contentEnd: function(rect) { return rect.right + this.position(); },
+    contentStart: function(rect) { return (vertical ? rect.top : rect.left) + this.position(); },
+    contentEnd: function(rect) { return (vertical ? rect.bottom : rect.right) + this.position(); },
     isFurigana: function(node) { const parent = node.nodeType === Node.TEXT_NODE ? node.parentElement : node; return !!(parent && parent.closest('rt, rp')); },
     countChars: function(text) {
       let count = 0, offset = 0;
@@ -144,9 +140,7 @@ class EpubPaginationEngine {
     scrollToProgress: function(progress) { this.setPagePosition(Math.min(this.maxScroll(), this.alignToPage(this.maxScroll() * Math.min(1, Math.max(0, progress))))); },
     start: function() {
       if (!paginated) { this.notifyProgress(); return; }
-      // Chromium's RTL element scroll model can be negative. Detect it once,
-      // then keep the public reader position logical and monotonic.
-      if (rtl) { body.scrollLeft = -1; this.negativeRtlScroll = body.scrollLeft < 0; body.scrollLeft = 0; }
+      if (rtl && !vertical) { body.scrollLeft = -1; this.negativeRtlScroll = body.scrollLeft < 0; body.scrollLeft = 0; }
       this.buildPaginationMetrics(); this.restoreProgress(initialProgress);
       window.addEventListener('resize', () => { this.pageHeight = window.innerHeight; this.pageWidth = window.innerWidth; this.metrics = null; this.buildPaginationMetrics(); });
       document.addEventListener('scroll', () => { this.lockRootViewport(); }, true);
