@@ -23,8 +23,6 @@ class EpubPaginationHoshiCompat {
 
   // Hoshi's paginated WebView uses the body's physical scroll axis:
   // vertical writing -> scrollTop/scrollHeight, horizontal writing -> scrollLeft/scrollWidth.
-  // Do not replace this with a writing-mode-derived x-axis; WebView column layout
-  // exposes vertical writing pagination through scrollTop in the actual reader.
   reader.getScrollContext = function() {
     const isVertical = this.isVertical ? this.isVertical() : vertical;
     const scrollEl = document.body;
@@ -59,12 +57,46 @@ class EpubPaginationHoshiCompat {
     return context.vertical ? rect.bottom + position : rect.right + position;
   };
 
+  // Page stepping is deliberately defined once, at the final Hoshi-compat layer.
+  // Earlier helpers may calculate metrics, but they must not decide when a chapter
+  // boundary is reached. A boundary exists only at the body's physical scroll end.
+  reader.paginate = function(direction) {
+    if (this.nativeSelectionActive) return 'limit';
+    const context = this.getScrollContext();
+    const current = this.position();
+    const metrics = this.metrics || this.buildPaginationMetrics();
+    const size = context.pageSize;
+    const max = context.maxScroll;
+    const min = Math.min(metrics && Number.isFinite(metrics.minScroll) ? metrics.minScroll : 0, max);
+    const epsilon = 1;
+    if (direction === 'forward') {
+      if (current >= max - epsilon) {
+        bridge({type:'boundary', direction:'forward'});
+        return 'limit';
+      }
+      const page = Math.floor((current + epsilon) / size);
+      const target = Math.min(max, (page + 1) * size);
+      if (target <= current + epsilon) return 'limit';
+      this.setPagePosition(target);
+      return 'scrolled';
+    }
+    if (current <= min + epsilon) {
+      bridge({type:'boundary', direction:'backward'});
+      return 'limit';
+    }
+    const page = Math.ceil((current - epsilon) / size);
+    const target = Math.max(min, (page - 1) * size);
+    if (target >= current - epsilon) return 'limit';
+    this.setPagePosition(target);
+    return 'scrolled';
+  };
+
   const prohibitedLineStart = '、。，．・：；？！』」）］〕〉》】〕〙〗〟”’』」』〉》」』」ー〜～…‥-)]}〉》』」』';
   const prohibitedLineEnd = '（［｛〈《【〔〖〘〙“‘『「〈《【〔';
   const isProhibitedStart = function(ch) { return !!ch && prohibitedLineStart.indexOf(ch) >= 0; };
   const isProhibitedEnd = function(ch) { return !!ch && prohibitedLineEnd.indexOf(ch) >= 0; };
   reader.isProhibitedLineStart = isProhibitedStart;
-  reader.isProhibitedLineEnd = isProhibitedEnd;
+  reader.isProhibitedLineEnd = isProhibitedLineEnd;
 
   const normalizeRuby = function() {
     body.querySelectorAll('ruby').forEach(function(ruby) {
@@ -87,38 +119,6 @@ class EpubPaginationHoshiCompat {
       el.style.breakAfter = 'avoid';
       el.style.pageBreakAfter = 'avoid';
     });
-  };
-  const fixBoundary = function(direction) {
-    const metrics = reader.metrics || reader.buildPaginationMetrics();
-    const current = reader.position();
-    const size = reader.pageSize();
-    if (!metrics || size <= 0) return current;
-    const walker = reader.createWalker ? reader.createWalker() : document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
-    let node;
-    let candidate = null;
-    while ((node = walker.nextNode())) {
-      const text = node.textContent || '';
-      if (!text.trim()) continue;
-      const range = document.createRange(); range.selectNodeContents(node);
-      const rect = reader.getRect(range); if (!rect || rect.width <= 0 || rect.height <= 0) continue;
-      const logical = reader.contentStart(rect);
-      const page = reader.alignToPage(logical);
-      if (page !== current) continue;
-      const first = text.trim().charAt(0), last = text.trim().charAt(text.trim().length - 1);
-      if (direction === 'forward' && isProhibitedStart(first)) candidate = Math.max(metrics.minScroll, current - size);
-      if (direction === 'backward' && isProhibitedEnd(last)) candidate = Math.min(metrics.maxScroll, current + size);
-      if (candidate != null) break;
-    }
-    if (candidate == null) return current;
-    reader.setPagePosition(candidate);
-    return candidate;
-  };
-  const originalPaginate = reader.paginate.bind(reader);
-  reader.paginate = function(direction) {
-    const result = originalPaginate(direction);
-    if (result !== 'limit' && direction === 'forward') fixBoundary('forward');
-    if (result !== 'limit' && direction === 'backward') fixBoundary('backward');
-    return result;
   };
 
   reader.nativeSelectionActive = false;
