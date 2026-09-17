@@ -28,17 +28,21 @@ void main() {
     final script = EpubPaginationEngine.build(vertical: false, rtl: false, paginated: true, background: 'ffffff', foreground: 'inherit', font: 'sans-serif', fontSize: 16, lineHeight: 1.5, verticalPadding: 12, horizontalPadding: 16, paragraphSpacing: 8, initialProgress: 0);
     expect(script, contains(r'/^\s$/.test(ch)'));
     expect(script, contains('columnWidth'));
+    expect(script, contains('columnGap = 0'));
     expect(script, contains('nativeSelectionActive'));
     expect(script, contains('Math.round((current + size) / size) * size'));
     expect(script, contains('setTimeout(function() { reader.start(); }, 0)'));
   });
 
-  test('pagination engine uses Hoshi physical scroll axes', () {
+  test('pagination engine uses the physical WebView extent as the final page range', () {
     final script = EpubPaginationEngine.build(vertical: true, rtl: false, paginated: true, background: 'ffffff', foreground: 'inherit', font: 'sans-serif', fontSize: 16, lineHeight: 1.5, verticalPadding: 12, horizontalPadding: 16, paragraphSpacing: 8, initialProgress: 0);
     expect(script, contains("const totalSize = isVertical ? body.scrollHeight : body.scrollWidth"));
     expect(script, contains("return context.vertical ? Math.max(0, context.scrollEl.scrollTop) : Math.max(0, context.scrollEl.scrollLeft)"));
     expect(script, contains("if (context.vertical) context.scrollEl.scrollTop = logical;"));
     expect(script, contains("else context.scrollEl.scrollLeft = logical;"));
+    expect(script, contains('const context = this.scrollContext(), size = context.pageSize, physicalMax = context.maxScroll'));
+    expect(script, contains('const max = Math.max(0, physicalMax, geometryEnd);'));
+    expect(script, contains('maxScroll: max'));
   });
 
   test('interaction routes space through the current pagination page before chapter boundary', () {
