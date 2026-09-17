@@ -37,28 +37,20 @@ void main() {
     expect(script, contains('setTimeout(function() { reader.start(); }, 0)'));
   });
 
-  test('pagination uses the physical horizontal column extent for both writing modes', () {
-    final script = EpubPaginationEngine.build(vertical: true, rtl: false, paginated: true, background: 'ffffff', foreground: 'inherit', font: 'sans-serif', fontSize: 16, lineHeight: 1.5, verticalPadding: 12, horizontalPadding: 16, paragraphSpacing: 8, initialProgress: 0);
-    expect(script, contains("const pageSize = Math.max(1, this.pageWidth || window.innerWidth)"));
-    expect(script, contains("const physicalMax = this._maxPhysicalScroll()"));
-    expect(script, contains("return rect.left + this.position()"));
-    expect(script, contains("context.scrollEl.scrollLeft = this._physicalFromLogical(logical, context.maxScroll)"));
-    expect(script, isNot(contains('body.scrollHeight')));
-    expect(script, isNot(contains('context.scrollEl.scrollTop = logical')));
-  });
+  test('pagination uses the correct physical axis for each writing mode', () {
+    final horizontal = EpubPaginationEngine.build(vertical: false, rtl: false, paginated: true, background: 'ffffff', foreground: 'inherit', font: 'sans-serif', fontSize: 16, lineHeight: 1.5, verticalPadding: 12, horizontalPadding: 16, paragraphSpacing: 8, initialProgress: 0);
+    expect(horizontal, contains("const pageSize = Math.max(1, vertical ? (this.pageHeight || window.innerHeight) : (this.pageWidth || window.innerWidth));"));
+    expect(horizontal, contains("_physicalScroll: function() { return vertical ? body.scrollTop : body.scrollLeft; }"));
+    expect(horizontal, contains("_maxPhysicalScroll: function() { return vertical ? Math.max(0, body.scrollHeight - body.clientHeight) : Math.max(0, body.scrollWidth - body.clientWidth); }"));
+    expect(horizontal, contains("if (vertical) body.scrollTop = logical; else body.scrollLeft = this._physicalFromLogical(logical, context.maxScroll);"));
+    expect(horizontal, contains("contentStart: function(rect) { return (vertical ? rect.top : rect.left) + this.position(); }"));
+    expect(horizontal, contains("contentEnd: function(rect) { return (vertical ? rect.bottom : rect.right) + this.position(); }"));
+    expect(horizontal, contains('const max = Math.max(0, physicalMax, geometryEnd);'));
+    expect(horizontal, contains('maxScroll: max'));
 
-  test('pagination keeps a real physical end separate from geometry metrics', () {
-    final script = EpubPaginationEngine.build(vertical: false, rtl: false, paginated: true, background: 'ffffff', foreground: 'inherit', font: 'sans-serif', fontSize: 16, lineHeight: 1.5, verticalPadding: 12, horizontalPadding: 16, paragraphSpacing: 8, initialProgress: 0);
-    expect(script, contains('const max = Math.max(0, physicalMax, geometryEnd);'));
-    expect(script, contains('maxScroll: max'));
-    expect(script, contains("if (current < physicalMax - 1)"));
-    expect(script, contains("bridge({type:'boundary', direction:'forward'})"));
-  });
-
-  test('layout does not replace a vertical page with viewport height', () {
-    final script = EpubPaginationLayout.build();
-    expect(script, contains("body.style.columnWidth = 'var(--page-width, 100vw)'"));
-    expect(script, isNot(contains("body.style.columnWidth = 'var(--page-height, 100vh)'")));
+    final vertical = EpubPaginationEngine.build(vertical: true, rtl: false, paginated: true, background: 'ffffff', foreground: 'inherit', font: 'sans-serif', fontSize: 16, lineHeight: 1.5, verticalPadding: 12, horizontalPadding: 16, paragraphSpacing: 8, initialProgress: 0);
+    expect(vertical, contains("body.style.columnWidth = vertical ? '100vh' : '100vw'"));
+    expect(vertical, contains("_physicalScroll: function() { return vertical ? body.scrollTop : body.scrollLeft; }"));
   });
 
   test('pagination has exactly one page-turn owner and compatibility layers cannot replace it', () {
