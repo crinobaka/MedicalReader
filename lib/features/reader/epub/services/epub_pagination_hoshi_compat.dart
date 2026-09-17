@@ -113,5 +113,5 @@ class EpubPaginationHoshiCompat {
   normalizeBlocks();
 })();
 ''';
-  }
 }
+
