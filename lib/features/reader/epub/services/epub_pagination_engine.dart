@@ -46,39 +46,54 @@ class EpubPaginationEngine {
   });
   if (paginated) {
     body.style.height = '100vh'; body.style.minHeight = '100vh'; body.style.width = '100vw'; body.style.minWidth = '100vw';
-    body.style.columnWidth = vertical ? '100vh' : '100vw'; body.style.columnGap = columnGap + 'px'; body.style.columnFill = 'auto'; body.style.overflow = 'hidden';
+    // CSS columns advance physically across the viewport for both writing modes.
+    // In vertical-rl the page axis is horizontal; using 100vh here made the
+    // scroll extent stay close to one/two screens and was the source of the
+    // apparent "only two pages" boundary.
+    body.style.columnWidth = '100vw'; body.style.columnGap = columnGap + 'px'; body.style.columnFill = 'auto'; body.style.overflow = 'hidden';
     body.style.breakInside = 'auto';
     body.querySelectorAll('*').forEach(function(el) { el.style.columnCount = 'auto'; el.style.breakInside = el.style.breakInside || 'auto'; });
   } else {
     body.style.height = 'auto'; body.style.minHeight = '100vh'; body.style.width = 'auto'; body.style.columnWidth = 'auto'; body.style.columnGap = 'normal'; body.style.overflow = vertical ? 'hidden auto' : 'auto';
   }
   const reader = {
-    pageHeight: window.innerHeight, pageWidth: window.innerWidth, metrics: null, lastPageScroll: 0, snapTimer: null,
-    nativeSelectionActive: false, nativeSelectionScrollPosition: null,
+    pageHeight: window.innerHeight, pageWidth: window.innerWidth, metrics: null, lastPageScroll: 0,
+    nativeSelectionActive: false, nativeSelectionScrollPosition: null, negativeRtlScroll: false,
     isVertical: function() { return vertical; },
+    _physicalScroll: function() { return body.scrollLeft; },
+    _maxPhysicalScroll: function() { return Math.max(0, body.scrollWidth - body.clientWidth); },
+    _logicalFromPhysical: function(value, max) {
+      if (!rtl) return Math.max(0, value);
+      if (this.negativeRtlScroll) return Math.max(0, -value);
+      return Math.max(0, max - value);
+    },
+    _physicalFromLogical: function(value, max) {
+      const logical = Math.min(Math.max(0, value), max);
+      if (!rtl) return logical;
+      if (this.negativeRtlScroll) return -logical;
+      return max - logical;
+    },
     scrollContext: function() {
-      const isVertical = this.isVertical();
-      const pageSize = Math.max(1, isVertical ? this.pageHeight : this.pageWidth);
-      const totalSize = isVertical ? body.scrollHeight : body.scrollWidth;
-      const maxScroll = Math.max(0, totalSize - pageSize);
-      return { vertical: isVertical, scrollEl: body, pageSize: pageSize, maxScroll: maxScroll };
+      const pageSize = Math.max(1, this.pageWidth || window.innerWidth);
+      const physicalMax = this._maxPhysicalScroll();
+      return { vertical: vertical, scrollEl: body, pageSize: pageSize, maxScroll: physicalMax };
     },
     position: function() {
       const context = this.scrollContext();
-      return context.vertical ? Math.max(0, context.scrollEl.scrollTop) : Math.max(0, context.scrollEl.scrollLeft);
+      return this._logicalFromPhysical(this._physicalScroll(), context.maxScroll);
     },
     pageSize: function() { return this.scrollContext().pageSize; },
     maxScroll: function() { return this.scrollContext().maxScroll; },
     lockRootViewport: function() { if (root.scrollTop !== 0) root.scrollTop = 0; if (root.scrollLeft !== 0) root.scrollLeft = 0; if (window.scrollX !== 0 || window.scrollY !== 0) window.scrollTo(0, 0); },
     assignPagePosition: function(value) {
-      const context = this.scrollContext(), logical = Math.min(Math.max(0, value), context.maxScroll);
-      if (context.vertical) context.scrollEl.scrollTop = logical;
-      else context.scrollEl.scrollLeft = logical;
+      const context = this.scrollContext();
+      const logical = Math.min(Math.max(0, value), context.maxScroll);
+      context.scrollEl.scrollLeft = this._physicalFromLogical(logical, context.maxScroll);
       this.lockRootViewport(); this.lastPageScroll = logical; return logical;
     },
     getRect: function(range) { return range.getClientRects()[0] || range.getBoundingClientRect(); },
-    contentStart: function(rect) { const position = this.position(), context = this.scrollContext(); return context.vertical ? rect.top + position : rect.left + position; },
-    contentEnd: function(rect) { const position = this.position(), context = this.scrollContext(); return context.vertical ? rect.bottom + position : rect.right + position; },
+    contentStart: function(rect) { return rect.left + this.position(); },
+    contentEnd: function(rect) { return rect.right + this.position(); },
     isFurigana: function(node) { const parent = node.nodeType === Node.TEXT_NODE ? node.parentElement : node; return !!(parent && parent.closest('rt, rp')); },
     countChars: function(text) {
       let count = 0, offset = 0;
@@ -116,38 +131,25 @@ class EpubPaginationEngine {
     },
     paginate: function(direction) {
       if (this.nativeSelectionActive) return 'limit';
-      const context = this.scrollContext(), metrics = this.metrics || this.buildPaginationMetrics(), current = this.position(), size = context.pageSize, physicalMax = context.maxScroll, min = Math.min(metrics.minScroll, physicalMax);
+      const context = this.scrollContext(), current = this.position(), size = context.pageSize, physicalMax = context.maxScroll;
+      const metrics = this.metrics || this.buildPaginationMetrics();
+      const min = Math.min(metrics.minScroll, physicalMax);
       if (direction === 'forward') {
-        if (current < physicalMax - 1) {
-          const next = Math.min(physicalMax, current + size);
-          if (next <= current + 1) return 'limit';
-          this.setPagePosition(next); return next;
-        }
+        if (current < physicalMax - 1) { const next = Math.min(physicalMax, current + size); if (next <= current + 1) return 'limit'; this.setPagePosition(next); return next; }
         bridge({type:'boundary', direction:'forward'}); return 'limit';
       }
-      if (current > min + 1) {
-        const next = Math.max(min, current - size);
-        if (next >= current - 1) return 'limit';
-        this.setPagePosition(next); return next;
-      }
+      if (current > min + 1) { const next = Math.max(min, current - size); if (next >= current - 1) return 'limit'; this.setPagePosition(next); return next; }
       bridge({type:'boundary', direction:'backward'}); return 'limit';
     },
     scrollToProgress: function(progress) { this.setPagePosition(Math.min(this.maxScroll(), this.alignToPage(this.maxScroll() * Math.min(1, Math.max(0, progress))))); },
     start: function() {
       if (!paginated) { this.notifyProgress(); return; }
+      // Chromium's RTL element scroll model can be negative. Detect it once,
+      // then keep the public reader position logical and monotonic.
+      if (rtl) { body.scrollLeft = -1; this.negativeRtlScroll = body.scrollLeft < 0; body.scrollLeft = 0; }
       this.buildPaginationMetrics(); this.restoreProgress(initialProgress);
       window.addEventListener('resize', () => { this.pageHeight = window.innerHeight; this.pageWidth = window.innerWidth; this.metrics = null; this.buildPaginationMetrics(); });
       document.addEventListener('scroll', () => { this.lockRootViewport(); }, true);
-      let lastScroll = this.position();
-      const snap = () => {
-        if (this.snapTimer) clearTimeout(this.snapTimer);
-        this.snapTimer = setTimeout(() => {
-          const current = this.position();
-          const last = this.lastPageScroll;
-          if (Math.abs(current - last) > 1) this.assignPagePosition(last);
-        }, 90);
-      };
-      body.addEventListener('scroll', () => { const currentScroll = this.position(); if (Math.abs(currentScroll - lastScroll) > 1) { lastScroll = currentScroll; snap(); } }, {passive:true});
     }
   };
   window.MedicalReaderPagination = reader;
