@@ -1,19 +1,19 @@
-// lib/features/reader/widgets/reader_page_turn_registration.dart
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../controllers/reader_page_controller.dart';
 import 'reader_page_turn.dart';
 
-/// 翻页注册组件：将左右翻页手势与翻页动画绑定，作为 ReaderPage 的插件。
+/// Reader page-turn animation boundary.
 ///
-/// 手势只占用左右边缘区域，不使用全屏透明层拦截 ReaderPage 内部的
-/// 缩放、绘制和其它页面交互。
-class ReaderPageTurnRegistration extends ConsumerStatefulWidget {
+/// Gesture ownership stays in ReaderPageLayout's content surface. This wrapper
+/// only observes page changes and supplies the visual turn transition, so
+/// toolbar, search and bottom controls can never be mistaken for page swipes.
+class ReaderPageTurnRegistration extends StatefulWidget {
   const ReaderPageTurnRegistration({
     super.key,
     required this.controller,
     required this.pageLayoutBuilder,
-    this.toolBarHeight = 80.0,
+    this.toolBarHeight = 56,
     this.middleAreaAction = MiddleAreaAction.none,
     this.enabled = true,
     this.onSettingsTap,
@@ -31,14 +31,14 @@ class ReaderPageTurnRegistration extends ConsumerStatefulWidget {
   final VoidCallback? onNoteTap;
 
   @override
-  ConsumerState<ReaderPageTurnRegistration> createState() =>
+  State<ReaderPageTurnRegistration> createState() =>
       _ReaderPageTurnRegistrationState();
 }
 
 enum MiddleAreaAction { settings, bookTree, note, none }
 
 class _ReaderPageTurnRegistrationState
-    extends ConsumerState<ReaderPageTurnRegistration> {
+    extends State<ReaderPageTurnRegistration> {
   int _turnPageKey = 0;
   int _turnDirection = 1;
   int _previousPage = 0;
@@ -53,10 +53,8 @@ class _ReaderPageTurnRegistrationState
 
   void _onControllerChanged() {
     if (!mounted) return;
-
     final current = widget.controller.currentPage;
     if (current == _previousPage || widget.controller.pageLoading) return;
-
     setState(() {
       _turnDirection = current > _previousPage ? 1 : -1;
       _turnPageKey = current;
@@ -72,60 +70,10 @@ class _ReaderPageTurnRegistrationState
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
-    final edgeWidth = size.width / 3;
-
-    return Stack(
-      children: [
-        ReaderPageTurn(
-          pageKey: _turnPageKey,
-          direction: _turnDirection,
-          child: widget.pageLayoutBuilder(context),
-        ),
-        if (widget.enabled) ...[
-          Positioned(
-            left: 0,
-            top: widget.toolBarHeight,
-            bottom: widget.toolBarHeight,
-            width: edgeWidth,
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onTap: widget.controller.previousPage,
-              child: const SizedBox.expand(),
-            ),
-          ),
-          // The handwriting button is a floating control in the lower-right
-          // corner. Keep the page-turn hit area above it so its tap reaches
-          // ReaderPageLayout and can enter ink mode normally.
-          Positioned(
-            right: 0,
-            top: widget.toolBarHeight,
-            bottom: widget.toolBarHeight + 80,
-            width: edgeWidth,
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onTap: widget.controller.nextPage,
-              child: const SizedBox.expand(),
-            ),
-          ),
-        ],
-      ],
+    return ReaderPageTurn(
+      pageKey: _turnPageKey,
+      direction: _turnDirection,
+      child: widget.pageLayoutBuilder(context),
     );
-  }
-
-  void _handleMiddleArea() {
-    switch (widget.middleAreaAction) {
-      case MiddleAreaAction.settings:
-        widget.onSettingsTap?.call();
-        break;
-      case MiddleAreaAction.bookTree:
-        widget.onBookTreeTap?.call();
-        break;
-      case MiddleAreaAction.note:
-        widget.onNoteTap?.call();
-        break;
-      case MiddleAreaAction.none:
-        break;
-    }
   }
 }
