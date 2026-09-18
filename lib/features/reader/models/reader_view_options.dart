@@ -1,5 +1,6 @@
 /// 阅读器界面的显示配置。
 class ReaderViewOptions {
+  final bool nightMode;
   final bool showLocationBar;
   final bool showSearchLocation;
   final bool showPageControls;
@@ -16,6 +17,7 @@ class ReaderViewOptions {
   final String pageLayout;
 
   const ReaderViewOptions({
+    this.nightMode = false,
     this.showLocationBar = true,
     this.showSearchLocation = true,
     this.showPageControls = true,
@@ -32,6 +34,7 @@ class ReaderViewOptions {
   });
 
   ReaderViewOptions copyWith({
+    bool? nightMode,
     bool? showLocationBar,
     bool? showSearchLocation,
     bool? showPageControls,
@@ -46,6 +49,7 @@ class ReaderViewOptions {
     int? customCanvasColor,
     String? pageLayout,
   }) => ReaderViewOptions(
+        nightMode: nightMode ?? this.nightMode,
         showLocationBar: showLocationBar ?? this.showLocationBar,
         showSearchLocation: showSearchLocation ?? this.showSearchLocation,
         showPageControls: showPageControls ?? this.showPageControls,
@@ -62,6 +66,7 @@ class ReaderViewOptions {
       );
 
   Map<String, dynamic> toJson() => {
+        'nightMode': nightMode,
         'showLocationBar': showLocationBar,
         'showSearchLocation': showSearchLocation,
         'showPageControls': showPageControls,
@@ -78,6 +83,7 @@ class ReaderViewOptions {
       };
 
   factory ReaderViewOptions.fromJson(Map<String, dynamic> json) => ReaderViewOptions(
+        nightMode: json['nightMode'] as bool? ?? false,
         showLocationBar: json['showLocationBar'] as bool? ?? true,
         showSearchLocation: json['showSearchLocation'] as bool? ?? true,
         showPageControls: json['showPageControls'] as bool? ?? true,
