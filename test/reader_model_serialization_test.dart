@@ -40,17 +40,17 @@ void main() {
   test('pagination uses the correct physical axis for each writing mode', () {
     final horizontal = EpubPaginationEngine.build(vertical: false, rtl: false, paginated: true, background: 'ffffff', foreground: 'inherit', font: 'sans-serif', fontSize: 16, lineHeight: 1.5, verticalPadding: 12, horizontalPadding: 16, paragraphSpacing: 8, initialProgress: 0);
     expect(horizontal, contains("const pageSize = Math.max(1, vertical ? (this.pageHeight || window.innerHeight) : (this.pageWidth || window.innerWidth));"));
-    expect(horizontal, contains("_physicalScroll: function() { return vertical ? body.scrollTop : body.scrollLeft; }"));
-    expect(horizontal, contains("_maxPhysicalScroll: function() { return vertical ? Math.max(0, body.scrollHeight - body.clientHeight) : Math.max(0, body.scrollWidth - body.clientWidth); }"));
-    expect(horizontal, contains("if (vertical) body.scrollTop = logical; else body.scrollLeft = this._physicalFromLogical(logical, context.maxScroll);"));
-    expect(horizontal, contains("contentStart: function(rect) { return (vertical ? rect.top : rect.left) + this.position(); }"));
-    expect(horizontal, contains("contentEnd: function(rect) { return (vertical ? rect.bottom : rect.right) + this.position(); }"));
+    expect(horizontal, contains("_physicalScroll: function() { return body.scrollLeft; }"));
+    expect(horizontal, contains("_maxPhysicalScroll: function() { return Math.max(0, body.scrollWidth - body.clientWidth); }"));
+    expect(horizontal, contains("body.scrollLeft = this._physicalFromLogical(logical, context.maxScroll);"));
+    expect(horizontal, contains("contentStart: function(rect) { return rect.left + this.position(); }"));
+    expect(horizontal, contains("contentEnd: function(rect) { return rect.right + this.position(); }"));
     expect(horizontal, contains('const max = Math.max(0, physicalMax, geometryEnd);'));
     expect(horizontal, contains('maxScroll: max'));
 
     final vertical = EpubPaginationEngine.build(vertical: true, rtl: false, paginated: true, background: 'ffffff', foreground: 'inherit', font: 'sans-serif', fontSize: 16, lineHeight: 1.5, verticalPadding: 12, horizontalPadding: 16, paragraphSpacing: 8, initialProgress: 0);
     expect(vertical, contains("body.style.columnWidth = vertical ? '100vh' : '100vw'"));
-    expect(vertical, contains("_physicalScroll: function() { return vertical ? body.scrollTop : body.scrollLeft; }"));
+    expect(vertical, contains("_physicalScroll: function() { return body.scrollLeft; }"));
   });
 
   test('pagination has exactly one page-turn owner and compatibility layers cannot replace it', () {
