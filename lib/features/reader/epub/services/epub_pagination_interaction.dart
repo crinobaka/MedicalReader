@@ -9,7 +9,6 @@ class EpubPaginationInteraction {
   window.medicalReaderPaginationInteractionReady = true;
   let focusMode = false, lastPagingAt = 0, progressTimer = null, progressDirty = false;
   let tapX = 0, tapY = 0, tapMoved = false, pointerType = '';
-  let wheelAccumulator = 0, wheelTimer = null;
   const bridge = function(payload) { if (window.chrome && window.chrome.webview) window.chrome.webview.postMessage(payload); else if (window.MedicalReader) window.MedicalReader.postMessage(JSON.stringify(payload)); };
   const isPaginated = function() { return !!reader && reader.pageSize && reader.maxScroll && getComputedStyle(body).columnWidth !== 'auto'; };
   const page = function(direction) { const now = Date.now(); if (now - lastPagingAt < 160) return; lastPagingAt = now; if (reader && reader.paginate) reader.paginate(direction); };
@@ -30,43 +29,26 @@ class EpubPaginationInteraction {
     if (!isPaginated()) return;
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     const dx = event.clientX - tapX, dy = event.clientY - tapY;
-    const distance = Math.hypot(dx, dy);
-    if (distance >= 48 && pointerType !== 'mouse') {
-      const style = getComputedStyle(body);
-      const vertical = style.writingMode.indexOf('vertical') === 0;
-      const primary = vertical ? -dx : dx;
-      const forward = style.direction === 'rtl' ? primary < 0 : primary > 0;
-      page(forward ? 'forward' : 'backward');
-      return;
-    }
-    if (tapMoved) return;
+    if (Math.hypot(dx, dy) >= 48 || tapMoved) return;
     const target = event.target && event.target.closest ? event.target.closest('a, input, button, textarea, select, video, audio, img, svg') : null;
     if (target) return;
-    const width = window.innerWidth, height = window.innerHeight, x = event.clientX;
-    const vertical = getComputedStyle(body).writingMode.indexOf('vertical') === 0;
-    let direction;
-    if (vertical) direction = x < width / 3 ? 'forward' : (x > width * 2 / 3 ? 'backward' : null);
-    else direction = x > width * 2 / 3 ? 'forward' : (x < width / 3 ? 'backward' : null);
-    if (!direction && event.clientY < height * 0.16) setFocusMode(!focusMode);
-    if (direction) page(direction);
+    if (event.clientY < window.innerHeight * 0.16) setFocusMode(!focusMode);
   }, {passive: true});
 
-  body.addEventListener('wheel', function(event) {
-    if (!isPaginated() || event.ctrlKey) return;
-    const style = getComputedStyle(body);
-    const vertical = style.writingMode.indexOf('vertical') === 0;
-    const primaryDelta = vertical ? (Math.abs(event.deltaX) >= Math.abs(event.deltaY) ? event.deltaX : 0) : (Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX);
-    if (!primaryDelta) return;
-    event.preventDefault();
-    wheelAccumulator += primaryDelta;
-    if (wheelTimer) clearTimeout(wheelTimer);
-    wheelTimer = setTimeout(function() { wheelAccumulator = 0; wheelTimer = null; }, 180);
-    const threshold = Math.max(35, Math.min(120, reader.pageSize() * 0.18));
-    if (Math.abs(wheelAccumulator) < threshold) return;
-    const forward = vertical ? (style.direction === 'rtl' ? wheelAccumulator > 0 : wheelAccumulator < 0) : wheelAccumulator > 0;
-    wheelAccumulator = 0;
-    page(forward ? 'forward' : 'backward');
-  }, {passive: false});
+  let snapTimer = null;
+  const snapAfterScroll = function() {
+    if (!isPaginated() || (reader.nativeSelectionActive && reader.nativeSelectionActive)) return;
+    if (snapTimer) clearTimeout(snapTimer);
+    snapTimer = setTimeout(function() {
+      snapTimer = null;
+      if (!isPaginated() || reader.nativeSelectionActive) return;
+      const size = Math.max(1, reader.pageSize());
+      const position = reader.position();
+      const snapped = Math.round(position / size) * size;
+      if (Math.abs(snapped - position) > 1) reader.setPagePosition(snapped);
+    }, 120);
+  };
+  body.addEventListener('scroll', snapAfterScroll, {passive: true});
 
   document.addEventListener('keydown', function(event) {
     if (!isPaginated()) return;
@@ -94,7 +76,7 @@ class EpubPaginationInteraction {
   const originalHandleScroll = reader.handlePagedScroll;
   reader.handlePagedScroll = function() { if (originalHandleScroll) originalHandleScroll.call(this); if (isPaginated()) scheduleProgress(); };
   body.addEventListener('scroll', function() { if (!isPaginated()) scheduleProgress(); }, {passive: true});
-  window.addEventListener('blur', function() { if (progressTimer) clearTimeout(progressTimer); progressTimer = null; progressDirty = false; wheelAccumulator = 0; if (wheelTimer) clearTimeout(wheelTimer); wheelTimer = null; });
+  window.addEventListener('blur', function() { if (progressTimer) clearTimeout(progressTimer); progressTimer = null; progressDirty = false; if (snapTimer) clearTimeout(snapTimer); snapTimer = null; });
 })();
 ''';
 }
