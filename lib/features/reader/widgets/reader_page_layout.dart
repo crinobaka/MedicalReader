@@ -374,6 +374,11 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
           )
         : null;
     final toolbar = ReaderToolbar(
+      leading: IconButton(
+        tooltip: '返回',
+        onPressed: () => Navigator.of(context).maybePop(),
+        icon: const Icon(Icons.arrow_back),
+      ),
       title: title,
       showBookTree: options.showBookTreeButton,
       showSearch: options.showSearchButton,
