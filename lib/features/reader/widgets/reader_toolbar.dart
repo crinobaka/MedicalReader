@@ -7,6 +7,7 @@ import 'reader_menu_sheet.dart';
 
 class ReaderToolbar extends ConsumerWidget implements PreferredSizeWidget {
   final Widget? title;
+  final Widget? leading;
   final bool showBookTree;
   final bool showSearch;
   final bool showPageJump;
@@ -27,6 +28,7 @@ class ReaderToolbar extends ConsumerWidget implements PreferredSizeWidget {
   const ReaderToolbar({
     super.key,
     this.title,
+    this.leading,
     required this.showBookTree,
     required this.showSearch,
     required this.showPageJump,
@@ -125,6 +127,7 @@ class ReaderToolbar extends ConsumerWidget implements PreferredSizeWidget {
       data: toolbarTheme,
       child: AppBar(
         toolbarHeight: theme.toolbarHeight,
+        leading: leading,
         title: title,
         backgroundColor: effectiveFloating ? theme.surface : null,
         foregroundColor: effectiveFloating ? theme.foreground : null,
