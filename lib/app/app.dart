@@ -4,31 +4,38 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../features/home/home_page.dart';
 import '../features/library/pages/library_page.dart';
 import '../features/library/providers/library_provider.dart';
-import '../features/search/search_page.dart';
 import '../features/knowledge/pages/knowledge_page.dart';
+import '../features/reader/providers/reader_view_options_provider.dart';
+import '../features/reader/services/reader_ui_theme.dart';
+import '../features/search/search_page.dart';
 import '../features/settings/pages/settings_page.dart';
 
-class MedicalReaderApp extends StatelessWidget {
+class MedicalReaderApp extends ConsumerWidget {
   const MedicalReaderApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final options = ref.watch(readerViewOptionsProvider);
+    final platformBrightness =
+        WidgetsBinding.instance.platformDispatcher.platformBrightness;
+    final readerTheme =
+        ReaderUiTheme.resolve(options.themePreset, platformBrightness);
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'MedicalReader',
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blueGrey),
-      ),
+      theme: readerTheme.themeData(brightness: Brightness.light),
+      darkTheme: ReaderUiTheme.resolve(
+        options.themePreset,
+        Brightness.dark,
+      ).themeData(brightness: Brightness.dark),
+      themeMode: ThemeMode.system,
       home: const MainShell(),
     );
   }
 }
 
 /// 自适应主导航：手机优先使用底部导航，大屏使用左侧 NavigationRail。
-///
-/// 切换回书库时主动失效 Library provider，使 Android 上从知识/搜索等页面
-/// 返回书库能够看到刚刚发生的文件变化，而无需用户手动点击刷新。
+/// 现有“知识”能力保留为一级入口，不因 Reader UI 重构删除。
 class MainShell extends ConsumerStatefulWidget {
   const MainShell({super.key});
 
@@ -40,19 +47,59 @@ class _MainShellState extends ConsumerState<MainShell> {
   int index = 0;
 
   static const destinations = <NavigationDestination>[
-    NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: '首页'),
-    NavigationDestination(icon: Icon(Icons.library_books_outlined), selectedIcon: Icon(Icons.library_books), label: '书库'),
-    NavigationDestination(icon: Icon(Icons.search_outlined), selectedIcon: Icon(Icons.search), label: '搜索'),
-    NavigationDestination(icon: Icon(Icons.school_outlined), selectedIcon: Icon(Icons.school), label: '知识'),
-    NavigationDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: '设置'),
+    NavigationDestination(
+      icon: Icon(Icons.home_outlined),
+      selectedIcon: Icon(Icons.home),
+      label: '首页',
+    ),
+    NavigationDestination(
+      icon: Icon(Icons.library_books_outlined),
+      selectedIcon: Icon(Icons.library_books),
+      label: '书库',
+    ),
+    NavigationDestination(
+      icon: Icon(Icons.search_outlined),
+      selectedIcon: Icon(Icons.search),
+      label: '搜索',
+    ),
+    NavigationDestination(
+      icon: Icon(Icons.school_outlined),
+      selectedIcon: Icon(Icons.school),
+      label: '知识',
+    ),
+    NavigationDestination(
+      icon: Icon(Icons.settings_outlined),
+      selectedIcon: Icon(Icons.settings),
+      label: '设置',
+    ),
   ];
 
   static const railDestinations = <NavigationRailDestination>[
-    NavigationRailDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: Text('首页')),
-    NavigationRailDestination(icon: Icon(Icons.library_books_outlined), selectedIcon: Icon(Icons.library_books), label: Text('书库')),
-    NavigationRailDestination(icon: Icon(Icons.search_outlined), selectedIcon: Icon(Icons.search), label: Text('搜索')),
-    NavigationRailDestination(icon: Icon(Icons.school_outlined), selectedIcon: Icon(Icons.school), label: Text('知识')),
-    NavigationRailDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: Text('设置')),
+    NavigationRailDestination(
+      icon: Icon(Icons.home_outlined),
+      selectedIcon: Icon(Icons.home),
+      label: Text('首页'),
+    ),
+    NavigationRailDestination(
+      icon: Icon(Icons.library_books_outlined),
+      selectedIcon: Icon(Icons.library_books),
+      label: Text('书库'),
+    ),
+    NavigationRailDestination(
+      icon: Icon(Icons.search_outlined),
+      selectedIcon: Icon(Icons.search),
+      label: Text('搜索'),
+    ),
+    NavigationRailDestination(
+      icon: Icon(Icons.school_outlined),
+      selectedIcon: Icon(Icons.school),
+      label: Text('知识'),
+    ),
+    NavigationRailDestination(
+      icon: Icon(Icons.settings_outlined),
+      selectedIcon: Icon(Icons.settings),
+      label: Text('设置'),
+    ),
   ];
 
   final pages = const <Widget>[
