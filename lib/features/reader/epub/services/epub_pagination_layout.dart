@@ -27,12 +27,13 @@ class EpubPaginationLayout {
     body.style.minHeight = 'var(--page-height, 100vh)';
     // Pagination columns are physical viewport-width pages. Vertical writing
     // changes text flow inside the page, not the page's physical width.
-    body.style.columnWidth = reader.isVertical && reader.isVertical() ? 'var(--page-height, 100vh)' : 'var(--page-width, 100vw)';
+    body.style.columnWidth = 'var(--page-width, 100vw)';
     body.style.columnGap = '0px';
     body.style.columnFill = 'auto';
     body.style.overflow = 'auto';
     body.style.overscrollBehavior = 'contain';
     body.style.touchAction = 'pan-x pan-y';
+    body.style.boxSizing = 'border-box';
   };
 
   apply();
