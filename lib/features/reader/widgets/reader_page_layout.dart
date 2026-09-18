@@ -411,7 +411,7 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
       onPointerSignal: _handlePointerSignal,
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
-        onTap: options.floatingControls ? _toggleControls : null,
+        onTap: _toggleControls,
         onLongPressStart: (details) { if (!_inkMode && !_tocVisible) setState(() => _magnifierPosition = details.localPosition); },
         onLongPressMoveUpdate: (details) { if (_magnifierPosition != null) setState(() => _magnifierPosition = details.localPosition); },
         onLongPressEnd: (_) { if (_magnifierPosition != null) setState(() => _magnifierPosition = null); },
@@ -439,8 +439,6 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
             fit: StackFit.expand,
             children: [
               canvas,
-              _edgeTocGesture(true),
-              _edgeTocGesture(false),
               if (_magnifierPosition != null) ReaderMagnifierOverlay(position: _magnifierPosition!),
               if (_controlsVisible) Positioned(top: 0, left: 0, right: 0, child: SafeArea(child: toolbar)),
               if (_controlsVisible && controls != null) Positioned(left: 0, right: 0, bottom: 0, child: SafeArea(child: controls)),
@@ -448,11 +446,11 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
                 Positioned(
                   right: 16,
                   bottom: controls == null ? 20 : 82,
-                  child: FloatingActionButton.small(
+                  child: FloatingActionButton(
                     heroTag: 'reader-ink',
                     tooltip: _inkMode ? '退出手写' : '手写',
                     onPressed: () => setState(() => _inkMode = !_inkMode),
-                    child: Icon(_inkMode ? Icons.edit_off : Icons.edit),
+                    child: Icon(_inkMode ? Icons.edit_off : Icons.edit, size: 24),
                   ),
                 ),
               if (_tocVisible)
