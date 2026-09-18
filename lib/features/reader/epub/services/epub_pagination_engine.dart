@@ -48,6 +48,9 @@ class EpubPaginationEngine {
     body.style.height = '100vh'; body.style.minHeight = '100vh'; body.style.width = '100vw'; body.style.minWidth = '100vw';
     body.style.columnWidth = vertical ? '100vh' : '100vw'; body.style.columnGap = columnGap + 'px'; body.style.columnFill = 'auto'; body.style.overflow = 'hidden';
     body.style.breakInside = 'auto';
+    body.style.overflow = 'auto';
+    body.style.overscrollBehavior = 'contain';
+    body.style.touchAction = 'pan-x pan-y';
     body.querySelectorAll('*').forEach(function(el) { el.style.columnCount = 'auto'; el.style.breakInside = el.style.breakInside || 'auto'; });
   } else {
     body.style.height = 'auto'; body.style.minHeight = '100vh'; body.style.width = 'auto'; body.style.columnWidth = 'auto'; body.style.columnGap = 'normal'; body.style.overflow = vertical ? 'hidden auto' : 'auto';
@@ -56,6 +59,7 @@ class EpubPaginationEngine {
     pageHeight: window.innerHeight, pageWidth: window.innerWidth, metrics: null, lastPageScroll: 0,
     nativeSelectionActive: false, nativeSelectionScrollPosition: null, negativeRtlScroll: false,
     isVertical: function() { return vertical; },
+    axis: function() { return vertical ? 'y' : 'x'; },
     _physicalScroll: function() { return vertical ? body.scrollTop : body.scrollLeft; },
     _maxPhysicalScroll: function() { return vertical ? Math.max(0, body.scrollHeight - body.clientHeight) : Math.max(0, body.scrollWidth - body.clientWidth); },
     _logicalFromPhysical: function(value, max) {
@@ -142,8 +146,9 @@ class EpubPaginationEngine {
       if (!paginated) { this.notifyProgress(); return; }
       if (rtl && !vertical) { body.scrollLeft = -1; this.negativeRtlScroll = body.scrollLeft < 0; body.scrollLeft = 0; }
       this.buildPaginationMetrics(); this.restoreProgress(initialProgress);
-      window.addEventListener('resize', () => { this.pageHeight = window.innerHeight; this.pageWidth = window.innerWidth; this.metrics = null; this.buildPaginationMetrics(); });
+      window.addEventListener('resize', () => { this.pageHeight = window.innerHeight; this.pageWidth = window.innerWidth; this.metrics = null; this.buildPaginationMetrics(); this.assignPagePosition(this.alignToPage(this.position())); });
       document.addEventListener('scroll', () => { this.lockRootViewport(); }, true);
+      body.addEventListener('scroll', () => { this.lockRootViewport(); }, {passive:true});
     }
   };
   window.MedicalReaderPagination = reader;
