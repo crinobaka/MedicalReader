@@ -33,6 +33,9 @@ class ReaderAppearanceSettings extends StatelessWidget {
             (value) => onChanged(options.copyWith(floatingControls: value)),
           ),
         ]),
+        _section(context, '夜班', '降低背景亮度并切换到低刺激阅读配色。', [
+          _switch(context, Icons.nightlight_round, '夜班模式', '实时切换应用与阅读器的夜间视觉。', options.nightMode, (value) => onChanged(options.copyWith(nightMode: value))),
+        ]),
         _section(context, '页面', '控制正文区域如何铺开，以及工具栏放在哪里。', [
           _choice(
             context,
