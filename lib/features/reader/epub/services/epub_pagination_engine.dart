@@ -59,22 +59,23 @@ class EpubPaginationEngine {
     pageHeight: window.innerHeight, pageWidth: window.innerWidth, metrics: null, lastPageScroll: 0,
     nativeSelectionActive: false, nativeSelectionScrollPosition: null, negativeRtlScroll: false,
     isVertical: function() { return vertical; },
-    axis: function() { return vertical ? 'y' : 'x'; },
-    _physicalScroll: function() { return vertical ? body.scrollTop : body.scrollLeft; },
-    _maxPhysicalScroll: function() { return vertical ? Math.max(0, body.scrollHeight - body.clientHeight) : Math.max(0, body.scrollWidth - body.clientWidth); },
+    axis: function() { return 'x'; },
+    _reverseFlow: function() { return vertical || rtl; },
+    _physicalScroll: function() { return body.scrollLeft; },
+    _maxPhysicalScroll: function() { return Math.max(0, body.scrollWidth - body.clientWidth); },
     _logicalFromPhysical: function(value, max) {
-      if (vertical || !rtl) return Math.max(0, value);
+      if (!this._reverseFlow()) return Math.max(0, value);
       if (this.negativeRtlScroll) return Math.max(0, -value);
       return Math.max(0, max - value);
     },
     _physicalFromLogical: function(value, max) {
       const logical = Math.min(Math.max(0, value), max);
-      if (vertical || !rtl) return logical;
+      if (!this._reverseFlow()) return logical;
       if (this.negativeRtlScroll) return -logical;
       return max - logical;
     },
     scrollContext: function() {
-      const pageSize = Math.max(1, vertical ? (this.pageHeight || window.innerHeight) : (this.pageWidth || window.innerWidth));
+      const pageSize = Math.max(1, this.pageWidth || window.innerWidth);
       const physicalMax = this._maxPhysicalScroll();
       return { vertical: vertical, scrollEl: body, pageSize: pageSize, maxScroll: physicalMax };
     },
@@ -88,12 +89,12 @@ class EpubPaginationEngine {
     assignPagePosition: function(value) {
       const context = this.scrollContext();
       const logical = Math.min(Math.max(0, value), context.maxScroll);
-      if (vertical) body.scrollTop = logical; else body.scrollLeft = this._physicalFromLogical(logical, context.maxScroll);
+      body.scrollLeft = this._physicalFromLogical(logical, context.maxScroll);
       this.lockRootViewport(); this.lastPageScroll = logical; return logical;
     },
     getRect: function(range) { return range.getClientRects()[0] || range.getBoundingClientRect(); },
-    contentStart: function(rect) { return (vertical ? rect.top : rect.left) + this.position(); },
-    contentEnd: function(rect) { return (vertical ? rect.bottom : rect.right) + this.position(); },
+    contentStart: function(rect) { return rect.left + this.position(); },
+    contentEnd: function(rect) { return rect.right + this.position(); },
     isFurigana: function(node) { const parent = node.nodeType === Node.TEXT_NODE ? node.parentElement : node; return !!(parent && parent.closest('rt, rp')); },
     countChars: function(text) {
       let count = 0, offset = 0;
@@ -144,7 +145,7 @@ class EpubPaginationEngine {
     scrollToProgress: function(progress) { this.setPagePosition(Math.min(this.maxScroll(), this.alignToPage(this.maxScroll() * Math.min(1, Math.max(0, progress))))); },
     start: function() {
       if (!paginated) { this.notifyProgress(); return; }
-      if (rtl && !vertical) { body.scrollLeft = -1; this.negativeRtlScroll = body.scrollLeft < 0; body.scrollLeft = 0; }
+      if (this._reverseFlow()) { body.scrollLeft = -1; this.negativeRtlScroll = body.scrollLeft < 0; body.scrollLeft = 0; }
       this.buildPaginationMetrics(); this.restoreProgress(initialProgress);
       window.addEventListener('resize', () => { this.pageHeight = window.innerHeight; this.pageWidth = window.innerWidth; this.metrics = null; this.buildPaginationMetrics(); this.assignPagePosition(this.alignToPage(this.position())); });
       document.addEventListener('scroll', () => { this.lockRootViewport(); }, true);
