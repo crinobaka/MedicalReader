@@ -23,6 +23,7 @@ enum ReaderReadingDirection {
 /// ReaderViewOptions through ReaderSettingsBridge during the migration.
 class ReaderSettings {
   final ReaderTheme theme;
+  final bool nightMode;
   final String fontFamily;
   final double fontSize;
   final double lineHeight;
@@ -48,6 +49,7 @@ class ReaderSettings {
 
   const ReaderSettings({
     this.theme = ReaderTheme.system,
+    this.nightMode = false,
     this.fontFamily = '',
     this.fontSize = 18,
     this.lineHeight = 1.5,
@@ -74,6 +76,7 @@ class ReaderSettings {
 
   ReaderSettings copyWith({
     ReaderTheme? theme,
+    bool? nightMode,
     String? fontFamily,
     double? fontSize,
     double? lineHeight,
@@ -99,6 +102,7 @@ class ReaderSettings {
   }) {
     return ReaderSettings(
       theme: theme ?? this.theme,
+      nightMode: nightMode ?? this.nightMode,
       fontFamily: fontFamily ?? this.fontFamily,
       fontSize: fontSize ?? this.fontSize,
       lineHeight: lineHeight ?? this.lineHeight,
@@ -126,6 +130,7 @@ class ReaderSettings {
 
   Map<String, dynamic> toJson() => {
         'theme': theme.name,
+        'nightMode': nightMode,
         'fontFamily': fontFamily,
         'fontSize': fontSize,
         'lineHeight': lineHeight,
@@ -167,6 +172,7 @@ class ReaderSettings {
 
     return ReaderSettings(
       theme: enumValue(ReaderTheme.values, json['theme'] as String?, ReaderTheme.system),
+      nightMode: flag('nightMode', false),
       fontFamily: json['fontFamily'] as String? ?? '',
       fontSize: number('fontSize', 18),
       lineHeight: number('lineHeight', 1.5),
