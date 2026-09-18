@@ -217,7 +217,7 @@ class _ThemeChoices extends StatelessWidget {
   const _ThemeChoices({required this.value, required this.onChanged});
 
   static const _presets = [
-    (id: 'google', name: 'Google', description: 'Material：清晰、亲和、强调层级', icon: Icons.auto_awesome_rounded),
+    (id: 'material', name: 'Material', description: '蓝色、层级、涟漪，适合快速操作', icon: Icons.layers_outlined),
     (id: 'apple', name: 'Apple', description: '轻量、留白、圆润、少干扰', icon: Icons.phone_iphone_rounded),
     (id: 'github', name: 'GitHub', description: '紧凑、直接、适合长时间桌面使用', icon: Icons.code_rounded),
   ];
