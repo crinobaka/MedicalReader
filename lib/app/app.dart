@@ -28,7 +28,7 @@ class MedicalReaderApp extends ConsumerWidget {
         options.themePreset,
         Brightness.dark,
       ).themeData(brightness: Brightness.dark),
-      themeMode: ThemeMode.system,
+      themeMode: options.nightMode ? ThemeMode.dark : ThemeMode.system,
       home: const MainShell(),
     );
   }
