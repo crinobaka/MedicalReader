@@ -63,11 +63,21 @@ void main() {
     expect(hoshi, contains('reader.setNativeSelectionActive = function(active)'));
   });
 
+  test('paginated layout exposes the real WebView scroll surface', () {
+    final engine = EpubPaginationEngine.build(vertical: true, rtl: false, paginated: true, background: 'ffffff', foreground: 'inherit', font: 'sans-serif', fontSize: 16, lineHeight: 1.5, verticalPadding: 12, horizontalPadding: 16, paragraphSpacing: 8, initialProgress: 0);
+    final layout = EpubPaginationLayout.build();
+    expect(engine, contains("body.style.overflow = 'auto'"));
+    expect(engine, contains("axis: function() { return vertical ? 'y' : 'x'; }"));
+    expect(layout, contains("reader.isVertical && reader.isVertical() ? 'var(--page-height, 100vh)' : 'var(--page-width, 100vw)'"));
+    expect(layout, contains("body.style.overflow = 'auto'"));
+  });
+
   test('interaction routes space through the current pagination page before chapter boundary', () {
     final script = EpubPaginationInteraction.build();
     expect(script, contains("key === 'PageDown' || key === 'ArrowDown' || key === ' '"));
     expect(script, contains("page('forward')"));
     expect(script, contains("if (!isPaginated()) return;"));
+    expect(script, contains("body.addEventListener('scroll', snapAfterScroll"));
   });
 
   test('Hoshi compatibility keeps selection and ruby behavior without owning pagination', () {
