@@ -162,7 +162,6 @@ class ReaderUiTheme {
     final scheme = ColorScheme.fromSeed(
       seedColor: primary,
       brightness: brightness,
-      surface: bg,
     ).copyWith(
       primary: primary,
       onPrimary: Colors.white,
