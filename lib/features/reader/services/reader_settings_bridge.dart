@@ -14,6 +14,7 @@ class ReaderSettingsBridge {
     ReaderSettings base = const ReaderSettings(),
   }) {
     return base.copyWith(
+      nightMode: options.nightMode,
       showLocationBar: options.showLocationBar,
       showSearchLocation: options.showSearchLocation,
       showPageControls: options.showPageControls,
@@ -32,6 +33,7 @@ class ReaderSettingsBridge {
 
   static ReaderViewOptions toViewOptions(ReaderSettings settings) {
     return ReaderViewOptions(
+      nightMode: settings.nightMode,
       showLocationBar: settings.showLocationBar,
       showSearchLocation: settings.showSearchLocation,
       showPageControls: settings.showPageControls,
