@@ -223,6 +223,7 @@ class _ThemeChoices extends StatelessWidget {
     (id: 'material', name: 'Material', description: '蓝色、层级、涟漪，适合快速操作', icon: Icons.layers_outlined),
     (id: 'apple', name: 'Apple', description: '轻量、留白、圆润、少干扰', icon: Icons.phone_iphone_rounded),
     (id: 'github', name: 'GitHub', description: '紧凑、直接、适合长时间桌面使用', icon: Icons.code_rounded),
+    (id: 'heike', name: '平家物语', description: '和纸、朱红、金线与衬线排版', icon: Icons.auto_stories_outlined),
   ];
 
   @override
