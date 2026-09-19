@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../features/home/home_page.dart';
 import '../features/library/pages/library_page.dart';
 import '../features/library/providers/library_provider.dart';
-import '../features/knowledge/pages/knowledge_page.dart';
 import '../features/reader/providers/reader_view_options_provider.dart';
 import '../features/reader/services/reader_ui_theme.dart';
 import '../features/search/search_page.dart';
