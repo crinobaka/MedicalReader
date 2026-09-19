@@ -165,7 +165,7 @@ class _NavigationButton extends StatelessWidget {
           padding: EdgeInsets.zero,
           constraints: const BoxConstraints(minWidth: 52, minHeight: 52),
           style: IconButton.styleFrom(
-            foregroundColor: theme.foreground,
+            foregroundColor: theme.text,
             backgroundColor: floating ? theme.surface.withValues(alpha: 0.90) : null,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(theme.buttonRadius),
