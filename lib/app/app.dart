@@ -91,11 +91,6 @@ class _MainShellState extends ConsumerState<MainShell> {
       label: Text('搜索'),
     ),
     NavigationRailDestination(
-      icon: Icon(Icons.school_outlined),
-      selectedIcon: Icon(Icons.school),
-      label: Text('知识'),
-    ),
-    NavigationRailDestination(
       icon: Icon(Icons.settings_outlined),
       selectedIcon: Icon(Icons.settings),
       label: Text('设置'),
@@ -106,7 +101,6 @@ class _MainShellState extends ConsumerState<MainShell> {
     HomePage(),
     LibraryPage(),
     SearchPage(),
-    KnowledgePage(),
     SettingsPage(),
   ];
 
