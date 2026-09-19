@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../library/pages/library_page.dart';
+import '../knowledge/pages/knowledge_page.dart';
 import '../library/providers/library_provider.dart';
 import '../library/models/library_document.dart';
 import '../reader/pages/reader_annotations_page.dart';
@@ -28,6 +29,7 @@ class HomePage extends ConsumerWidget {
             _action(context, Icons.analytics_outlined, '阅读统计', '时长、字符、速度', () => _push(context, const ReaderStatisticsPage())),
             _action(context, Icons.bookmark_outline, '批注库', '高亮、笔记、书签、手绘', () => _push(context, const ReaderAnnotationsPage())),
             _action(context, Icons.backup_outlined, '同步与备份', '阅读状态与批注', () => _showSync(context)),
+            _action(context, Icons.school_outlined, '知识', '医学知识与整理工具', () => _push(context, const KnowledgePage())),
           ]))),
           if (continueReading.isNotEmpty) ...[_sectionTitle('继续阅读', '从上次的位置继续', Icons.play_circle_outline), _bookSliver(context, continueReading)],
           if (recent.isNotEmpty) ...[_sectionTitle('最近阅读', '${recent.length} 本书', Icons.history), _bookSliver(context, recent.take(8).toList())],
