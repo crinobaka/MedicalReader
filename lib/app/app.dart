@@ -35,7 +35,7 @@ class MedicalReaderApp extends ConsumerWidget {
 }
 
 /// 自适应主导航：手机优先使用底部导航，大屏使用左侧 NavigationRail。
-/// 现有“知识”能力保留为一级入口，不因 Reader UI 重构删除。
+/// “知识”能力保留在首页工作台，一级导航保持四项主入口。
 class MainShell extends ConsumerStatefulWidget {
   const MainShell({super.key});
 
@@ -61,11 +61,6 @@ class _MainShellState extends ConsumerState<MainShell> {
       icon: Icon(Icons.search_outlined),
       selectedIcon: Icon(Icons.search),
       label: '搜索',
-    ),
-    NavigationDestination(
-      icon: Icon(Icons.school_outlined),
-      selectedIcon: Icon(Icons.school),
-      label: '知识',
     ),
     NavigationDestination(
       icon: Icon(Icons.settings_outlined),
