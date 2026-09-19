@@ -439,18 +439,36 @@ class _ReaderPageLayoutState extends ConsumerState<ReaderPageLayout> {
         ),
       ),
     );
+    final theme = ReaderUiTheme.resolve(options.themePreset, Theme.of(context).brightness);
+    final media = MediaQuery.of(context);
+    // Floating chrome is visually overlaid, but the reading surface must never
+    // sit underneath it. Reserve the actual safe-area + chrome footprint.
+    final topChrome = media.padding.top + theme.toolbarHeight + 8;
+    final bottomChrome = media.padding.bottom + (controls == null ? 12 : 64);
+
     final content = options.floatingControls
         ? Stack(
             fit: StackFit.expand,
             children: [
-              canvas,
-              if (_magnifierPosition != null) ReaderMagnifierOverlay(position: _magnifierPosition!),
-              if (_controlsVisible) Positioned(top: 0, left: 0, right: 0, child: SafeArea(child: toolbar)),
-              if (_controlsVisible && controls != null) Positioned(left: 0, right: 0, bottom: 0, child: SafeArea(child: controls)),
+              Positioned.fill(
+                top: _controlsVisible ? topChrome : 0,
+                bottom: _controlsVisible ? bottomChrome : 0,
+                child: canvas,
+              ),
+              if (_magnifierPosition != null)
+                Positioned.fill(
+                  top: _controlsVisible ? topChrome : 0,
+                  bottom: _controlsVisible ? bottomChrome : 0,
+                  child: ReaderMagnifierOverlay(position: _magnifierPosition!),
+                ),
+              if (_controlsVisible)
+                Positioned(top: 0, left: 0, right: 0, child: SafeArea(child: toolbar)),
+              if (_controlsVisible && controls != null)
+                Positioned(left: 0, right: 0, bottom: 0, child: SafeArea(top: false, child: controls)),
               if (_controlsVisible && (widget.onInkStroke != null || widget.onInkStrokeData != null))
                 Positioned(
                   right: 16,
-                  bottom: controls == null ? 20 : 82,
+                  bottom: controls == null ? media.padding.bottom + 16 : bottomChrome + 8,
                   child: FloatingActionButton(
                     heroTag: 'reader-ink',
                     tooltip: _inkMode ? '退出手写' : '手写',
