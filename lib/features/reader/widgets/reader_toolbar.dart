@@ -107,7 +107,7 @@ class ReaderToolbar extends ConsumerWidget implements PreferredSizeWidget {
     final toolbarTheme = Theme.of(context).copyWith(
       iconButtonTheme: IconButtonThemeData(
         style: IconButton.styleFrom(
-          foregroundColor: theme.foreground,
+          foregroundColor: theme.text,
           backgroundColor: theme.accent.withValues(alpha: theme.buttonOpacity),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(theme.buttonRadius),
@@ -130,7 +130,7 @@ class ReaderToolbar extends ConsumerWidget implements PreferredSizeWidget {
         leading: leading,
         title: title,
         backgroundColor: effectiveFloating ? theme.surface : null,
-        foregroundColor: effectiveFloating ? theme.foreground : null,
+        foregroundColor: effectiveFloating ? theme.text : null,
         elevation: effectiveFloating ? theme.elevation : null,
         scrolledUnderElevation: effectiveFloating ? theme.elevation : null,
         shape: effectiveFloating
@@ -189,7 +189,7 @@ class ReaderToolbar extends ConsumerWidget implements PreferredSizeWidget {
         IconButton(tooltip: '添加笔记', onPressed: disabled ? null : onNote, icon: const Icon(Icons.note_alt_outlined)),
         if (showCrop)
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: theme.controlPadding.horizontal / 2),
+            padding: EdgeInsets.symmetric(horizontal: 8.0),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
