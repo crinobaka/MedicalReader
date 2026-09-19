@@ -731,10 +731,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
               ),
             if (_blockController.enabled && _controller.image != null)
               Positioned(
-                top: 56,
+                top: MediaQuery.paddingOf(context).top + 56,
                 left: 0,
                 right: 0,
-                bottom: 48,
+                bottom: MediaQuery.paddingOf(context).bottom + 48,
                 child: PageBlockModeOverlay(
                   image: _controller.image!,
                   controller: _blockController,
