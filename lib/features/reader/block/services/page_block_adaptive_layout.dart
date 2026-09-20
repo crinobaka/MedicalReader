@@ -1,13 +1,14 @@
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import '../models/page_block.dart';
 
-/// Generates non-persistent default blocks from the rendered PDF page.
+/// Generates non-persistent default blocks for the current screen.
 ///
-/// The raster is the source of truth for automatic layout: stable vertical
-/// whitespace gutters are detected from multiple horizontal samples, then
-/// each detected reading column is partitioned independently for the current
-/// viewport. Manual blocks are handled by PageBlockManager and always win.
+/// Layout generation is reading-order aware. A screen ratio never gets to
+/// decide where a PDF column starts or ends: first we identify a stable
+/// vertical reading gutter, then each reading region is split independently
+/// to fit the current viewport as closely as possible.
 class PageBlockAdaptiveLayout {
   const PageBlockAdaptiveLayout();
 
@@ -18,45 +19,78 @@ class PageBlockAdaptiveLayout {
     required double viewportWidth,
     required double viewportHeight,
   }) async {
-    if (image.width <= 0 || image.height <= 0 || viewportWidth <= 0 || viewportHeight <= 0) {
+    if (image.width <= 0 ||
+        image.height <= 0 ||
+        viewportWidth <= 0 ||
+        viewportHeight <= 0) {
       return _singlePage(docId, pageIndex);
     }
 
-    final gutters = await _findVerticalReadingGutters(image);
+    final gutter = await _findVerticalReadingGutter(image);
     final pageAspect = image.width / image.height;
     final viewportAspect = viewportWidth / viewportHeight;
-    final boundaries = <double>[0, ...gutters, 1];
-    final blocks = <PageBlock>[];
-    var order = 1;
-    var blockIndex = 0;
 
-    for (var column = 0; column < boundaries.length - 1; column++) {
-      final left = boundaries[column];
-      final right = boundaries[column + 1];
-      final width = right - left;
-      if (width <= .04) continue;
-      final rows = rowCountForRegion(
-        regionWidth: width,
+    if (gutter == null) {
+      final rowCount = rowCountForRegion(
+        regionWidth: 1,
         pageAspect: pageAspect,
         viewportAspect: viewportAspect,
       );
-      final columnBlocks = _verticalBlocks(
+      return _verticalBlocks(
         docId: docId,
         pageIndex: pageIndex,
-        x: left,
-        width: width,
-        rowCount: rows,
-        orderStart: order,
-        blockIndexStart: blockIndex,
+        x: 0,
+        width: 1,
+        rowCount: rowCount,
+        orderStart: 1,
       );
-      blocks.addAll(columnBlocks);
-      order += columnBlocks.length;
-      blockIndex += columnBlocks.length;
     }
 
-    return blocks.isEmpty ? _singlePage(docId, pageIndex) : blocks;
+    // Each detected reading column gets its own independent vertical
+    // partition. This is the critical invariant that prevents a horizontal
+    // screen-driven cut from mixing the left and right columns.
+    final leftWidth = gutter;
+    final rightWidth = 1 - gutter;
+    final leftRows = rowCountForRegion(
+      regionWidth: leftWidth,
+      pageAspect: pageAspect,
+      viewportAspect: viewportAspect,
+    );
+    final rightRows = rowCountForRegion(
+      regionWidth: rightWidth,
+      pageAspect: pageAspect,
+      viewportAspect: viewportAspect,
+    );
+
+    final blocks = <PageBlock>[];
+    var order = 1;
+    final left = _verticalBlocks(
+      docId: docId,
+      pageIndex: pageIndex,
+      x: 0,
+      width: leftWidth,
+      rowCount: leftRows,
+      orderStart: order,
+    );
+    blocks.addAll(left);
+    order += left.length;
+
+    blocks.addAll(
+      _verticalBlocks(
+        docId: docId,
+        pageIndex: pageIndex,
+        x: gutter,
+        width: rightWidth,
+        rowCount: rightRows,
+        orderStart: order,
+      ),
+    );
+    return blocks;
   }
 
+  /// Returns the number of viewport-sized vertical pieces for one reading
+  /// region. The result is deliberately capped so an unusual page cannot
+  /// explode into dozens of tiny blocks.
   int rowCountForRegion({
     required double regionWidth,
     required double pageAspect,
@@ -75,7 +109,6 @@ class PageBlockAdaptiveLayout {
     required double width,
     required int rowCount,
     required int orderStart,
-    required int blockIndexStart,
   }) {
     final blocks = <PageBlock>[];
     for (var row = 0; row < rowCount; row++) {
@@ -85,7 +118,7 @@ class PageBlockAdaptiveLayout {
         PageBlock(
           docId: docId,
           pageIndex: pageIndex,
-          blockIndex: blockIndexStart + row,
+          blockIndex: blocks.length,
           rect: NormalizedRect(
             x: x,
             y: top,
@@ -111,27 +144,34 @@ class PageBlockAdaptiveLayout {
         ),
       ];
 
-  Future<List<double>> _findVerticalReadingGutters(ui.Image image) async {
+  Future<double?> _findVerticalReadingGutter(ui.Image image) async {
     final data = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
-    if (data == null) return const [];
-    final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+    if (data == null) return null;
+
+    final bytes = data.buffer.asUint8List(
+      data.offsetInBytes,
+      data.lengthInBytes,
+    );
     final width = image.width;
     final height = image.height;
     final stride = width * 4;
-    if (width < 64 || height < 64) return const [];
+    const samplesY = 24;
+    final startX = (width * .28).round();
+    final endX = (width * .72).round();
+    if (endX - startX < 16) return null;
 
-    const samplesY = 28;
-    final startX = (width * .08).round();
-    final endX = (width * .92).round();
-    final step = (width / 220).ceil();
+    final step = (width / 180).ceil();
     final positions = <int>[];
     final profiles = <List<double>>[];
 
+    // Keep per-row profiles instead of averaging the whole page. A figure,
+    // table, or heading can create a white valley at one height, but a real
+    // column gutter remains quiet across most independent text rows.
     for (var sy = 1; sy <= samplesY; sy++) {
       final y = ((height - 1) * sy / (samplesY + 1)).round();
       final row = <double>[];
       for (var x = startX; x <= endX; x += step) {
-        if (sy == 1) positions.add(x);
+        if (positions.length < row.length + 1) positions.add(x);
         final offset = y * stride + x * 4;
         final r = bytes[offset];
         final g = bytes[offset + 1];
@@ -142,62 +182,49 @@ class PageBlockAdaptiveLayout {
       }
       profiles.add(row);
     }
-    if (profiles.length < 16 || positions.length < 16) return const [];
+    if (profiles.length < 12 || positions.length < 8) return null;
 
-    final candidates = <int>[];
-    for (var i = 3; i < positions.length - 3; i++) {
-      final normalizedX = positions[i] / width;
-      if (normalizedX < .15 || normalizedX > .85) continue;
+    final center = profiles.first.length / 2;
+    var bestIndex = -1;
+    var bestScore = double.infinity;
+
+    for (var i = 2; i < positions.length - 2; i++) {
+      final distanceFromCenter = ((i - center).abs() / center);
+      if (distanceFromCenter > .35) continue;
 
       var validRows = 0;
+      var valleyTotal = 0.0;
       var sideTotal = 0.0;
-      var narrowRows = 0;
       for (final profile in profiles) {
-        final valley = (profile[i - 1] + profile[i] + profile[i + 1]) / 3;
-        final leftStart = (i * .35).round().clamp(1, i - 1).toInt();
-        final rightEnd = i + ((profile.length - i) * .65).round();
-        final left = profile.sublist(leftStart, i);
-        final right = profile.sublist(i + 1, rightEnd.clamp(i + 1, profile.length).toInt());
-        if (left.isEmpty || right.isEmpty) continue;
+        final valley =
+            (profile[i - 1] + profile[i] + profile[i + 1]) / 3;
+        final left = profile.sublist(0, i);
+        final right = profile.sublist(i + 1);
         final leftInk = left.fold<double>(0, (a, b) => a + b) / left.length;
-        final rightInk = right.fold<double>(0, (a, b) => a + b) / right.length;
+        final rightInk =
+            right.fold<double>(0, (a, b) => a + b) / right.length;
         final sideInk = (leftInk + rightInk) / 2;
-        if (sideInk < .06) continue;
-        sideTotal += sideInk;
+        if (sideInk < .08) continue;
         if (valley < .20 && valley < sideInk * .52) validRows++;
-        if (valley < .12 && valley < sideInk * .38) narrowRows++;
+        valleyTotal += valley;
+        sideTotal += sideInk;
       }
 
       final consistency = validRows / profiles.length;
-      final narrowConsistency = narrowRows / profiles.length;
-      if (consistency >= .62 && narrowConsistency >= .30 && sideTotal > 0) {
-        candidates.add(i);
+      if (consistency < .58 || sideTotal <= 0) continue;
+      final averageValley = valleyTotal / profiles.length;
+      final averageSideInk = sideTotal / profiles.length;
+      final score =
+          averageValley / averageSideInk +
+          distanceFromCenter * .25 -
+          consistency * .35;
+      if (score < bestScore) {
+        bestScore = score;
+        bestIndex = i;
       }
     }
 
-    if (candidates.isEmpty) return const [];
-
-    final groups = <List<int>>[];
-    for (final candidate in candidates) {
-      if (groups.isEmpty || candidate - groups.last.last > 3) {
-        groups.add([candidate]);
-      } else {
-        groups.last.add(candidate);
-      }
-    }
-
-    final gutters = <double>[];
-    for (final group in groups) {
-      final index = group[group.length ~/ 2];
-      final x = positions[index] / width;
-      if (x > .22 && x < .78) gutters.add(x.clamp(.22, .78).toDouble());
-    }
-
-    gutters.sort();
-    final distinct = <double>[];
-    for (final gutter in gutters) {
-      if (distinct.isEmpty || gutter - distinct.last >= .10) distinct.add(gutter);
-    }
-    return distinct.take(3).toList(growable: false);
+    if (bestIndex < 0) return null;
+    return (positions[bestIndex] / width).clamp(.32, .68).toDouble();
   }
 }
