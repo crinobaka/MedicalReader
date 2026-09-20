@@ -708,7 +708,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         final base = ReaderPageTurnRegistration(
           controller: _controller,
           pageLayoutBuilder: buildPageLayout,
-          toolBarHeight: 56.0,
+          toolBarHeight: 80.0,
           middleAreaAction: MiddleAreaAction.settings,
           enabled: _gestureEnabled && !_blockController.enabled,
         );
@@ -719,7 +719,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             base,
             if (!_blockController.enabled && !_blockController.loading)
               Positioned(
-                top: 64,
+                top: 88,
                 right: 16,
                 child: Material(
                   color: Theme.of(context).colorScheme.surface.withOpacity(.94),
@@ -734,10 +734,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
               ),
             if (_blockController.enabled && _controller.image != null)
               Positioned(
-                top: MediaQuery.paddingOf(context).top + 56,
+                top: 80,
                 left: 0,
                 right: 0,
-                bottom: MediaQuery.paddingOf(context).bottom + 48,
+                bottom: 72,
                 child: PageBlockModeOverlay(
                   image: _controller.image!,
                   controller: _blockController,
