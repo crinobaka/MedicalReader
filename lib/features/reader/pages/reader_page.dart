@@ -477,20 +477,23 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       showDragHandle: true,
-      builder: (c) => SafeArea(
-        child: SizedBox(
-          height: MediaQuery.sizeOf(c).height * .86,
-          child: Consumer(
-            builder: (c, ref, _) {
-              final o = ref.watch(readerViewOptionsProvider);
-              return ReaderSettingsPanel(
-                options: o,
-                onChanged: (v) => ref.read(readerViewOptionsProvider.notifier).update(v),
-                onReset: () => ref.read(readerViewOptionsProvider.notifier).reset(),
-              );
-            },
-          ),
+      builder: (c) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: .82,
+        minChildSize: .5,
+        maxChildSize: .96,
+        builder: (context, scrollController) => Consumer(
+          builder: (c, ref, _) {
+            final o = ref.watch(readerViewOptionsProvider);
+            return ReaderSettingsPanel(
+              options: o,
+              onChanged: (v) => ref.read(readerViewOptionsProvider.notifier).update(v),
+              onReset: () => ref.read(readerViewOptionsProvider.notifier).reset(),
+              scrollController: scrollController,
+            );
+          },
         ),
       ),
     );
