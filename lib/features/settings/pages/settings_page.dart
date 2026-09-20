@@ -51,26 +51,36 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         body: ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(4, 8, 4, 24),
-              child: Text('设置', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700)),
-            ),
-            SettingsSection(title: '阅读', children: [
-              SettingsNavigationTile(icon: Icons.palette_outlined, title: '外观', subtitle: '主题、布局、画布与阅读界面', onTap: _openAppearance),
-              SettingsNavigationTile(icon: Icons.menu_book_outlined, title: '阅读器', subtitle: '翻页、控件、目录与阅读行为', onTap: _openControls),
-            ]),
-            SettingsSection(title: '书库', children: [
-              SettingsNavigationTile(icon: Icons.folder_outlined, title: '文件与存储', subtitle: '文件库位置与应用数据', onTap: _openStorage),
-              SettingsNavigationTile(icon: Icons.style_outlined, title: '书籍模板', subtitle: '管理 BookTemplate 与默认配置', onTap: _openTemplates),
-            ]),
-            const SettingsSection(title: '关于', children: [
-              ListTile(
-                leading: Icon(Icons.info_outline),
-                title: Text('MedicalReader'),
-                subtitle: Text('PDF 阅读、知识整理与医学文献管理 · 版本 3.0.0'),
-                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 640),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(4, 8, 4, 24),
+                      child: Text('设置', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700)),
+                    ),
+                    SettingsSection(title: '阅读', children: [
+                      SettingsNavigationTile(icon: Icons.palette_outlined, title: '外观', subtitle: '主题、布局、画布与阅读界面', onTap: _openAppearance),
+                      SettingsNavigationTile(icon: Icons.menu_book_outlined, title: '阅读器', subtitle: '翻页、控件、目录与阅读行为', onTap: _openControls),
+                    ]),
+                    SettingsSection(title: '书库', children: [
+                      SettingsNavigationTile(icon: Icons.folder_outlined, title: '文件与存储', subtitle: '文件库位置与应用数据', onTap: _openStorage),
+                      SettingsNavigationTile(icon: Icons.style_outlined, title: '书籍模板', subtitle: '管理 BookTemplate 与默认配置', onTap: _openTemplates),
+                    ]),
+                    const SettingsSection(title: '关于', children: [
+                      ListTile(
+                        leading: Icon(Icons.info_outline),
+                        title: Text('MedicalReader'),
+                        subtitle: Text('PDF 阅读、知识整理与医学文献管理 · 版本 3.0.0'),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      ),
+                    ]),
+                  ],
+                ),
               ),
-            ]),
+            ),
           ],
         ),
       );
