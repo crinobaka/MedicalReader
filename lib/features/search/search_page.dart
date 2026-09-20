@@ -83,22 +83,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   leading: const Icon(Icons.search),
                   trailing: [
                     if (_queryController.text.isNotEmpty)
-                      IconButton(
-                        tooltip: '清除',
-                        icon: const Icon(Icons.clear),
-                        onPressed: _clearQuery,
-                      ),
-                    IconButton(
-                      tooltip: '搜索',
-                      icon: const Icon(Icons.arrow_forward),
-                      onPressed: () => unawaited(_search()),
-                    ),
+                      IconButton(tooltip: '清除', icon: const Icon(Icons.clear), onPressed: _clearQuery,),
+                    IconButton(tooltip: '搜索',icon: const Icon(Icons.arrow_forward),onPressed: () => unawaited(_search()),),
                   ],
                       onSubmitted: (value) => unawaited(_search(value)),
                     ),
                   ),
-                ),
-              ),
               Expanded(
                 child: CustomScrollView(
                   keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
