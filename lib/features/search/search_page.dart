@@ -94,7 +94,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                       onPressed: () => unawaited(_search()),
                     ),
                   ],
-                  onSubmitted: (value) => unawaited(_search(value)),
+                      onSubmitted: (value) => unawaited(_search(value)),
+                    ),
+                  ),
                 ),
               ),
               Expanded(
