@@ -22,15 +22,48 @@ class HomePage extends ConsumerWidget {
       appBar: AppBar(title: const Text('MedicalReader')),
       body: RefreshIndicator(
         onRefresh: () => ref.read(libraryProvider.notifier).reload(),
-        child: CustomScrollView(physics: const AlwaysScrollableScrollPhysics(), slivers: [
-          SliverPadding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), sliver: SliverToBoxAdapter(child: _hero(context, documents.length, scheme))),
-          SliverPadding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), sliver: SliverToBoxAdapter(child: Wrap(spacing: 10, runSpacing: 10, children: [
-            _action(context, Icons.library_books_outlined, '书库', '管理全部书籍', () => _push(context, const LibraryPage())),
-            _action(context, Icons.analytics_outlined, '阅读统计', '时长、字符、速度', () => _push(context, const ReaderStatisticsPage())),
-            _action(context, Icons.bookmark_outline, '批注库', '高亮、笔记、书签、手绘', () => _push(context, const ReaderAnnotationsPage())),
-            _action(context, Icons.backup_outlined, '同步与备份', '阅读状态与批注', () => _showSync(context)),
-            _action(context, Icons.school_outlined, '知识', '医学知识与整理工具', () => _push(context, const KnowledgePage())),
-          ]))),
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverToBoxAdapter(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 640),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                    child: _hero(context, documents.length, scheme),
+                  ),
+                ),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 640),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final columns = constraints.maxWidth >= 520 ? 3 : 2;
+                        final gap = constraints.maxWidth >= 520 ? 12.0 : 10.0;
+                        final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
+                        return Wrap(
+                          spacing: gap,
+                          runSpacing: gap,
+                          children: [
+                            _action(context, width, Icons.library_books_outlined, '书库', '管理全部书籍', () => _push(context, const LibraryPage())),
+                            _action(context, width, Icons.analytics_outlined, '阅读统计', '时长、字符、速度', () => _push(context, const ReaderStatisticsPage())),
+                            _action(context, width, Icons.bookmark_outline, '批注库', '高亮、笔记、书签、手绘', () => _push(context, const ReaderAnnotationsPage())),
+                            _action(context, width, Icons.backup_outlined, '同步与备份', '阅读状态与批注', () => _showSync(context)),
+                            _action(context, width, Icons.school_outlined, '知识', '医学知识与整理工具', () => _push(context, const KnowledgePage())),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ),
           if (continueReading.isNotEmpty) ...[_sectionTitle('继续阅读', '从上次的位置继续', Icons.play_circle_outline), _bookSliver(context, continueReading)],
           if (recent.isNotEmpty) ...[_sectionTitle('最近阅读', '${recent.length} 本书', Icons.history), _bookSliver(context, recent.take(8).toList())],
           if (documents.isEmpty) const SliverFillRemaining(hasScrollBody: false, child: Center(child: Text('还没有书籍。打开「书库」导入 PDF 或 EPUB 开始阅读。'))),
@@ -53,9 +86,38 @@ class HomePage extends ConsumerWidget {
         ])),
       );
 
-  Widget _action(BuildContext context, IconData icon, String title, String subtitle, VoidCallback onTap) => SizedBox(
-        width: MediaQuery.sizeOf(context).width >= 700 ? 250 : (MediaQuery.sizeOf(context).width - 42) / 2,
-        child: Card(child: InkWell(onTap: onTap, child: Padding(padding: const EdgeInsets.all(15), child: Row(children: [Icon(icon), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.w700)), const SizedBox(height: 3), Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis)]))])))));
+  Widget _action(BuildContext context, double width, IconData icon, String title, String subtitle, VoidCallback onTap) => SizedBox(
+        width: width,
+        child: Card(
+          margin: EdgeInsets.zero,
+          child: InkWell(
+            onTap: onTap,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 72),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Icon(icon, size: 24),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                          const SizedBox(height: 3),
+                          Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
 
   SliverToBoxAdapter _sectionTitle(String title, String subtitle, IconData icon) => SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.fromLTRB(18, 18, 18, 8), child: Row(children: [Icon(icon, size: 21), const SizedBox(width: 8), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18)), Text(subtitle, style: const TextStyle(fontSize: 12))]))])));
 
