@@ -48,7 +48,7 @@ class ReaderToolbar extends ConsumerWidget implements PreferredSizeWidget {
   });
 
   @override
-  Size get preferredSize => Size.fromHeight(floating == false ? 56 : 56);
+  Size get preferredSize => const Size.fromHeight(56);
 
   Future<void> _showReaderMenu(BuildContext context) async {
     await showModalBottomSheet<void>(
