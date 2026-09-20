@@ -195,9 +195,31 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with WidgetsBindingOb
               ),
             ),
             if (documents.isEmpty)
-              SliverFillRemaining(hasScrollBody: false, child: Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(_selectedCollectionId == null ? '还没有导入 PDF 或 EPUB' : '这个书架还没有书籍'))))
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 640),
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        _selectedCollectionId == null ? '还没有导入 PDF 或 EPUB' : '这个书架还没有书籍',
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+                ),
+              )
             else
-              _buildDocuments(documents),
+              SliverLayoutBuilder(
+                builder: (context, constraints) {
+                  final maxWidth = constraints.crossAxisExtent >= 900 ? 1120.0 : 760.0;
+                  return SliverPadding(
+                    padding: EdgeInsets.symmetric(horizontal: constraints.crossAxisExtent > maxWidth ? (constraints.crossAxisExtent - maxWidth) / 2 : 0),
+                    sliver: _buildDocuments(documents),
+                  );
+                },
+              ),
             const SliverToBoxAdapter(child: SizedBox(height: 96)),
           ],
         ),
