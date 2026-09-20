@@ -119,20 +119,68 @@ class HomePage extends ConsumerWidget {
         ),
       );
 
-  SliverToBoxAdapter _sectionTitle(String title, String subtitle, IconData icon) => SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.fromLTRB(18, 18, 18, 8), child: Row(children: [Icon(icon, size: 21), const SizedBox(width: 8), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18)), Text(subtitle, style: const TextStyle(fontSize: 12))]))])));
+  SliverToBoxAdapter _sectionTitle(String title, String subtitle, IconData icon) => SliverToBoxAdapter(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 640),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 8),
+              child: Row(
+                children: [
+                  Icon(icon, size: 21),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
+                        Text(subtitle, style: const TextStyle(fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
 
   SliverList _bookSliver(BuildContext context, List<LibraryDocument> books) => SliverList.builder(
         itemCount: books.length,
         itemBuilder: (context, index) {
           final book = books[index];
           final progress = _progress(book);
-          return Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4), child: Card(child: ListTile(
-            leading: CircleAvatar(child: Text('${index + 1}')),
-            title: Text(book.title, maxLines: 2, overflow: TextOverflow.ellipsis),
-            subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const SizedBox(height: 4), Text('${book.format.name.toUpperCase()} · ${book.pages ?? 0} 页'), if (progress > 0) ...[const SizedBox(height: 6), LinearProgressIndicator(value: progress), const SizedBox(height: 2), Text('${(progress * 100).round()}%')]]),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => _push(context, ReaderEntryPage(document: book, initialPage: _page(book))),
-          )));
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 640),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: Card(
+                  margin: EdgeInsets.zero,
+                  child: ListTile(
+                    minTileHeight: 72,
+                    leading: CircleAvatar(child: Text('${index + 1}')),
+                    title: Text(book.title, maxLines: 2, overflow: TextOverflow.ellipsis),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 4),
+                        Text('${book.format.name.toUpperCase()} · ${book.pages ?? 0} 页'),
+                        if (progress > 0) ...[
+                          const SizedBox(height: 6),
+                          LinearProgressIndicator(value: progress),
+                          const SizedBox(height: 2),
+                          Text('${(progress * 100).round()}%'),
+                        ],
+                      ],
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => _push(context, ReaderEntryPage(document: book, initialPage: _page(book))),
+                  ),
+                ),
+              ),
+            ),
+          );
         },
       );
 
