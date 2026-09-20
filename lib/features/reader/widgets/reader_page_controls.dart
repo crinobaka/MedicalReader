@@ -41,7 +41,7 @@ class ReaderPageControls extends ConsumerWidget {
     final effectiveFloating = floating ?? options.floatingControls;
     final enabled = !pageLoading;
     final width = MediaQuery.sizeOf(context).width;
-    final labelWidth = (width - 128).clamp(140.0, 320.0).toDouble();
+    final labelWidth = (width - 128).clamp(140.0, width >= 600 ? 420.0 : 320.0).toDouble();
     final theme = ReaderUiTheme.resolve(options.themePreset, Theme.of(context).brightness);
     final labelSurface = effectiveFloating
         ? theme.surface.withValues(alpha: theme.buttonOpacity < 0.08 ? 0.96 : 0.90)
