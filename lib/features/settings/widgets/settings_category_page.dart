@@ -20,6 +20,12 @@ class SettingsCategoryPage extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
         children: [
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 640),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
           if (subtitle != null) ...[
             Padding(
               padding: const EdgeInsets.fromLTRB(4, 0, 4, 16),
@@ -31,7 +37,11 @@ class SettingsCategoryPage extends StatelessWidget {
               ),
             ),
           ],
-          ...children,
+                  ...children,
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
