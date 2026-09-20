@@ -93,7 +93,7 @@ class _ReaderNotesPageState
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: TextField(
               decoration: const InputDecoration(
                 hintText: '搜索笔记标题或正文',
@@ -122,10 +122,9 @@ class _ReaderNotesPageState
                       final note = notes[index];
 
                       return ListTile(
-                        dense: true,
-                        visualDensity: const VisualDensity(vertical: -2, horizontal: 0),
+                        minTileHeight: 72,
                         contentPadding:
-                            const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         leading: const Icon(
                           Icons.note_alt_outlined,
                           size: 20,
