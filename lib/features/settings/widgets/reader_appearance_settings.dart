@@ -262,10 +262,10 @@ class _ThemeChoice extends StatelessWidget {
     final preview = ReaderUiTheme.resolve(preset.id, Theme.of(context).brightness);
     return Material(
       color: selected ? scheme.primaryContainer : scheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(preview.radius),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(preview.radius),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(
