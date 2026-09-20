@@ -28,7 +28,7 @@ class HomePage extends ConsumerWidget {
             SliverToBoxAdapter(
               child: Center(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 640),
+                  constraints: const BoxConstraints(maxWidth: 1120),
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                     child: _hero(context, documents.length, scheme),
@@ -39,13 +39,17 @@ class HomePage extends ConsumerWidget {
             SliverToBoxAdapter(
               child: Center(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 640),
+                  constraints: const BoxConstraints(maxWidth: 1120),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     child: LayoutBuilder(
                       builder: (context, constraints) {
-                        final columns = constraints.maxWidth >= 520 ? 3 : 2;
-                        final gap = constraints.maxWidth >= 520 ? 12.0 : 10.0;
+                        final columns = constraints.maxWidth >= 1000
+                            ? 4
+                            : constraints.maxWidth >= 680
+                                ? 3
+                                : 2;
+                        final gap = constraints.maxWidth >= 680 ? 16.0 : 10.0;
                         final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
                         return Wrap(
                           spacing: gap,
@@ -122,7 +126,7 @@ class HomePage extends ConsumerWidget {
   SliverToBoxAdapter _sectionTitle(String title, String subtitle, IconData icon) => SliverToBoxAdapter(
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 640),
+            constraints: const BoxConstraints(maxWidth: 1120),
             child: Padding(
               padding: const EdgeInsets.fromLTRB(18, 18, 18, 8),
               child: Row(
@@ -152,7 +156,7 @@ class HomePage extends ConsumerWidget {
           final progress = _progress(book);
           return Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 640),
+              constraints: const BoxConstraints(maxWidth: 1120),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 child: Card(
