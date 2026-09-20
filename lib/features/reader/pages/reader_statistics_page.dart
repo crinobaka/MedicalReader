@@ -24,9 +24,18 @@ class ReaderStatisticsPage extends ConsumerWidget {
               : ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
-                    _SummaryCard(books: books),
-                    const SizedBox(height: 16),
-                    for (final book in books) _BookStatistics(book: book),
+                    Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 760),
+                        child: Column(
+                          children: [
+                            _SummaryCard(books: books),
+                            const SizedBox(height: 16),
+                            for (final book in books) _BookStatistics(book: book),
+                          ],
+                        ),
+                      ),
+                    ),
                   ],
                 ),
         );
@@ -55,8 +64,11 @@ class _SummaryCard extends ConsumerWidget {
         return Card(
           child: Padding(
             padding: const EdgeInsets.all(20),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
+            child: Wrap(
+              alignment: WrapAlignment.spaceAround,
+              runAlignment: WrapAlignment.center,
+              spacing: 32,
+              runSpacing: 16,
               children: [
                 _Metric(label: '书籍', value: '${books.length}'),
                 _Metric(label: '阅读时长', value: _duration(seconds)),
