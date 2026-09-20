@@ -118,7 +118,6 @@ class ReaderMenuSheet extends StatelessWidget {
             ),
           ],
         ),
-      ),
     );
   }
 }
