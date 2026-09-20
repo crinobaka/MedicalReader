@@ -130,7 +130,10 @@ class _MainShellState extends ConsumerState<MainShell> {
               NavigationRail(
                 selectedIndex: index,
                 onDestinationSelected: _select,
-                labelType: NavigationRailLabelType.all,
+                extended: constraints.maxWidth >= 1100,
+                labelType: constraints.maxWidth >= 1100
+                    ? NavigationRailLabelType.none
+                    : NavigationRailLabelType.all,
                 groupAlignment: -0.75,
                 destinations: railDestinations,
               ),
