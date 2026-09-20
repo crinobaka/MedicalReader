@@ -131,6 +131,7 @@ class ReaderAppearanceSettings extends StatelessWidget {
 
   Widget _section(BuildContext context, String title, String subtitle, List<Widget> children) {
     final scheme = Theme.of(context).colorScheme;
+    final visual = ReaderUiTheme.resolve(options.themePreset, Theme.of(context).brightness);
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Card(
@@ -138,6 +139,10 @@ class ReaderAppearanceSettings extends StatelessWidget {
         elevation: 0,
         color: scheme.surfaceContainerLow,
         clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(visual.radius),
+          side: visual.id == 'github' ? BorderSide(color: visual.border) : BorderSide.none,
+        ),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
           child: Column(
@@ -266,8 +271,8 @@ class _ThemeChoice extends StatelessWidget {
           child: Row(
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
                   color: preview.surface,
                   borderRadius: BorderRadius.circular(preview.buttonRadius),
