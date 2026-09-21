@@ -25,7 +25,7 @@ class EpubPaginationEngine {
   if (!body) return;
   const vertical = $vertical, rtl = $rtl, paginated = $paginated;
   const initialProgress = ${initialProgress.clamp(0, 1)};
-  const initialFragment = $fragmentLiteral, columnGap = 0;
+  const initialFragment = $fragmentLiteral;
   const bridge = function(payload) {
     if (window.chrome && window.chrome.webview) window.chrome.webview.postMessage(payload);
     else if (window.MedicalReader) window.MedicalReader.postMessage(JSON.stringify(payload));
@@ -46,7 +46,7 @@ class EpubPaginationEngine {
   });
   if (paginated) {
     body.style.height = '100vh'; body.style.minHeight = '100vh'; body.style.width = '100vw'; body.style.minWidth = '100vw';
-    body.style.columnWidth = vertical ? '100vh' : '100vw'; body.style.columnGap = columnGap + 'px'; body.style.columnFill = 'auto'; body.style.overflow = 'hidden';
+    body.style.columnWidth = vertical ? '100vw' : 'calc(100vw - ${horizontalPadding.clamp(0, 48) * 2}px)'; body.style.columnGap = '${horizontalPadding.clamp(0, 48) * 2}px'; body.style.columnFill = 'auto'; body.style.overflow = 'hidden';
     body.style.breakInside = 'auto';
     body.style.overflow = 'auto';
     body.style.overscrollBehavior = 'contain';
@@ -93,8 +93,8 @@ class EpubPaginationEngine {
       this.lockRootViewport(); this.lastPageScroll = logical; return logical;
     },
     getRect: function(range) { return range.getClientRects()[0] || range.getBoundingClientRect(); },
-    contentStart: function(rect) { return rect.left + this.position(); },
-    contentEnd: function(rect) { return rect.right + this.position(); },
+    contentStart: function(rect) { return this._reverseFlow() ? (body.scrollWidth - rect.right) + this.position() : rect.left + this.position(); },
+    contentEnd: function(rect) { return this._reverseFlow() ? (body.scrollWidth - rect.left) + this.position() : rect.right + this.position(); },
     isFurigana: function(node) { const parent = node.nodeType === Node.TEXT_NODE ? node.parentElement : node; return !!(parent && parent.closest('rt, rp')); },
     countChars: function(text) {
       let count = 0, offset = 0;
