@@ -21,6 +21,7 @@ class SearchPageController extends ChangeNotifier {
   List<SearchPageResult> results = const [];
   bool loadingHistory = true;
   bool searching = false;
+  int _searchGeneration = 0;
 
   Future<void> initialize() async {
     final loaded = await _historyService.load();
@@ -36,6 +37,7 @@ class SearchPageController extends ChangeNotifier {
     final nextQuery = value.trim();
     if (nextQuery.isEmpty) return;
 
+    final generation = ++_searchGeneration;
     query = nextQuery;
     history = await _historyService.add(nextQuery);
     searching = true;
@@ -44,6 +46,7 @@ class SearchPageController extends ChangeNotifier {
 
     final matches = <SearchPageResult>[];
     for (final document in documents) {
+      if (generation != _searchGeneration) return;
       if (!document.isPdf) {
         if (_matchesMetadata(document, nextQuery)) {
           matches.add(SearchPageResult(document: document));
@@ -77,12 +80,14 @@ class SearchPageController extends ChangeNotifier {
       }
     }
 
+    if (generation != _searchGeneration) return;
     results = matches;
     searching = false;
     notifyListeners();
   }
 
   void clearQuery() {
+    _searchGeneration++;
     if (query.isEmpty && results.isEmpty) return;
     query = '';
     results = const [];
