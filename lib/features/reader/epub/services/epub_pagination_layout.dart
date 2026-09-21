@@ -12,8 +12,13 @@ class EpubPaginationLayout {
   const syncViewport = function() {
     const width = window.innerWidth;
     const height = window.innerHeight;
+    const paddingLeft = parseFloat(getComputedStyle(body).paddingLeft) || 0;
+    const paddingRight = parseFloat(getComputedStyle(body).paddingRight) || 0;
+    const gutter = paddingLeft + paddingRight;
     root.style.setProperty('--page-width', width + 'px');
     root.style.setProperty('--page-height', height + 'px');
+    root.style.setProperty('--page-column-width', Math.max(1, width - gutter) + 'px');
+    root.style.setProperty('--page-column-gap', gutter + 'px');
     reader.pageWidth = width;
     reader.pageHeight = height;
     reader.metrics = null;
@@ -27,8 +32,8 @@ class EpubPaginationLayout {
     body.style.minHeight = 'var(--page-height, 100vh)';
     // Pagination columns are physical viewport-width pages. Vertical writing
     // changes text flow inside the page, not the page's physical width.
-    body.style.columnWidth = 'var(--page-width, 100vw)';
-    body.style.columnGap = '0px';
+    body.style.columnWidth = 'var(--page-column-width, var(--page-width, 100vw))';
+    body.style.columnGap = 'var(--page-column-gap, 0px)';
     body.style.columnFill = 'auto';
     body.style.overflow = 'auto';
     body.style.overscrollBehavior = 'contain';
