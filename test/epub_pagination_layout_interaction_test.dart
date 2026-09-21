@@ -5,7 +5,7 @@ import 'package:medicalreader/features/reader/epub/services/epub_pagination_inte
 import 'package:medicalreader/features/reader/epub/services/epub_pagination_layout.dart';
 
 void main() {
-  test('vertical pagination uses Hoshi viewport dimensions and 100vh columns', () {
+  test('pagination uses viewport dimensions with horizontal page gutters', () {
     final script = EpubPaginationEngine.build(
       vertical: true,
       rtl: false,
@@ -20,7 +20,7 @@ void main() {
       paragraphSpacing: 8,
       initialProgress: 0,
     );
-    expect(script, contains("body.style.columnWidth = vertical ? '100vh' : '100vw'"));
+    expect(script, contains("body.style.columnWidth = vertical ? '100vw' : 'calc(100vw - 40px)'"));
     expect(script, contains("body.style.width = 'var(--page-width, 100vw)'"));
     expect(script, contains("body.style.height = 'var(--page-height, 100vh)'"));
   });
@@ -29,8 +29,10 @@ void main() {
     final script = EpubPaginationLayout.build();
     expect(script, contains("--page-height"));
     expect(script, contains("--page-width"));
-    expect(script, contains("body.style.columnWidth = 'var(--page-height, 100vh)'"));
-    expect(script, contains("body.style.columnWidth = 'var(--page-width, 100vw)'"));
+    expect(script, contains("--page-column-width"));
+    expect(script, contains("--page-column-gap"));
+    expect(script, contains("body.style.columnWidth = 'var(--page-column-width, var(--page-width, 100vw))'"));
+    expect(script, contains("body.style.columnGap = 'var(--page-column-gap, 0px)'"));
   });
 
   test('interaction layer provides focus mode and page controls', () {
