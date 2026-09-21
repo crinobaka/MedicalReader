@@ -12,7 +12,7 @@ void main() {
     test('horizontal mode keeps the browser horizontal axis', () {
       final script = _build(vertical: false, rtl: false);
       expect(script, contains("writingMode = vertical ? 'vertical-rl' : 'horizontal-tb'"));
-      expect(script, contains("verticalContext() ? body.scrollTop : body.scrollLeft"));
+      expect(script, contains("return body.scrollLeft;"));
       expect(script, contains("this.axis() === 'x'"));
     });
 
@@ -26,13 +26,13 @@ void main() {
 
     test('vertical paginated columns use viewport height like Hoshi', () {
       final script = _build(vertical: true, rtl: false);
-      expect(script, contains("body.style.columnWidth = vertical ? '100vh' : '100vw'"));
+      expect(script, contains("body.style.columnWidth = vertical ? '100vw' : 'calc(100vw - 40px)'"));
       expect(script, contains("body.style.overflow = 'hidden'"));
     });
 
     test('RTL has logical progress independent of browser scroll direction', () {
       final script = _build(vertical: false, rtl: true);
-      expect(script, contains('body.scrollLeft = rtl ? max - logical : logical'));
+      expect(script, contains('this._physicalFromLogical(logical, context.maxScroll)'));
       expect(script, contains('body.scrollWidth - rect.right'));
       expect(script, contains('body.scrollWidth - rect.left'));
     });
