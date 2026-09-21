@@ -22,7 +22,7 @@ class SearchResultTile extends StatelessWidget {
     final document = result.document;
     final contextText = result.firstContext;
     final subtitle = result.hitCount > 0
-        ? '第 \${result.firstPage! + 1} 页 · \${result.hitCount} 个匹配'
+        ? '第 ${result.firstPage! + 1} 页 · ${result.hitCount} 个匹配'
         : document.file.name;
 
     return ListTile(
