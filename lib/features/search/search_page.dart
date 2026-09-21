@@ -65,7 +65,6 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   @override
   Widget build(BuildContext context) {
-    final documents = ref.watch(libraryProvider);
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, _) {
