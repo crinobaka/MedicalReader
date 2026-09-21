@@ -8,7 +8,7 @@ import 'controllers/search_page_controller.dart';
 import 'widgets/search_history_list.dart';
 import 'widgets/search_result_tile.dart';
 
-/// Search entry point: coordinates query state and delegates presentation.
+/// Search entry point: keeps the query bar fixed while results scroll below it.
 class SearchPage extends ConsumerStatefulWidget {
   const SearchPage({super.key});
 
@@ -42,7 +42,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       text: query,
       selection: TextSelection.collapsed(offset: query.length),
     );
-    await _controller.search(query);
+    final documents = ref.read(libraryProvider);
+    await _controller.search(query, documents);
     if (!mounted) return;
     _searchFocusNode.unfocus();
   }
@@ -68,7 +69,6 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, _) {
-        final results = _controller.filterDocuments(documents);
         final hasQuery = _controller.query.isNotEmpty;
         return Scaffold(
           appBar: AppBar(title: const Text('搜索')),
@@ -83,40 +83,59 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   leading: const Icon(Icons.search),
                   trailing: [
                     if (_queryController.text.isNotEmpty)
-                      IconButton(tooltip: '清除', icon: const Icon(Icons.clear), onPressed: _clearQuery,),
-                    IconButton(tooltip: '搜索',icon: const Icon(Icons.arrow_forward),onPressed: () => unawaited(_search()),),
-                  ],
-                      onSubmitted: (value) => unawaited(_search(value)),
+                      IconButton(
+                        tooltip: '清除',
+                        icon: const Icon(Icons.clear),
+                        onPressed: _clearQuery,
+                      ),
+                    IconButton(
+                      tooltip: '搜索',
+                      icon: const Icon(Icons.arrow_forward),
+                      onPressed: () => unawaited(_search()),
                     ),
-                  ),
+                  ],
+                  onSubmitted: (value) => unawaited(_search(value)),
+                ),
+              ),
               Expanded(
                 child: CustomScrollView(
-                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
                   slivers: [
                     if (!hasQuery && _controller.history.isNotEmpty)
                       SliverToBoxAdapter(
                         child: SearchHistoryList(
                           history: _controller.history,
                           onSelected: (value) => unawaited(_search(value)),
-                          onClear: () => unawaited(_controller.clearHistory()),
+                          onClear: () =>
+                              unawaited(_controller.clearHistory()),
                         ),
+                      )
+                    else if (hasQuery && _controller.searching)
+                      const SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: Center(child: CircularProgressIndicator()),
                       )
                     else if (hasQuery) ...[
                       SliverToBoxAdapter(
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-                          child: Text('“${_controller.query}” · 找到 ${results.length} 项'),
+                          child: Text(
+                            '“\${_controller.query}” · 找到 \${_controller.results.length} 本书',
+                          ),
                         ),
                       ),
-                      if (results.isEmpty)
+                      if (_controller.results.isEmpty)
                         const SliverFillRemaining(
                           hasScrollBody: false,
                           child: Center(child: Text('没有找到匹配内容')),
                         )
                       else
                         SliverList.builder(
-                          itemCount: results.length,
-                          itemBuilder: (context, index) => SearchResultTile(document: results[index]),
+                          itemCount: _controller.results.length,
+                          itemBuilder: (context, index) => SearchResultTile(
+                            result: _controller.results[index],
+                          ),
                         ),
                     ] else if (!_controller.loadingHistory)
                       const SliverFillRemaining(
