@@ -121,7 +121,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
                           child: Text(
-                            '“\${_controller.query}” · 找到 \${_controller.results.length} 本书',
+                            '“${_controller.query}” · 找到 ${_controller.results.length} 本书',
                           ),
                         ),
                       ),
